@@ -1,5 +1,6 @@
 # Changelog
 
-## 1.0.0 — 2026-10-03
+## 0.1.0 — 2026-10-03
 
-- First release: Ember Forge theme, Lexicanum Adept persona, Example Lore Codex library.
+- First version: save-file connector (status, location with portal address,
+  inventories, ships, bases, fleet) and a log of every save write.
