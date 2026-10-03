@@ -1,0 +1,28 @@
+{
+  "$schema": "https://raw.githubusercontent.com/trontronicent/40k-assistant-plugins/main/schema/plugin-manifest.schema.json",
+  "manifest_version": 1,
+  "id": "example-stc",
+  "name": "Example STC",
+  "version": "1.0.0",
+  "description": "Reference plugin: the Ember Forge theme, the Lexicanum Adept persona and a small Codex library.",
+  "author": {
+    "name": "TronTronicEnt",
+    "url": "https://github.com/trontronicent"
+  },
+  "license": "MIT",
+  "app": {
+    "min_version": "3.0.0",
+    "plugin_api": 1
+  },
+  "contributes": {
+    "themes": [
+      {"id": "ember-forge", "path": "themes/ember-forge"}
+    ],
+    "personas": [
+      {"id": "lexicanum-adept", "path": "personas/lexicanum-adept.json"}
+    ],
+    "codex": [
+      {"library": "Example Lore", "path": "codex/Example Lore"}
+    ]
+  }
+}

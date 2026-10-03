@@ -1,0 +1,51 @@
+/*
+ * Theme: Ember Forge (plugin example-stc)
+ *
+ * Same contract as the app's built-in themes: redefine :root custom properties
+ * only. Layout and component geometry live in the app's index.css.
+ * Do not load anything from the internet (@import, url(//...)) - the registry
+ * check and the app both refuse it.
+ */
+
+:root {
+  /* Core Void */
+  --void: #0a0605;
+  --void-alt: #120a08;
+  --void-surface: #1a0f0b;
+
+  /* Glass Panels */
+  --glass: rgba(20, 11, 8, 0.86);
+  --glass-light: rgba(32, 18, 12, 0.72);
+
+  /* Molten orange takes the place of Imperial gold */
+  --gold: #e06a1b;
+  --gold-bright: #ff9442;
+  --gold-dim: rgba(224, 106, 27, 0.55);
+  --gold-glow: rgba(255, 148, 66, 0.35);
+  --gold-border: rgba(224, 106, 27, 0.4);
+
+  /* Warning red */
+  --mech-red: #c4271b;
+  --mech-red-dim: rgba(196, 39, 27, 0.5);
+  --mech-red-border: rgba(196, 39, 27, 0.4);
+
+  /* Data feeds: cooled steel blue instead of neon green */
+  --neon-green: #7fb2c9;
+  --neon-green-dim: rgba(127, 178, 201, 0.55);
+  --neon-green-border: rgba(127, 178, 201, 0.35);
+  --neon-green-glow: rgba(127, 178, 201, 0.3);
+
+  --emerald: #5fa39a;
+  --emerald-dim: rgba(95, 163, 154, 0.5);
+  --emerald-border: rgba(95, 163, 154, 0.35);
+  --emerald-glow: rgba(95, 163, 154, 0.3);
+
+  /* Text */
+  --text-primary: #efe3d8;
+  --text-secondary: #bfae9f;
+  --text-dim: #7d6c60;
+  --text-gold: #ff9442;
+  --text-emerald: #7fc4b9;
+  --text-green: #9cc8dc;
+  --border-green: rgba(127, 178, 201, 0.25);
+}
