@@ -1,0 +1,217 @@
+"""Item names (English and the game's language) and icons from the game's own files.
+
+Built once per game build and language from the installed game (read-only):
+the item tables in ``NMSARC.Precache.pak``, the language files in
+``NMSARC.MetadataEtc.pak`` and the icons in ``NMSARC.TexUI.pak``. The result is
+cached in the plugin's data folder (``gamedata/items.json``); icons are
+converted to 64x64 PNGs in ``assets/`` when an item first appears in a save.
+The game's assets stay on this computer: nothing is uploaded or redistributed.
+
+Blocking throughout; the plugin calls it through ``ctx.run_blocking``.
+"""
+
+from __future__ import annotations
+
+import io
+import json
+import re
+import shutil
+import time
+from pathlib import Path
+
+from . import mbin
+from .game_install import GameInstall, language_label
+from .hgpak import PakError, PakSet, ZstdUnavailable
+
+CACHE_FORMAT = 1
+ICON_PX = 64
+TABLE_DIR = "metadata/reality/tables/"
+# Tables that hold everything an inventory slot can contain; first one wins an id clash.
+ITEM_TABLES = ("nms_reality_gcproducttable", "nms_reality_gcsubstancetable", "nms_reality_gctechnologytable",
+               "nms_reality_gcproceduraltechnologytable", "nms_basepartproducts",
+               "nms_modularcustomisationproducts")
+PAK_HINTS = {TABLE_DIR: "NMSARC.Precache.pak", "language/": "NMSARC.MetadataEtc.pak",
+             "textures/ui/": "NMSARC.TexUI.pak"}
+ICON_NAME_RE = re.compile(r"[^a-z0-9._-]+")
+
+
+class GameDataError(RuntimeError):
+    """The game's files could not be read into an item database."""
+
+
+def item_key(item_id: str) -> str:
+    """'^UP_COLD1#64045' -> 'UP_COLD1' (the table id; the #seed is the procedural variant)."""
+    return str(item_id).lstrip("^").split("#", 1)[0]
+
+
+def icon_file_name(texture: str) -> str | None:
+    """'TEXTURES/UI/.../SUBSTANCE.FUEL.1.DDS' -> 'substance.fuel.1.png' (valid asset name), or None."""
+    base = texture.replace("\\", "/").rsplit("/", 1)[-1].lower()
+    if not base.endswith(".dds"):
+        return None
+    name = ICON_NAME_RE.sub("-", base[:-4]).strip("-.") + ".png"
+    return name if name[0].isalnum() and len(name) <= 120 else None
+
+
+def build_items(paks: PakSet, language: str) -> dict[str, dict]:
+    """{id: {"en": name, "local": name, "icon": texture}} for every item in the game's tables."""
+    records: dict[str, mbin.ItemRecord] = {}
+    for table in ITEM_TABLES:
+        try:
+            data = paks.read(f"{TABLE_DIR}{table}.mbin")
+        except KeyError:
+            continue  # a table renamed by a game update: the others still work
+        try:
+            parsed = mbin.parse_item_table(data)
+        except mbin.MbinError:
+            continue
+        for key, record in parsed.items():
+            records.setdefault(key, record)
+    if not records:
+        raise GameDataError("no item table could be read from the game files")
+
+    wanted = {k for r in records.values() for k in (r.name_key, r.lower_key, r.subtitle_key) if k}
+    languages = ["english"] if language == "english" else ["english", language]
+    strings: dict[str, dict[str, str]] = {}
+    for lang in languages:
+        merged: dict[str, str] = {}
+        files = paks.names_matching("language/", f"_{lang}.mbin")
+        if not files:
+            raise GameDataError(f"the game has no '{lang}' language files")
+        for name in files:
+            for key, text in mbin.parse_language_table(paks.read(name), wanted).items():
+                merged.setdefault(key, text)
+        strings[lang] = merged
+
+    items: dict[str, dict] = {}
+    for key, record in records.items():
+        icon = record.icon or (records[record.template].icon if record.template in records else "")
+        entry = {"en": mbin.display_name(record, strings["english"]), "icon": icon}
+        entry["local"] = mbin.display_name(record, strings[language]) if language != "english" else entry["en"]
+        items[key] = entry
+    return items
+
+
+class GameData:
+    """The item database of one installation, plus the icons converted so far."""
+
+    def __init__(self, data_dir: Path, assets_dir: Path | None = None):
+        self.cache_file = Path(data_dir) / "gamedata" / "items.json"
+        # The host serves this folder at GET /plugins/<id>/assets/<name> (ctx.assets_dir, app 3.1.0+).
+        self.assets_dir = Path(assets_dir) if assets_dir else Path(data_dir) / "assets"
+        self.items: dict[str, dict] = {}
+        self.build_id: str | None = None
+        self.language = "english"
+        self.built_at: str | None = None
+        self.build_seconds: float | None = None
+        self.error: str | None = None
+        self.icon_error: str | None = None
+
+    @property
+    def ready(self) -> bool:
+        return bool(self.items)
+
+    @property
+    def language_label(self) -> str:
+        return language_label(self.language)
+
+    def matches(self, install: GameInstall) -> bool:
+        return self.ready and self.build_id == install.build_id and self.language == install.language
+
+    def lookup(self, item_id: str) -> dict | None:
+        return self.items.get(item_key(item_id))
+
+    # ------------------------------------------------------------------ build / cache
+
+    def load(self, install: GameInstall, force: bool = False) -> None:
+        """Use the cache when it fits this build and language, else build it from the game files."""
+        if not force and self._load_cache(install):
+            return
+        started = time.perf_counter()
+        try:
+            with PakSet(install.pcbanks, PAK_HINTS) as paks:
+                items = build_items(paks, install.language)
+        except ZstdUnavailable as exc:
+            self.error = f"{exc}. It is part of the 40k Assistant from version 3.1.0 (run its setup)."
+            return
+        except (OSError, PakError, GameDataError, mbin.MbinError) as exc:
+            self.error = f"{type(exc).__name__}: {exc}"
+            return
+        self.items, self.build_id, self.language = items, install.build_id, install.language
+        self.build_seconds = round(time.perf_counter() - started, 2)
+        self.built_at = time.strftime("%Y-%m-%dT%H:%M:%S")
+        self.error = None
+        # A rebuild means a new game build, another language, a missing cache or a forced rebuild:
+        # convert the icons again too (a game update can change them under the same name).
+        shutil.rmtree(self.assets_dir, ignore_errors=True)
+        self._write_cache()
+
+    def _load_cache(self, install: GameInstall) -> bool:
+        try:
+            cached = json.loads(self.cache_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return False
+        if (cached.get("format") != CACHE_FORMAT or cached.get("build_id") != install.build_id
+                or cached.get("language") != install.language or not isinstance(cached.get("items"), dict)):
+            return False
+        self.items = cached["items"]
+        self.build_id, self.language = install.build_id, install.language
+        self.built_at, self.build_seconds = cached.get("built_at"), cached.get("build_seconds")
+        self.error = None
+        return True
+
+    def _write_cache(self) -> None:
+        self.cache_file.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.cache_file.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"format": CACHE_FORMAT, "build_id": self.build_id, "language": self.language,
+                                   "built_at": self.built_at, "build_seconds": self.build_seconds,
+                                   "items": self.items}, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(self.cache_file)
+
+    # ------------------------------------------------------------------ icons
+
+    def icon_name(self, item_id: str) -> str | None:
+        """Asset name of an item's icon if it has been converted, else None."""
+        entry = self.lookup(item_id)
+        name = icon_file_name(entry["icon"]) if entry and entry.get("icon") else None
+        return name if name and (self.assets_dir / name).is_file() else None
+
+    def ensure_icons(self, install: GameInstall, item_ids: list[str]) -> int:
+        """Convert the icons of these items that are not converted yet; returns how many were added."""
+        todo: dict[str, str] = {}
+        for item_id in item_ids:
+            entry = self.lookup(item_id)
+            if not entry or not entry.get("icon"):
+                continue
+            name = icon_file_name(entry["icon"])
+            if name and not (self.assets_dir / name).is_file():
+                todo[name] = entry["icon"]
+        if not todo:
+            return 0
+        try:
+            from PIL import Image
+        except ImportError:
+            self.icon_error = "icons need the Python package Pillow (part of the 40k Assistant)"
+            return 0
+        self.assets_dir.mkdir(parents=True, exist_ok=True)
+        added = 0
+        try:
+            with PakSet(install.pcbanks, PAK_HINTS) as paks:
+                for name, texture in todo.items():
+                    try:
+                        dds = paks.read(texture.lower())
+                        with Image.open(io.BytesIO(dds)) as img:
+                            icon = img.convert("RGBA")
+                            icon.thumbnail((ICON_PX, ICON_PX), Image.Resampling.LANCZOS)
+                            buf = io.BytesIO()
+                            icon.save(buf, "PNG", optimize=True)
+                    except (KeyError, OSError, ValueError, PakError) as exc:
+                        self.icon_error = f"{texture}: {type(exc).__name__}: {exc}"
+                        continue
+                    tmp = self.assets_dir / f".{name}.tmp"
+                    tmp.write_bytes(buf.getvalue())
+                    tmp.replace(self.assets_dir / name)
+                    added += 1
+        except (OSError, PakError, ZstdUnavailable) as exc:
+            self.icon_error = f"{type(exc).__name__}: {exc}"
+        return added

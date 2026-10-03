@@ -1,8 +1,9 @@
 """The No Man's Sky connector: watches the save folder and presents the data.
 
-Runs inside the 40k Assistant backend (plugin API 2). Reads save files only;
-never writes anything into the game's folders. Network use: downloading the
-key mapping (mapping.json) from MBINCompiler's GitHub releases.
+Runs inside the 40k Assistant backend (plugin API 2). Reads save files and the
+game's own data files (item names and icons); never writes anything into the
+game's folders. Network use: downloading the key mapping (mapping.json) from
+MBINCompiler's GitHub releases.
 """
 
 from __future__ import annotations
@@ -15,6 +16,8 @@ from datetime import datetime
 from pathlib import Path
 
 from . import saves
+from .game_install import GameInstall, find_game
+from .gamedata import GameData
 from .summary import summarize
 from .watcher import SaveWatcher
 
@@ -22,6 +25,8 @@ POLL_S = 5
 MAPPING_RELEASE_API = "https://api.github.com/repos/monkeyman192/MBINCompiler/releases/latest"
 MAPPING_RECHECK_S = 24 * 3600
 HTTP_TIMEOUT_S = 20
+GAME_CHECK_S = 60          # how often to look for the game / a new game build
+GAME_RETRY_S = 300         # after a failed item-database build
 USER_AGENT = "40k-assistant-nomanssky (https://github.com/trontronicent/40k-assistant-nomanssky)"
 
 
@@ -65,6 +70,13 @@ def download_mapping(dest: Path) -> str:
     return meta["tag"]
 
 
+def _snapshot_item_ids(snap: dict) -> list[str]:
+    rows = snap["exosuit"] + snap["exosuit_cargo"] + snap["freighter"]["inventory"]
+    for ship in snap["ships"]:
+        rows = rows + ship["inventory"]
+    return list(dict.fromkeys(row[0] for row in rows))
+
+
 class NmsConnector:
     def __init__(self, ctx):
         self.ctx = ctx
@@ -83,6 +95,10 @@ class NmsConnector:
         self.decode_seconds: float | None = None
         self.unknown_keys = 0
         self.error: str | None = None
+        self.gamedata = GameData(self.data_dir, getattr(ctx, "assets_dir", None))
+        self.install: GameInstall | None = None
+        self._game_checked = 0.0
+        self._game_failed = 0.0
         self._force = asyncio.Event()
 
     # ------------------------------------------------------------------ lifecycle
@@ -145,8 +161,33 @@ class NmsConnector:
                 pass
             self._force.clear()
 
+    async def _ensure_gamedata(self, force: bool = False) -> None:
+        """Find the game and (re)build the item database when the build or language changed."""
+        now = time.time()
+        if not force and now - self._game_checked < GAME_CHECK_S:
+            return
+        self._game_checked = now
+        self.install = await self.ctx.run_blocking(find_game)
+        if self.install is None or (self.gamedata.matches(self.install) and not force):
+            return
+        if not force and self.gamedata.error and now - self._game_failed < GAME_RETRY_S:
+            return
+        await self.ctx.run_blocking(self.gamedata.load, self.install, force)
+        if self.gamedata.error:
+            self._game_failed = now
+            self.ctx.logger.warning("[NMS] Item names unavailable: %s", self.gamedata.error)
+        else:
+            self.ctx.logger.info("[NMS] Item database: %d items, %s (build %s, %s s)", len(self.gamedata.items),
+                                 self.gamedata.language_label, self.gamedata.build_id, self.gamedata.build_seconds)
+            await self._ensure_icons()
+
+    async def _ensure_icons(self) -> None:
+        if self.snapshot and self.install and self.gamedata.ready:
+            await self.ctx.run_blocking(self.gamedata.ensure_icons, self.install, _snapshot_item_ids(self.snapshot))
+
     async def _tick(self) -> None:
         await self._ensure_mapping()
+        await self._ensure_gamedata()
         dirs = await self.ctx.run_blocking(saves.find_save_dirs)
         self.save_dir = dirs[0] if dirs else None
         if self.save_dir is None:
@@ -173,6 +214,7 @@ class NmsConnector:
         self.unknown_keys = len(unknown)
         self.decode_seconds = round(time.perf_counter() - started, 2)
         self.decoded_at = datetime.now().isoformat(timespec="seconds")
+        await self._ensure_icons()
 
     # ------------------------------------------------------------------ UI
 
@@ -188,11 +230,36 @@ class NmsConnector:
             self.snapshot = None
             self._force.set()
             return {"ok": True, "message": f"Key mapping {self.mapping_meta.get('tag')} downloaded."}
+        if action_id == "rebuild_names":
+            await self._ensure_gamedata(force=True)
+            if self.install is None:
+                return {"ok": False, "message": "No Man's Sky installation not found (set NMS_GAME_DIR)."}
+            if self.gamedata.error:
+                return {"ok": False, "message": f"Reading the game files failed: {self.gamedata.error}"}
+            return {"ok": True, "message": f"{len(self.gamedata.items):,} item names read from the game "
+                                           f"({self.gamedata.language_label})."}
         if action_id == "clear_history":
             self.watcher.events.clear()
             await self.ctx.run_blocking(self._save_events)
             return {"ok": True, "message": "Save history cleared."}
         raise ValueError(f"unknown action {action_id}")
+
+    def _item_columns(self) -> list[str]:
+        if self.gamedata.ready and self.gamedata.language != "english":
+            return ["Name (English)", f"Name ({self.gamedata.language_label})", "Item id", "Amount", "Max"]
+        return ["Name", "Item id", "Amount", "Max"]
+
+    def _item_rows(self, rows: list[list]) -> list[list]:
+        """[id, amount, max] -> [{text, icon}, (local name,) id, amount, max] with the game's names and icon."""
+        bilingual = self.gamedata.ready and self.gamedata.language != "english"
+        out = []
+        for item_id, amount, maximum in rows:
+            entry = self.gamedata.lookup(item_id) or {}
+            icon = self.gamedata.icon_name(item_id)
+            name = {"text": entry.get("en"), "icon": icon} if icon else entry.get("en")
+            out.append([name, entry.get("local"), item_id, amount, maximum] if bilingual
+                       else [name, item_id, amount, maximum])
+        return out
 
     def view(self) -> dict:
         sections: list[dict] = []
@@ -210,6 +277,13 @@ class NmsConnector:
                              "update). Press 'Update key mapping'."})
         if self.error:
             sections.append({"type": "notice", "level": "error", "text": self.error})
+        if self.install is None and self._game_checked:
+            sections.append({"type": "notice", "level": "info", "text":
+                             "Item names and icons come from the game's own files, but the No Man's Sky installation "
+                             "was not found in any Steam library. Set NMS_GAME_DIR to the game folder to use another one."})
+        elif self.gamedata.error:
+            sections.append({"type": "notice", "level": "warn", "text":
+                             f"Item names and icons are unavailable: {self.gamedata.error}"})
 
         snap = self.snapshot
         if snap:
@@ -241,14 +315,15 @@ class NmsConnector:
                 {"label": "Current mission id", "value": mission or "none"},
                 {"label": "Difficulty", "value": snap["difficulty"]},
             ]})
-            sections.append({"type": "table", "title": "Exosuit inventory", "columns": ["Item id", "Amount", "Max"],
-                             "rows": snap["exosuit"] + snap["exosuit_cargo"], "empty": "Empty"})
+            columns = self._item_columns()
+            sections.append({"type": "table", "title": "Exosuit inventory", "columns": columns,
+                             "rows": self._item_rows(snap["exosuit"] + snap["exosuit_cargo"]), "empty": "Empty"})
             primary = next((s for s in snap["ships"] if s["primary"]), None)
             if primary:
                 sections.append({"type": "table", "title": f"Starship inventory: {primary['name']}",
-                                 "columns": ["Item id", "Amount", "Max"], "rows": primary["inventory"], "empty": "Empty"})
-            sections.append({"type": "table", "title": "Freighter inventory", "columns": ["Item id", "Amount", "Max"],
-                             "rows": snap["freighter"]["inventory"], "empty": "Empty"})
+                                 "columns": columns, "rows": self._item_rows(primary["inventory"]), "empty": "Empty"})
+            sections.append({"type": "table", "title": "Freighter inventory", "columns": columns,
+                             "rows": self._item_rows(snap["freighter"]["inventory"]), "empty": "Empty"})
             sections.append({"type": "table", "title": "Ships", "columns": ["Name", "Class", "Primary"],
                              "rows": [[s["name"], s["class"], "yes" if s["primary"] else ""] for s in snap["ships"]]})
             sections.append({"type": "table", "title": "Bases", "columns": ["Name", "Type", "Galaxy", "Portal address", "Parts"],
@@ -271,6 +346,15 @@ class NmsConnector:
             {"label": "Decode time", "value": f"{self.decode_seconds} s" if self.decode_seconds is not None else "–"},
             {"label": "Key mapping", "value": f"{self.mapping_meta.get('tag', '?')} ({len(self.mapping)} keys)" if self.mapping else "–"},
         ]
+        if self.install:
+            game = f"{self.install.root} (build {self.install.build_id})" if self.install.build_id else str(self.install.root)
+            source.append({"label": "Game folder", "value": game})
+        if self.gamedata.ready:
+            source.append({"label": "Item names", "value":
+                           f"{len(self.gamedata.items):,} items in English and {self.gamedata.language_label}, "
+                           f"read from the game files {self.gamedata.built_at or ''}".strip()})
+        if self.gamedata.icon_error:
+            source.append({"label": "Last icon problem", "value": self.gamedata.icon_error})
         if snap:
             source.append({"label": "Save format version", "value": snap["save_version"]})
         sections.append({"type": "kv", "title": "Source", "items": source})
@@ -282,6 +366,8 @@ class NmsConnector:
                 {"id": "rescan", "label": "Rescan", "description": "Read the newest save file again now."},
                 {"id": "update_mapping", "label": "Update key mapping",
                  "description": "Download the newest mapping.json from MBINCompiler (needed after game updates)."},
+                {"id": "rebuild_names", "label": "Re-read item names",
+                 "description": "Read item names and icons from the game files again (done automatically after a game update)."},
                 {"id": "clear_history", "label": "Clear save history", "description": "Forget the recorded save writes.",
                  "confirm": "Clear the recorded save history?"},
             ],
