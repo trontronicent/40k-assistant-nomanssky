@@ -257,7 +257,7 @@ def scan(reader, substances: set[str] | None, anchor: bytes | None, clock=None) 
     import time
     clock = clock or time.perf_counter
     started = clock()
-    planets: dict[int, dict] = {}
+    planets: dict[tuple[int, str], dict] = {}
     player_states: list[int] = []
     total = 0
     for base, size in reader.regions():
@@ -291,7 +291,8 @@ def scan(reader, substances: set[str] | None, anchor: bytes | None, clock=None) 
                         continue
                 planet = parse_planet(blob, reader.read, substances)
                 if planet:
-                    planets[planet["ua"]] = planet
+                    # By address and name: a reused slot can carry another planet's address (history.planet_id).
+                    planets[(planet["ua"], planet["name"])] = planet
     return ScanResult(sorted(planets.values(), key=lambda p: (p["system"], p["index"])), player_states, total,
                       round(clock() - started, 2))
 

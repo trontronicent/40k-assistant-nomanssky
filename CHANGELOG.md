@@ -18,6 +18,19 @@
   names, discoveries) appear as *not scanned yet*. The current system has its
   own map.
 - Tables use the full width and no longer break words in the middle.
+- **Planets of earlier systems are kept:** after a warp the game can reuse a
+  planet slot while the record still carries the previous planet's address,
+  so the new system's planets replaced the old system's in the history. The
+  history now merges each scan differentially - planets are identified by
+  address *and* name, never replaced by a different planet, and a planet whose
+  address belongs to another planet is filed under the system you are in;
+  a planet first filed by a stale address is moved once it is read in its own
+  system. The previous file is kept as `planet_history.json.bak` (read if the
+  main file is damaged); 0.3.0 histories are migrated.
+- When the game holds several copies of the player state, the plugin follows
+  the copy that changes when you travel.
+- *Saves & source* lists the last 50 memory scans: where you were, how many
+  planets were read (by system), what was new, and what was re-filed.
 - Needs the 40k Assistant 3.3.0 (tabs, clickable rows and maps in plugin views).
 
 ## 0.3.0 — 2026-10-03

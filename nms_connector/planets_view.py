@@ -365,3 +365,22 @@ def systems_tabs(ctx: Context, selected: int | None) -> dict:
          "sections": visited_systems_sections(ctx, selected)},
         {"id": "planets", "label": "Planets", "badge": len(planets["rows"]), "sections": [planets]},
     ]}
+
+
+def scan_log_section(ctx: Context, scans: list[dict]) -> dict:
+    """The last memory scans, newest first: where you were, what was read, what was new or re-filed."""
+    rows = []
+    for scan in reversed(scans):
+        here = scan.get("system")
+        found = []
+        for key_text, names in (scan.get("systems") or {}).items():
+            key = parse_system_key(key_text)
+            label = _system_label(key, ctx.visits.get(key)) if key is not None else key_text
+            found.append(f"{label}: {len(names)}")
+        rows.append([scan.get("at"), _system_label(here, ctx.visits.get(here)) if here is not None else "unknown",
+                     scan.get("planets"), scan.get("new"), scan.get("changed"), scan.get("moved") or None,
+                     ", ".join(found) or None])
+    return {"type": "table", "title": f"Memory scans (last {len(rows)})",
+            "columns": ["Time", "You were in", "Planets read", "New", "Changed", "Filed under your system",
+                        "Planets in memory by system"],
+            "rows": rows, "empty": "No scan of the game's memory yet."}

@@ -389,7 +389,7 @@ class NmsConnector:
              "rows": [[b["name"], b["type"], b["galaxy"], b["portal"], b["objects"]] for b in snap["bases"]]},
         ]
 
-    def _saves(self, snap: dict | None) -> list[dict]:
+    def _saves(self, snap: dict | None, ctx) -> list[dict]:
         sections: list[dict] = []
         stats = self.watcher.stats()
         sections.append({"type": "kv", "title": "How often the game saves (measured)", "items": [
@@ -420,12 +420,15 @@ class NmsConnector:
                                            if self.live.last_scan_iso else ""),
                 "not-running": "the game is not running", "idle": "waiting"}.get(self.live.status, self.live.error)
         source.append({"label": "Game memory (read-only)", "value": live})
-        source.append({"label": "Planets recorded", "value": len(self.history.planets)})
+        source.append({"label": "Planets recorded", "value":
+                       f"{len(self.history.planets)} in {len(self.history.systems())} system(s), "
+                       f"kept in {self.history.path} (previous version: .json.bak)"})
         if self.gamedata.icon_error:
             source.append({"label": "Last icon problem", "value": self.gamedata.icon_error})
         if snap:
             source.append({"label": "Save format version", "value": snap["save_version"]})
         sections.append({"type": "kv", "title": "Source", "items": source})
+        sections.append(planets_view.scan_log_section(ctx, self.history.scans))
         return sections
 
     def view(self) -> dict:
@@ -461,7 +464,7 @@ class NmsConnector:
              "sections": [planets_view.systems_tabs(ctx, self.selected_system)]},
             {"id": "inventory", "label": "Inventory", "sections": self._inventories(snap)},
             {"id": "fleet", "label": "Ships & bases", "sections": self._fleet(snap)},
-            {"id": "saves", "label": "Saves & source", "sections": self._saves(snap)},
+            {"id": "saves", "label": "Saves & source", "sections": self._saves(snap, ctx)},
         ]})
         return {
             "title": "No Man's Sky",

@@ -5,13 +5,14 @@ in the real GcPlanetData layout, so validation and scanning run exactly as on
 the game's memory.
 """
 
+import json
 import struct
 
 import pytest
 
 from nms_connector import live as live_mod
 from nms_connector import memory, planets_view
-from nms_connector.history import PlanetHistory, visits_from_save
+from nms_connector.history import PlanetHistory, planet_id, visits_from_save
 from nms_connector.live import LiveMemory
 
 pytest.importorskip("numpy")
@@ -180,9 +181,85 @@ def test_planet_history_keeps_first_seen_and_counts_changes(tmp_path):
     assert history.record([planet], "2026-10-03T11:00:00") == 0
     history.save()
     again = PlanetHistory(tmp_path / "planet_history.json")
-    stored = again.planets[planet["ua"]]
+    stored = again.planets[planet_id(planet)]
     assert stored["first_seen"] == "2026-10-03T10:00:00" and stored["last_seen"] == "2026-10-03T11:00:00"
     assert list(again.systems()) == [SYSTEM_98]
+
+
+def test_a_reused_slot_with_a_stale_address_never_replaces_the_previous_system(tmp_path):
+    """Bug 2026-10-03: after a warp the game reused the planet slots and the records kept the old system's
+    addresses, so every planet of the old system was overwritten by one of the new system. Planets are now
+    identified by address and name: the old system keeps its planets, and the new ones (another planet
+    already owns their address) are filed under the system you are in. The scan log says so."""
+    history = PlanetHistory(tmp_path / "planet_history.json")
+    a = [memory.parse_planet(bytes(planet_blob(n, i))) for i, n in enumerate(["A-one", "A-two"])]
+    history.record(a, "2026-10-03T10:00:00", SYSTEM_98)
+    b = [memory.parse_planet(bytes(planet_blob(n, i))) for i, n in enumerate(["B-one", "B-two"])]   # stale: system 98
+    assert history.record(b, "2026-10-03T11:00:00", SYSTEM_115) == 2
+    history.record(b + [a[0]], "2026-10-03T11:05:00", SYSTEM_115)   # again, plus a genuine leftover of A
+    history.save()
+    systems = {k: [p["name"] for p in v] for k, v in PlanetHistory(tmp_path / "planet_history.json").systems().items()}
+    assert systems == {SYSTEM_98: ["A-one", "A-two"], SYSTEM_115: ["B-one", "B-two"]}
+    assert len(history.planets) == 4
+    first, second, third = history.scans
+    assert (first["new"], second["new"], second["moved"], third["new"], third["changed"]) == (2, 2, 2, 0, 0)
+    assert second["systems"] == {f"{SYSTEM_115:x}": ["B-one", "B-two"]}
+
+
+def test_a_planet_first_filed_by_a_stale_address_is_moved_once_confirmed(tmp_path):
+    """Seen first (from another system) with nothing to contradict its stale address, a planet is filed
+    there unconfirmed; read again while you are in its real system, that copy replaces the wrong one."""
+    history = PlanetHistory(tmp_path / "h.json")
+    ghost = memory.parse_planet(bytes(planet_blob("B-one", 0)))                       # says system 98
+    history.record([ghost], "2026-10-03T10:00:00", SYSTEM_115)
+    assert [p["confirmed"] for p in history.planets.values()] == [False]
+    real = memory.parse_planet(bytes(planet_blob("B-one", 0, system=SYSTEM_115)))
+    history.record([real], "2026-10-03T10:01:00", SYSTEM_115)
+    assert {k: [p["name"] for p in v] for k, v in history.systems().items()} == {SYSTEM_115: ["B-one"]}
+    assert all(p["confirmed"] for p in history.planets.values())
+
+
+def test_scan_keeps_two_planets_that_share_an_address():
+    """A stale slot and the live record with the same address but different names are both kept."""
+    region = bytearray(0x20000)
+    for at, name in ((0x1000, "A-one"), (0x9000, "B-one")):
+        blob = planet_blob(name, 0)
+        region[at:at + len(blob)] = blob
+    result = memory.scan(FakeReader({0x100000: region}), SUBSTANCES, None)
+    assert sorted(p["name"] for p in result.planets) == ["A-one", "B-one"]
+
+
+def test_history_migrates_version_1_and_falls_back_to_the_backup(tmp_path):
+    """A 0.3.0 file (keyed by address) loads into the new ids; each save keeps the previous file as .bak,
+    which is read when the main file is damaged."""
+    planet = memory.parse_planet(bytes(planet_blob()))
+    old = {k: v for k, v in planet.items() if k != "ua"}
+    path = tmp_path / "planet_history.json"
+    path.write_text(json.dumps({"version": 1, "planets": {str(planet["ua"]): old}}), encoding="utf-8")
+    history = PlanetHistory(path)
+    assert list(history.planets) == [planet_id(planet)] and history.planets[planet_id(planet)]["ua"] == planet["ua"]
+    history.save()
+    history.record([memory.parse_planet(bytes(planet_blob("Other", 1)))], "2026-10-03T12:00:00", SYSTEM_98)
+    history.save()
+    path.write_text("{ broken", encoding="utf-8")
+    assert list(PlanetHistory(path).planets) == [planet_id(planet)]     # the backup: the state before the last save
+
+
+def test_live_memory_follows_the_player_state_copy_that_moves(tmp_path):
+    """With two player-state copies the scan's pick may be a frozen one; the copy whose address changes
+    when you travel is the live one and is followed from then on."""
+    frozen, anchor = player_state_region(current=(1, 98))
+    moving, _ = player_state_region(current=(1, 98))
+    reader = FakeReader({0x500000: frozen, 0x600000: moving})
+    scan = FakeScan([], [0x500000 + 0x40, 0x600000 + 0x40])
+    live = LiveMemory(PlanetHistory(tmp_path / "h.json"), opener=lambda p: reader, pid_finder=lambda: 4242, scanner=scan)
+    live.tick(anchor, None, 0)
+    assert live.player_state == 0x500000 + 0x40 and live.current_system == SYSTEM_98
+    at = 0x40 + memory.UA_AFTER_GAME_START
+    moving[at:at + 24] = memory.ua_bytes({"RealityIndex": 0, "GalacticAddress": {
+        "PlanetIndex": 0, "SolarSystemIndex": 115, "VoxelX": -384, "VoxelY": 2, "VoxelZ": -1755}})
+    live.tick(anchor, None, 10)
+    assert live.player_state == 0x600000 + 0x40 and live.current_system == SYSTEM_115 and scan.calls == 2
 
 
 # --------------------------------------------------------------------------- pacing

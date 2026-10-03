@@ -63,6 +63,12 @@ flying, events) would need a game mod and is a possible later addition.
 - Planet resources are not in the save (the game generates them from the
   seed), so systems you visited before installing 0.3.0 show names and
   discovery counts, but resources only once you return.
+- Recorded planets are kept in `planet_history.json` (previous version in
+  `.json.bak`) and only ever added to: each scan is merged differentially, a
+  planet is identified by its address and name, and a record whose address
+  already belongs to another planet (the game reuses planet slots after a
+  warp) is filed under the system you are in. *Saves & source* logs the last
+  50 scans.
 - The atmosphere gas is not stored on the planet either: the game picks it by
   biome (sulphurine: scorched, barren, volcanic; radon: irradiated, frozen;
   nitrogen: lush, toxic; oxygen: exotic). Dead worlds have none; water worlds
