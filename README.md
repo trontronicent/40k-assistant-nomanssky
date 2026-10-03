@@ -15,9 +15,15 @@ know. Install it from the app's **Plugins → Manage plugins** page.
 - **Ships, bases, frigates, expeditions, companions, current mission id**
 - **Current system (live):** while the game runs, the planets of the system you
   are in - name (and the uploaded name), type, weather, three resources, plant
-  resource, flora, fauna, sentinels - and which planet you are on
+  resource, the gas an atmosphere harvester collects, flora, fauna, sentinels -
+  and which planet you are on
 - **Visited systems and planets:** every system you visited (from the save,
-  with uploaded names) and every planet the plugin has seen, with its resources
+  with uploaded names) and every planet the plugin has seen, with its resources.
+  Click a system for its **map**: the star with the system's facts and its
+  planets by biome and size; click a planet for its details
+- Everything is grouped into tabs: *Overview*, *Systems* (*Current system*,
+  *Visited systems*, *Planets*), *Inventory* (*Exosuit*, *Starship*,
+  *Freighter*), *Ships & bases*, *Saves & source*
 - **How often the game saves:** every save write the connector sees, with the
   time since the previous one
 
@@ -57,6 +63,10 @@ flying, events) would need a game mod and is a possible later addition.
 - Planet resources are not in the save (the game generates them from the
   seed), so systems you visited before installing 0.3.0 show names and
   discovery counts, but resources only once you return.
+- The atmosphere gas is not stored on the planet either: the game picks it by
+  biome (sulphurine: scorched, barren, volcanic; radon: irradiated, frozen;
+  nitrogen: lush, toxic; oxygen: exotic). Dead worlds have none; water worlds
+  and gas giants are left blank rather than guessed.
 - Items whose name the game generates from a seed (salvaged and biological
   finds such as `PROC_LOOT#01474`) keep their id: the tables hold no fixed name
   for them.

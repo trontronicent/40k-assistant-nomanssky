@@ -242,7 +242,7 @@ def test_live_memory_reports_access_problems(tmp_path):
 
 class FakeGameData:
     names = {"YELLOW2": ("Copper", "Kupfer"), "TOXIC1": ("Ammonia", "Ammoniak"), "CATALYST1": ("Sodium", "Natrium"),
-             "PLANT_TOXIC": ("Fungal Mould", "Pilzschimmel")}
+             "PLANT_TOXIC": ("Fungal Mould", "Pilzschimmel"), "GAS3": ("Nitrogen", "Stickstoff")}
     texts = {"TOXIC3": ("Noxious %PLANETCLASS%", "Ungesunder %PLANETCLASS%"), "PLANETCLASS1": ("Planet", "Planet"),
              "WEATHER_TOXIC_CLEAR3": ("Poison Rain", "Giftregen"), "SENTINEL_DEFAULT5": ("Require Obedience", "Erwarten Gehorsam"),
              "RARITY_HIGH7": ("Bountiful", "Reichhaltig"), "RARITY_MID9": ("Fair", "Fair")}
@@ -259,42 +259,114 @@ class FakeGameData:
         return {"en": en, "local": local} if en else None
 
 
-def test_tables_show_the_current_system_and_every_visited_system(tmp_path):
-    """The current system's planets show the uploaded name with the generated one, translated type, weather,
-    sentinels for the save's combat timer, resources with icons; the visited-systems table lists the current
-    system first, then systems with resources, then save-only systems; recorded planets get their own table."""
+class LiveIn98:
+    status, error = "ok", None
+    current_system = SYSTEM_98
+    current = {"RealityIndex": 0, "GalacticAddress": {"PlanetIndex": 1, "SolarSystemIndex": 98,
+                                                      "VoxelX": -384, "VoxelY": 2, "VoxelZ": -1755}}
+
+
+def recorded_toxic_planet(tmp_path) -> PlanetHistory:
     history = PlanetHistory(tmp_path / "h.json")
     planet = memory.parse_planet(bytes(planet_blob(hints_ptr=0)))
     planet["extra"] = ["PLANT_TOXIC"]
     history.record([planet], "2026-10-03T23:00:00")
+    return history
 
-    class Live:
-        status, error = "ok", None
-        current_system = SYSTEM_98
-        current = {"RealityIndex": 0, "GalacticAddress": {"PlanetIndex": 1, "SolarSystemIndex": 98,
-                                                          "VoxelX": -384, "VoxelY": 2, "VoxelZ": -1755}}
 
-    out = planets_view.sections(Live(), history, visits_from_save(save_with_visits()), FakeGameData(), "Normal")
-    current = out[0]
-    assert current["title"] == "Current system: Delta Sol (live from the game)"
+def test_tables_show_the_current_system_and_every_visited_system(tmp_path):
+    """The current system's planets show the uploaded name with the generated one, translated type, weather,
+    gas, sentinels for the save's combat timer, resources with icons; the visited-systems table lists the
+    current system first, then systems with resources, then save-only systems, each row clickable;
+    recorded planets get their own sub-tab."""
+    history = recorded_toxic_planet(tmp_path)
+    ctx = planets_view.Context(LiveIn98(), history, visits_from_save(save_with_visits()), FakeGameData(), "Normal",
+                               bases=[{"name": "Home", "system": SYSTEM_98}])
+    tabs = planets_view.systems_tabs(ctx, None)
+    assert [t["id"] for t in tabs["tabs"]] == ["current", "visited", "planets"]
+    current_map, current = tabs["tabs"][0]["sections"]
+    assert current_map["type"] == "orbit" and current_map["id"] == "current-map"
+    assert current["title"] == "Planets of Delta Sol (live from the game)" and "Gas" in current["columns"]
     row = current["rows"][0]
     assert row[:3] == ["Corrodia (Yaksh Primus)", "Noxious Planet (Ungesunder Planet)", "Poison Rain (Giftregen)"]
     assert row[3] == {"text": "Copper (Kupfer)", "icon": "substance.yellow.2.png"} and row[5] == "Sodium (Natrium)"
-    assert row[6] == "Fungal Mould" and row[9] == "Require Obedience (Erwarten Gehorsam)"
-    where = {i["label"]: i["value"] for i in out[1]["items"]}
+    assert row[6] == "Fungal Mould" and row[7] == "Nitrogen (Stickstoff)"
+    assert row[10] == "Require Obedience (Erwarten Gehorsam)"
+    where = {i["label"]: i["value"] for i in planets_view.where_you_are(ctx)["items"]}
     assert where == {"System": "Delta Sol", "Portal address": "006202925E80", "Galaxy": "Euclid",
                      "Planet": "Corrodia (Yaksh Primus)"}
-    systems = out[2]
+    system_map, systems = tabs["tabs"][1]["sections"]
+    assert tabs["tabs"][1]["badge"] == 2
     assert systems["title"] == "Visited systems (2)" and systems["rows"][0][0] == "Delta Sol" and systems["rows"][0][7] == "yes"
     assert systems["rows"][1][0] == "System 007302925E80" and systems["rows"][1][3] is None
-    assert out[3]["title"] == "Visited planets with resources (1)" and out[3]["rows"][0][0] == "Delta Sol"
+    assert systems["row_action"] == "open_system" and systems["row_keys"] == [f"{SYSTEM_98:x}", f"{SYSTEM_115:x}"]
+    assert systems["selected_key"] == f"{SYSTEM_98:x}" and system_map["id"] == "system-map"
+    planets = tabs["tabs"][2]["sections"][0]
+    assert planets["title"] == "Visited planets with resources (1)" and planets["rows"][0][0] == "Delta Sol"
+    assert len(planets["columns"]) == 12 and planets["rows"][0][8] == "Nitrogen (Stickstoff)"
+
+
+def test_system_map_shows_the_star_and_every_known_planet(tmp_path):
+    """The map's star carries the system's facts (portal, galaxy, bases, who named it); each planet is a
+    body coloured by biome with its resources, gas and discoveries; planets known only from the save
+    appear as 'not scanned yet'; the planet you stand on is marked."""
+    history = recorded_toxic_planet(tmp_path)
+    visits = visits_from_save(save_with_visits())
+    visits[SYSTEM_98]["planets"][2] = {"name": "Far Rock", "minerals": 3}
+    ctx = planets_view.Context(LiveIn98(), history, visits, FakeGameData(), "Normal",
+                               bases=[{"name": "Home", "system": SYSTEM_98}, {"name": "Elsewhere", "system": SYSTEM_115}])
+    orbit = planets_view.system_map(SYSTEM_98, ctx, "system-map", "System map")
+    assert orbit["title"] == "System map: Delta Sol"
+    star = {i["label"]: i["value"] for i in orbit["center"]["items"]}
+    assert star["You are"] == "in this system now" and star["Portal address"] == "006202925E80"
+    assert star["Your bases here"] == "Home" and star["Named by"] == "Charlie Papa"
+    assert star["System index"] == "98 (0x062)" and star["Planets known"] == "2 (1 with resources)"
+    toxic, far = orbit["bodies"]
+    assert toxic["label"] == "Corrodia (Yaksh Primus)" and toxic["sublabel"] == "Toxic · Medium"
+    assert toxic["color"] == planets_view.BIOME_COLORS["Toxic"] and toxic["size"] == planets_view.SIZE_SCALE["Medium"]
+    items = {i["label"]: i["value"] for i in toxic["items"]}
+    assert items["You are"] == "on this planet now" and items["Gas (atmosphere harvester)"] == "Nitrogen (Stickstoff)"
+    assert items["Your discoveries"] == "1 flora, 2 fauna" and items["Resources"] == "Copper (Kupfer), Ammonia (Ammoniak), Sodium (Natrium)"
+    assert {"text": "Copper (Kupfer)", "icon": "substance.yellow.2.png"} in toxic["badges"]
+    assert "Nitrogen (Stickstoff)" in toxic["badges"]
+    assert far["label"] == "Far Rock" and far["sublabel"] == "not scanned yet" and "color" not in far
+    assert {"label": "Your discoveries", "value": "3 minerals"} in far["items"]
+
+
+@pytest.mark.parametrize("biome, gas", [("Lush", "GAS3"), ("Toxic", "GAS3"), ("Scorched", "GAS1"), ("Barren", "GAS1"),
+                                        ("Lava", "GAS1"), ("Radioactive", "GAS2"), ("Frozen", "GAS2"),
+                                        ("Exotic (red)", "OXYGEN"), ("Dead", None), ("Gas giant", None), (None, None)])
+def test_gas_follows_the_biome(biome, gas):
+    """Atmosphere harvesters collect sulphurine (GAS1), radon (GAS2), nitrogen (GAS3) or oxygen by biome;
+    the gas id also joins the resource ids, so its icon is extracted with the others."""
+    planet = {"biome": biome, "common": "YELLOW2"}
+    assert planets_view.planet_gas(planet) == gas
+    assert planets_view.resource_ids([planet]) == ["YELLOW2"] + ([gas] if gas else [])
+
+
+def test_special_systems_are_named_on_the_star(tmp_path):
+    """System index 0x79 is the black hole system, 0x7A an Atlas interface, 0x3E8-0x429 purple stars."""
+    class Live:
+        status, error, current_system, current = "not-running", None, None, None
+    ctx = planets_view.Context(Live(), PlanetHistory(tmp_path / "h.json"), {}, FakeGameData(), None)
+    for index, special, color in ((0x79, "the region's black hole system", planets_view.STAR_COLOR),
+                                  (0x7A, "an Atlas interface system", planets_view.STAR_COLOR),
+                                  (0x3E8, "purple star", planets_view.PURPLE_STAR)):
+        star = planets_view.system_map(index << 40, ctx, "m", "Map")["center"]
+        assert {"label": "Special", "value": special} in star["items"] and star["color"] == color
 
 
 def test_tables_explain_when_the_game_is_not_running(tmp_path):
     """Without the game the view says how live data appears, and still lists the save's visited systems."""
     class Live:
         status, error, current_system, current = "not-running", None, None, None
-    out = planets_view.sections(Live(), PlanetHistory(tmp_path / "h.json"), visits_from_save(save_with_visits()),
-                                FakeGameData(), None)
-    assert out[0]["type"] == "notice" and "Start No Man's Sky" in out[0]["text"]
-    assert out[1]["title"] == "Visited systems (2)" and "every system you visit" in out[2]["empty"]
+    ctx = planets_view.Context(Live(), PlanetHistory(tmp_path / "h.json"), visits_from_save(save_with_visits()),
+                               FakeGameData(), None)
+    current, visited, planets = planets_view.systems_tabs(ctx, None)["tabs"]
+    assert current["sections"][0]["type"] == "notice" and "Start No Man's Sky" in current["sections"][0]["text"]
+    assert planets_view.where_you_are(ctx) is None
+    # Without a current system the map shows the clicked system, else the newest one.
+    assert visited["sections"][0]["title"] == "System map: Delta Sol" and visited["sections"][1]["title"] == "Visited systems (2)"
+    clicked = planets_view.systems_tabs(ctx, SYSTEM_115)["tabs"][1]["sections"]
+    assert clicked[0]["title"] == "System map: System 007302925E80" and clicked[1]["selected_key"] == f"{SYSTEM_115:x}"
+    assert "every system you visit" in planets["sections"][0]["empty"]

@@ -19,6 +19,7 @@ from nms_connector.gamedata import GameData, icon_file_name, item_key
 from nms_connector.hgpak import CHUNK_SIZE, Pak, PakError, PakSet
 from nms_connector.mbin import ItemRecord, display_name, parse_item_table, parse_language_table
 from test_connector import FakeCtx, make_save, obfuscated_save, write_mapping
+from viewutil import section
 
 MARK = b"\x01\xaa\xaa\xaa"
 
@@ -343,14 +344,14 @@ def test_view_shows_english_and_game_language_names_with_icons(tmp_path, monkeyp
         return view, result
 
     view, result = asyncio.run(scenario())
-    table = next(s for s in view["sections"] if s.get("title") == "Exosuit inventory")
+    table = section(view, "Exosuit inventory")
     assert table["columns"] == ["Name (English)", "Name (Deutsch)", "Item id", "Amount", "Max"]
     rows = {r[2]: r for r in table["rows"]}
     assert rows["CATALYST1"][:2] == ["Sodium", "Natrium"]
     assert rows["FUEL1"][0] == {"text": "Carbon", "icon": "substance.fuel.1.png"} and rows["FUEL1"][1] == "Kohlenstoff"
     assert (data / "assets" / "substance.fuel.1.png").is_file()
     assert result["ok"] is True and "Deutsch" in result["message"]
-    source = next(s for s in view["sections"] if s.get("title") == "Source")
+    source = section(view, "Source")
     assert any(i["label"] == "Item names" and "Deutsch" in i["value"] for i in source["items"])
 
 

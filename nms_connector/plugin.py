@@ -109,6 +109,8 @@ class NmsConnector:
         self.anchor: bytes | None = None
         self.combat_timer: str | None = None
         self._live_checked = 0.0
+        self.selected_system: int | None = None   # clicked in the visited-systems table
+        self._planet_icons_ready = False          # names/icons of the recorded planets ensured since the last build
         self._force = asyncio.Event()
 
     # ------------------------------------------------------------------ lifecycle
@@ -184,6 +186,7 @@ class NmsConnector:
         if not force and self.gamedata.error and now - self._game_failed < GAME_RETRY_S:
             return
         await self.ctx.run_blocking(self.gamedata.load, self.install, force)
+        self._planet_icons_ready = False
         if self.gamedata.error:
             self._game_failed = now
             self.ctx.logger.warning("[NMS] Item names unavailable: %s", self.gamedata.error)
@@ -210,7 +213,10 @@ class NmsConnector:
         if force:
             self.live.last_scan_at = None
         changed = await self.ctx.run_blocking(self.live.tick, self.anchor, self._substances(), now)
-        if changed and self.install and self.gamedata.ready:
+        # Also once after a start or item-database rebuild (icons are cleared then), so planets recorded
+        # earlier get their texts and icons - including the gas icons added in 0.4.0.
+        if (changed or not self._planet_icons_ready) and self.install and self.gamedata.ready:
+            self._planet_icons_ready = True
             planets = list(self.history.planets.values())
             await self.ctx.run_blocking(self.gamedata.resolve_texts, self.install, planets_view.info_keys(planets))
             await self.ctx.run_blocking(self.gamedata.ensure_icons, self.install, planets_view.resource_ids(planets))
@@ -264,6 +270,12 @@ class NmsConnector:
     # ------------------------------------------------------------------ UI
 
     async def action(self, action_id: str, params: dict) -> dict:
+        if action_id == planets_view.OPEN_SYSTEM:
+            key = planets_view.parse_system_key((params or {}).get("key"))
+            if key is None:
+                return {"ok": False, "message": "Unknown system."}
+            self.selected_system = key
+            return {"ok": True, "focus": planets_view.SYSTEM_MAP_ID}
         if action_id == "rescan":
             self.snapshot = None
             self._force.set()
@@ -312,75 +324,73 @@ class NmsConnector:
                        else [name, item_id, amount, maximum])
         return out
 
-    def view(self) -> dict:
+    def _overview(self, snap: dict | None, ctx) -> list[dict]:
+        out: list[dict] = []
+        where = planets_view.where_you_are(ctx)
+        if not snap:
+            out.append({"type": "text", "text": "No save has been read yet: status, location and inventories appear "
+                                                "once the connector has read a save file."})
+            return out + ([where] if where else [])
+        loc = snap["location"]
+        out.append({"type": "stats", "title": "Status", "items": [
+            {"label": "Units", "value": _fmt_int(snap["units"])},
+            {"label": "Nanites", "value": _fmt_int(snap["nanites"])},
+            {"label": "Quicksilver", "value": _fmt_int(snap["quicksilver"])},
+            {"label": "Health", "value": snap["health"]},
+            {"label": "Shield", "value": snap["shield"]},
+            {"label": "Ship health", "value": snap["ship_health"]},
+            {"label": "Play time", "value": _fmt_duration(snap["play_time_s"])},
+        ]})
+        if where:
+            out.append(where)
+        out.append({"type": "kv", "title": "Location (at the last save)", "items": [
+            {"label": "Galaxy", "value": loc["galaxy"]},
+            {"label": "Portal address", "value": loc["portal"]},
+            {"label": "Region (voxel X, Y, Z)", "value": ", ".join(str(v) for v in loc["voxel"])},
+            {"label": "System index", "value": loc["system_index"]},
+            {"label": "Planet index", "value": loc["planet_index"]},
+            {"label": "Bases in this system", "value": ", ".join(b["name"] for b in snap["bases"] if b["here"]) or "none"},
+        ]})
+        out.append({"type": "kv", "title": "Fleet and companions", "items": [
+            {"label": "Ships", "value": len(snap["ships"])},
+            {"label": "Frigates", "value": snap["frigates"]},
+            {"label": "Frigate expeditions", "value": snap["expeditions"]},
+            {"label": "Companions (pets)", "value": snap["pets"]},
+            {"label": "Freighter", "value": snap["freighter"]["name"] or "(unnamed)"},
+            {"label": "Current mission id", "value": snap["current_mission"] or "none"},
+            {"label": "Difficulty", "value": snap["difficulty"]},
+        ]})
+        return out
+
+    def _inventories(self, snap: dict | None) -> list[dict]:
+        if not snap:
+            return [{"type": "text", "text": "Inventories appear once a save has been read."}]
+        columns = self._item_columns()
+        tabs = [{"id": "exosuit", "label": "Exosuit", "sections": [
+            {"type": "table", "title": "Exosuit inventory", "columns": columns,
+             "rows": self._item_rows(snap["exosuit"] + snap["exosuit_cargo"]), "empty": "Empty"}]}]
+        primary = next((s for s in snap["ships"] if s["primary"]), None)
+        if primary:
+            tabs.append({"id": "starship", "label": f"Starship: {primary['name']}", "sections": [
+                {"type": "table", "title": f"Starship inventory: {primary['name']}", "columns": columns,
+                 "rows": self._item_rows(primary["inventory"]), "empty": "Empty"}]})
+        tabs.append({"id": "freighter", "label": "Freighter", "sections": [
+            {"type": "table", "title": "Freighter inventory", "columns": columns,
+             "rows": self._item_rows(snap["freighter"]["inventory"]), "empty": "Empty"}]})
+        return [{"type": "tabs", "id": "inventory-tabs", "tabs": tabs}]
+
+    def _fleet(self, snap: dict | None) -> list[dict]:
+        if not snap:
+            return [{"type": "text", "text": "Ships and bases appear once a save has been read."}]
+        return [
+            {"type": "table", "title": "Ships", "columns": ["Name", "Class", "Primary"],
+             "rows": [[s["name"], s["class"], "yes" if s["primary"] else ""] for s in snap["ships"]]},
+            {"type": "table", "title": "Bases", "columns": ["Name", "Type", "Galaxy", "Portal address", "Parts"],
+             "rows": [[b["name"], b["type"], b["galaxy"], b["portal"], b["objects"]] for b in snap["bases"]]},
+        ]
+
+    def _saves(self, snap: dict | None) -> list[dict]:
         sections: list[dict] = []
-        if self.save_dir is None:
-            sections.append({"type": "notice", "level": "warn", "text":
-                             "No No Man's Sky saves found. Expected under %APPDATA%\\HelloGames\\NMS (Windows) "
-                             "or the Steam Proton folder (Linux); set NMS_SAVE_DIR to override."})
-        if self.mapping is None:
-            sections.append({"type": "notice", "level": "warn" if self.mapping_error else "info", "text":
-                             f"Key mapping not available yet ({self.mapping_error})." if self.mapping_error
-                             else "Downloading the key mapping (mapping.json) from MBINCompiler…"})
-        if self.unknown_keys:
-            sections.append({"type": "notice", "level": "warn", "text":
-                             f"{self.unknown_keys} save keys are unknown to the current mapping (probably a game "
-                             "update). Press 'Update key mapping'."})
-        if self.error:
-            sections.append({"type": "notice", "level": "error", "text": self.error})
-        if self.install is None and self._game_checked:
-            sections.append({"type": "notice", "level": "info", "text":
-                             "Item names and icons come from the game's own files, but the No Man's Sky installation "
-                             "was not found in any Steam library. Set NMS_GAME_DIR to the game folder to use another one."})
-        elif self.gamedata.error:
-            sections.append({"type": "notice", "level": "warn", "text":
-                             f"Item names and icons are unavailable: {self.gamedata.error}"})
-
-        snap = self.snapshot
-        if snap:
-            loc = snap["location"]
-            sections.append({"type": "stats", "title": "Status", "items": [
-                {"label": "Units", "value": _fmt_int(snap["units"])},
-                {"label": "Nanites", "value": _fmt_int(snap["nanites"])},
-                {"label": "Quicksilver", "value": _fmt_int(snap["quicksilver"])},
-                {"label": "Health", "value": snap["health"]},
-                {"label": "Shield", "value": snap["shield"]},
-                {"label": "Ship health", "value": snap["ship_health"]},
-                {"label": "Play time", "value": _fmt_duration(snap["play_time_s"])},
-            ]})
-            sections.append({"type": "kv", "title": "Location (at the last save)", "items": [
-                {"label": "Galaxy", "value": loc["galaxy"]},
-                {"label": "Portal address", "value": loc["portal"]},
-                {"label": "Region (voxel X, Y, Z)", "value": ", ".join(str(v) for v in loc["voxel"])},
-                {"label": "System index", "value": loc["system_index"]},
-                {"label": "Planet index", "value": loc["planet_index"]},
-                {"label": "Bases in this system", "value": ", ".join(b["name"] for b in snap["bases"] if b["here"]) or "none"},
-            ]})
-            mission = snap["current_mission"]
-            sections.extend(planets_view.sections(self.live, self.history, self.visits, self.gamedata, self.combat_timer))
-            sections.append({"type": "kv", "title": "Fleet and companions", "items": [
-                {"label": "Ships", "value": len(snap["ships"])},
-                {"label": "Frigates", "value": snap["frigates"]},
-                {"label": "Frigate expeditions", "value": snap["expeditions"]},
-                {"label": "Companions (pets)", "value": snap["pets"]},
-                {"label": "Freighter", "value": snap["freighter"]["name"] or "(unnamed)"},
-                {"label": "Current mission id", "value": mission or "none"},
-                {"label": "Difficulty", "value": snap["difficulty"]},
-            ]})
-            columns = self._item_columns()
-            sections.append({"type": "table", "title": "Exosuit inventory", "columns": columns,
-                             "rows": self._item_rows(snap["exosuit"] + snap["exosuit_cargo"]), "empty": "Empty"})
-            primary = next((s for s in snap["ships"] if s["primary"]), None)
-            if primary:
-                sections.append({"type": "table", "title": f"Starship inventory: {primary['name']}",
-                                 "columns": columns, "rows": self._item_rows(primary["inventory"]), "empty": "Empty"})
-            sections.append({"type": "table", "title": "Freighter inventory", "columns": columns,
-                             "rows": self._item_rows(snap["freighter"]["inventory"]), "empty": "Empty"})
-            sections.append({"type": "table", "title": "Ships", "columns": ["Name", "Class", "Primary"],
-                             "rows": [[s["name"], s["class"], "yes" if s["primary"] else ""] for s in snap["ships"]]})
-            sections.append({"type": "table", "title": "Bases", "columns": ["Name", "Type", "Galaxy", "Portal address", "Parts"],
-                             "rows": [[b["name"], b["type"], b["galaxy"], b["portal"], b["objects"]] for b in snap["bases"]]})
-
         stats = self.watcher.stats()
         sections.append({"type": "kv", "title": "How often the game saves (measured)", "items": [
             {"label": "Save writes recorded", "value": stats["writes"]},
@@ -416,9 +426,46 @@ class NmsConnector:
         if snap:
             source.append({"label": "Save format version", "value": snap["save_version"]})
         sections.append({"type": "kv", "title": "Source", "items": source})
+        return sections
+
+    def view(self) -> dict:
+        sections: list[dict] = []
+        if self.save_dir is None:
+            sections.append({"type": "notice", "level": "warn", "text":
+                             "No No Man's Sky saves found. Expected under %APPDATA%\\HelloGames\\NMS (Windows) "
+                             "or the Steam Proton folder (Linux); set NMS_SAVE_DIR to override."})
+        if self.mapping is None:
+            sections.append({"type": "notice", "level": "warn" if self.mapping_error else "info", "text":
+                             f"Key mapping not available yet ({self.mapping_error})." if self.mapping_error
+                             else "Downloading the key mapping (mapping.json) from MBINCompiler…"})
+        if self.unknown_keys:
+            sections.append({"type": "notice", "level": "warn", "text":
+                             f"{self.unknown_keys} save keys are unknown to the current mapping (probably a game "
+                             "update). Press 'Update key mapping'."})
+        if self.error:
+            sections.append({"type": "notice", "level": "error", "text": self.error})
+        if self.install is None and self._game_checked:
+            sections.append({"type": "notice", "level": "info", "text":
+                             "Item names and icons come from the game's own files, but the No Man's Sky installation "
+                             "was not found in any Steam library. Set NMS_GAME_DIR to the game folder to use another one."})
+        elif self.gamedata.error:
+            sections.append({"type": "notice", "level": "warn", "text":
+                             f"Item names and icons are unavailable: {self.gamedata.error}"})
+
+        snap = self.snapshot
+        ctx = planets_view.Context(self.live, self.history, self.visits, self.gamedata, self.combat_timer,
+                                   snap["bases"] if snap else [])
+        sections.append({"type": "tabs", "id": "main", "tabs": [
+            {"id": "overview", "label": "Overview", "sections": self._overview(snap, ctx)},
+            {"id": "systems", "label": "Systems", "badge": len(ctx.keys()) or None,
+             "sections": [planets_view.systems_tabs(ctx, self.selected_system)]},
+            {"id": "inventory", "label": "Inventory", "sections": self._inventories(snap)},
+            {"id": "fleet", "label": "Ships & bases", "sections": self._fleet(snap)},
+            {"id": "saves", "label": "Saves & source", "sections": self._saves(snap)},
+        ]})
         return {
             "title": "No Man's Sky",
-            "subtitle": "Read from your save files; updates whenever the game saves.",
+            "subtitle": "Read from your save files (updates whenever the game saves) and, while it runs, from the game.",
             "updated_at": self.decoded_at,
             "actions": [
                 {"id": "rescan", "label": "Rescan", "description": "Read the newest save file again now."},

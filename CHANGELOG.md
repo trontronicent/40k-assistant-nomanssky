@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.4.0 — 2026-10-03
+
+- **Tabs:** the page is split into *Overview*, *Systems* (sub-tabs *Current
+  system*, *Visited systems*, *Planets*), *Inventory* (sub-tabs per exosuit,
+  starship and freighter), *Ships & bases* and *Saves & source*.
+- **Gas:** every planet shows the gas an atmosphere harvester collects there
+  (sulphurine on scorched, barren and volcanic worlds, radon on irradiated and
+  frozen ones, nitrogen on lush and toxic ones, oxygen on exotic ones), with
+  its icon. Planets recorded by earlier versions get it too.
+- **System map:** click a visited system to see it as a small solar system:
+  the star with what is known about the system (portal address, region, system
+  index, who named it, when it was discovered, your bases there, black hole /
+  Atlas / purple-star systems) and its planets, coloured by biome and sized by
+  class; click a planet for its resources, gas, weather, flora, fauna,
+  sentinels and your discoveries. Planets known only from the save (uploaded
+  names, discoveries) appear as *not scanned yet*. The current system has its
+  own map.
+- Tables use the full width and no longer break words in the middle.
+- Needs the 40k Assistant 3.3.0 (tabs, clickable rows and maps in plugin views).
+
 ## 0.3.0 — 2026-10-03
 
 - **Live data from the running game (read-only):** while No Man's Sky runs,

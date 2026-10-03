@@ -19,6 +19,7 @@ from nms_connector.saves import (SaveFile, SaveFormatError, decode_bytes, deobfu
                                  list_save_files, read_save)
 from nms_connector.summary import portal_code, summarize, unpack_address
 from nms_connector.watcher import SaveWatcher
+from viewutil import all_sections, section
 
 # A tiny mapping in MBINCompiler's format: obfuscated -> readable.
 MAPPING = {
@@ -236,9 +237,12 @@ def test_plugin_reads_saves_read_only_and_builds_a_view(tmp_path, monkeypatch):
         return plugin, view, result
 
     plugin, view, result = asyncio.run(scenario())
-    titles = [s.get("title") for s in view["sections"]]
+    main = section(view, type="tabs", id="main")
+    assert [t["label"] for t in main["tabs"]] == ["Overview", "Systems", "Inventory", "Ships & bases", "Saves & source"]
+    titles = [s.get("title") for s in all_sections(view["sections"])]
     assert "Status" in titles and "Location (at the last save)" in titles and "Exosuit inventory" in titles
-    location = next(s for s in view["sections"] if s.get("title") == "Location (at the last save)")
+    assert "Status" in [s.get("title") for s in main["tabs"][0]["sections"]]
+    location = section(view, "Location (at the last save)")
     assert {"label": "Portal address", "value": "106202925E80"} in location["items"]
     assert any("unknown to the current mapping" in s.get("text", "") for s in view["sections"])
     assert result["ok"] is True and plugin.snapshot is None
@@ -262,3 +266,19 @@ def test_plugin_without_saves_or_mapping_explains_itself(tmp_path, monkeypatch):
     view = asyncio.run(scenario())
     texts = " ".join(s.get("text", "") for s in view["sections"])
     assert "No No Man's Sky saves found" in texts and "offline" in texts
+
+
+def test_clicking_a_visited_system_selects_it_and_focuses_the_map(tmp_path, monkeypatch):
+    """open_system (a row of the visited-systems table) remembers the system and asks the page to show the
+    system map; an unparsable key is refused without changing the selection."""
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+
+    async def scenario():
+        plugin = create_plugin(FakeCtx(tmp_path / "data"))
+        ok = await plugin.action("open_system", {"key": "620002925e80"})
+        bad = await plugin.action("open_system", {"key": "not hex"})
+        return plugin, ok, bad
+
+    plugin, ok, bad = asyncio.run(scenario())
+    assert ok == {"ok": True, "focus": "system-map"} and bad["ok"] is False
+    assert plugin.selected_system == 0x620002925E80

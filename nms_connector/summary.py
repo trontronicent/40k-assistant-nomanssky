@@ -58,6 +58,16 @@ def unpack_address(value) -> dict | None:
             "SolarSystemIndex": (value >> 40) & 0xFFF, "PlanetIndex": (value >> 52) & 0xF}
 
 
+def system_key_of(value) -> int | None:
+    """A packed address (int or '0x…' string) without its planet nibble: one key per system."""
+    if isinstance(value, str):
+        try:
+            value = int(value, 16)
+        except ValueError:
+            return None
+    return value & ~(0xF << 52) if isinstance(value, int) else None
+
+
 def address_portal(addr: dict) -> str | None:
     try:
         return portal_code(addr["PlanetIndex"], addr["SolarSystemIndex"], addr["VoxelY"], addr["VoxelZ"], addr["VoxelX"])
@@ -109,9 +119,11 @@ def summarize(save: dict) -> dict:
 
     bases = []
     for base in ps.get("PersistentPlayerBases") or []:
-        addr = unpack_address(base.get("GalacticAddress")) or {}
+        packed = base.get("GalacticAddress")
+        addr = unpack_address(packed) or {}
         kind = _get(base, "BaseType", "PersistentBaseTypes", default="")
         bases.append({"name": base.get("Name") or "(unnamed)", "type": BASE_TYPES.get(kind, kind or "unknown"),
+                      "system": system_key_of(packed),
                       "galaxy": galaxy_name(addr.get("RealityIndex")), "portal": address_portal(addr) if addr else None,
                       "objects": len(base.get("Objects") or []),
                       "here": bool(addr) and addr.get("SolarSystemIndex") == ga.get("SolarSystemIndex")
