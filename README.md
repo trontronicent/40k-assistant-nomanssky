@@ -13,6 +13,11 @@ know. Install it from the app's **Plugins → Manage plugins** page.
   English and in the game's language (e.g. *Sodium* / *Natrium*), its official
   icon and its id (`CATALYST1`)
 - **Ships, bases, frigates, expeditions, companions, current mission id**
+- **Current system (live):** while the game runs, the planets of the system you
+  are in - name (and the uploaded name), type, weather, three resources, plant
+  resource, flora, fauna, sentinels - and which planet you are on
+- **Visited systems and planets:** every system you visited (from the save,
+  with uploaded names) and every planet the plugin has seen, with its resources
 - **How often the game saves:** every save write the connector sees, with the
   time since the previous one
 
@@ -40,13 +45,26 @@ flying, events) would need a game mod and is a possible later addition.
   game build in `plugins/.data/nomanssky/gamedata/`; icons are converted to
   64 px PNGs in `assets/` when an item first appears in a save. The game's
   assets stay on your computer; nothing is uploaded or redistributed.
+- **Live data** comes from the running game's memory, read-only: the process
+  is opened with *query* and *read* rights only (no write, no injection; the
+  game has no anti-cheat). Planets are found by their data (`GcPlanetData`
+  records in MBINCompiler's layout, validated by name, index and the planet's
+  packed address), the current position via the save's fixed start addresses
+  in the player state. A scan reads ~5 GB in ~10 s, so it runs when the game
+  starts, when you arrive in another system (and once more 45 s later, when
+  the other planets have been generated), and every 5 minutes; in between
+  only your current address is re-read. Windows only.
+- Planet resources are not in the save (the game generates them from the
+  seed), so systems you visited before installing 0.3.0 show names and
+  discovery counts, but resources only once you return.
 - Items whose name the game generates from a seed (salvaged and biological
   finds such as `PROC_LOOT#01474`) keep their id: the tables hold no fixed name
   for them.
 
 ## Permissions
 
-`read-game-files` (the save folder and the game's data files) and `network` (downloading `mapping.json`
+`read-game-files` (the save folder and the game's data files), `read-game-memory`
+(the running game's memory, read-only) and `network` (downloading `mapping.json`
 from GitHub). Like every code plugin it runs inside the 40k Assistant backend,
 which is why the app asks you to confirm that you trust it before installing.
 
@@ -61,7 +79,7 @@ page. Anyone who can reach your 40k Assistant (LAN, tunnel) can read it there.
 
 Python 3.11+. Besides the standard library it uses what the 40k Assistant
 provides: `zstandard` (the game's archives; Python 3.14's `compression.zstd`
-works too) and Pillow (icons). Without them names and icons are reported as
+works too), Pillow (icons), numpy and psutil (memory reading). Without them names and icons are reported as
 unavailable; saves are still read.
 
 ```

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0 — 2026-10-03
+
+- **Live data from the running game (read-only):** while No Man's Sky runs,
+  the plugin reads the planets of the system you are in from the game's
+  memory - name, type, weather, the three resources and plant resource, flora,
+  fauna and sentinels (for your combat setting) - and remembers every planet
+  it sees (`planet_history.json`). It also knows which system and planet you
+  are on right now.
+- **Visited systems:** every system in the save's visit list and discoveries,
+  with uploaded system and planet names, plus the recorded planets with their
+  resources.
+- New permission `read-game-memory`; needs the 40k Assistant 3.2.0.
+
 ## 0.2.0 — 2026-10-03
 
 - Inventories show each item's name in English and in the language the game

@@ -1,9 +1,10 @@
 """The No Man's Sky connector: watches the save folder and presents the data.
 
-Runs inside the 40k Assistant backend (plugin API 2). Reads save files and the
-game's own data files (item names and icons); never writes anything into the
-game's folders. Network use: downloading the key mapping (mapping.json) from
-MBINCompiler's GitHub releases.
+Runs inside the 40k Assistant backend (plugin API 2). Reads save files, the
+game's own data files (item names and icons) and - while the game runs - its
+memory (planets and resources of the current system), all read-only; never
+writes anything into the game or its folders. Network use: downloading the key
+mapping (mapping.json) from MBINCompiler's GitHub releases.
 """
 
 from __future__ import annotations
@@ -15,9 +16,11 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from . import saves
+from . import memory, planets_view, saves
 from .game_install import GameInstall, find_game
 from .gamedata import GameData
+from .history import PlanetHistory, visits_from_save
+from .live import LiveMemory
 from .summary import summarize
 from .watcher import SaveWatcher
 
@@ -27,6 +30,7 @@ MAPPING_RECHECK_S = 24 * 3600
 HTTP_TIMEOUT_S = 20
 GAME_CHECK_S = 60          # how often to look for the game / a new game build
 GAME_RETRY_S = 300         # after a failed item-database build
+LIVE_EVERY_S = 5           # how often to look at the game's memory (a full scan only when needed, see live.py)
 USER_AGENT = "40k-assistant-nomanssky (https://github.com/trontronicent/40k-assistant-nomanssky)"
 
 
@@ -99,6 +103,12 @@ class NmsConnector:
         self.install: GameInstall | None = None
         self._game_checked = 0.0
         self._game_failed = 0.0
+        self.history = PlanetHistory(self.data_dir / "planet_history.json")
+        self.live = LiveMemory(self.history)
+        self.visits: dict[int, dict] = {}
+        self.anchor: bytes | None = None
+        self.combat_timer: str | None = None
+        self._live_checked = 0.0
         self._force = asyncio.Event()
 
     # ------------------------------------------------------------------ lifecycle
@@ -108,6 +118,7 @@ class NmsConnector:
 
     async def stop(self) -> None:
         await self.ctx.run_blocking(self._save_events)
+        await self.ctx.run_blocking(self.live.close)
 
     def _load_events(self) -> list[dict]:
         try:
@@ -185,9 +196,35 @@ class NmsConnector:
         if self.snapshot and self.install and self.gamedata.ready:
             await self.ctx.run_blocking(self.gamedata.ensure_icons, self.install, _snapshot_item_ids(self.snapshot))
 
+    def _substances(self) -> set[str] | None:
+        """Substance ids (the planet scan validates resources against them), when the item database is ready."""
+        if not self.gamedata.ready:
+            return None
+        return {k for k, v in self.gamedata.items.items() if "SUBSTANCE" in (v.get("icon") or "")} or None
+
+    async def _read_memory(self, force: bool = False) -> None:
+        now = time.time()
+        if not force and now - self._live_checked < LIVE_EVERY_S:
+            return
+        self._live_checked = now
+        if force:
+            self.live.last_scan_at = None
+        changed = await self.ctx.run_blocking(self.live.tick, self.anchor, self._substances(), now)
+        if changed and self.install and self.gamedata.ready:
+            planets = list(self.history.planets.values())
+            await self.ctx.run_blocking(self.gamedata.resolve_texts, self.install, planets_view.info_keys(planets))
+            await self.ctx.run_blocking(self.gamedata.ensure_icons, self.install, planets_view.resource_ids(planets))
+
     async def _tick(self) -> None:
         await self._ensure_mapping()
         await self._ensure_gamedata()
+        try:
+            await self._tick_saves()
+        finally:
+            # After the save: the memory reader needs the save's anchor to find the player state.
+            await self._read_memory()
+
+    async def _tick_saves(self) -> None:
         dirs = await self.ctx.run_blocking(saves.find_save_dirs)
         self.save_dir = dirs[0] if dirs else None
         if self.save_dir is None:
@@ -210,6 +247,14 @@ class NmsConnector:
             self.error = f"{save_file.path.name}: {exc}"
             return
         self.snapshot = await self.ctx.run_blocking(summarize, readable)
+        self.visits = await self.ctx.run_blocking(visits_from_save, readable)
+        ps = (readable.get("BaseContext") or {}).get("PlayerStateData") or {}
+        try:
+            self.anchor = memory.ua_bytes(ps["GameStartAddress1"]) + memory.ua_bytes(ps["GameStartAddress2"])
+        except (KeyError, TypeError):
+            self.anchor = None
+        timers = (((ps.get("DifficultyState") or {}).get("Settings") or {}).get("GroundCombatTimers") or {})
+        self.combat_timer = timers.get("CombatTimerDifficultyOption")
         self.snapshot_file = save_file.path.name
         self.unknown_keys = len(unknown)
         self.decode_seconds = round(time.perf_counter() - started, 2)
@@ -238,6 +283,12 @@ class NmsConnector:
                 return {"ok": False, "message": f"Reading the game files failed: {self.gamedata.error}"}
             return {"ok": True, "message": f"{len(self.gamedata.items):,} item names read from the game "
                                            f"({self.gamedata.language_label})."}
+        if action_id == "scan_memory":
+            await self._read_memory(force=True)
+            if self.live.status != "ok":
+                return {"ok": False, "message": self.live.error or "No Man's Sky is not running."}
+            return {"ok": True, "message": f"Read {self.live.last_scan_planets} planet(s) from the game in "
+                                           f"{self.live.last_scan_seconds} s."}
         if action_id == "clear_history":
             self.watcher.events.clear()
             await self.ctx.run_blocking(self._save_events)
@@ -306,6 +357,7 @@ class NmsConnector:
                 {"label": "Bases in this system", "value": ", ".join(b["name"] for b in snap["bases"] if b["here"]) or "none"},
             ]})
             mission = snap["current_mission"]
+            sections.extend(planets_view.sections(self.live, self.history, self.visits, self.gamedata, self.combat_timer))
             sections.append({"type": "kv", "title": "Fleet and companions", "items": [
                 {"label": "Ships", "value": len(snap["ships"])},
                 {"label": "Frigates", "value": snap["frigates"]},
@@ -353,6 +405,12 @@ class NmsConnector:
             source.append({"label": "Item names", "value":
                            f"{len(self.gamedata.items):,} items in English and {self.gamedata.language_label}, "
                            f"read from the game files {self.gamedata.built_at or ''}".strip()})
+        live = {"ok": "reading NMS.exe" + (f" - last scan {self.live.last_scan_iso}, {self.live.last_scan_seconds} s, "
+                                           f"{self.live.last_scan_bytes / 2**30:.1f} GB, {self.live.last_scan_planets} planet(s)"
+                                           if self.live.last_scan_iso else ""),
+                "not-running": "the game is not running", "idle": "waiting"}.get(self.live.status, self.live.error)
+        source.append({"label": "Game memory (read-only)", "value": live})
+        source.append({"label": "Planets recorded", "value": len(self.history.planets)})
         if self.gamedata.icon_error:
             source.append({"label": "Last icon problem", "value": self.gamedata.icon_error})
         if snap:
@@ -366,6 +424,8 @@ class NmsConnector:
                 {"id": "rescan", "label": "Rescan", "description": "Read the newest save file again now."},
                 {"id": "update_mapping", "label": "Update key mapping",
                  "description": "Download the newest mapping.json from MBINCompiler (needed after game updates)."},
+                {"id": "scan_memory", "label": "Scan game now",
+                 "description": "Read the planets of the current system from the running game now (read-only, ~10 s)."},
                 {"id": "rebuild_names", "label": "Re-read item names",
                  "description": "Read item names and icons from the game files again (done automatically after a game update)."},
                 {"id": "clear_history", "label": "Clear save history", "description": "Forget the recorded save writes.",

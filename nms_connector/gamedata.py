@@ -106,6 +106,9 @@ class GameData:
         self.build_seconds: float | None = None
         self.error: str | None = None
         self.icon_error: str | None = None
+        self._texts: dict[str, dict] = {}
+        self._texts_for: tuple | None = None
+        self._unknown_texts: set[str] = set()
 
     @property
     def ready(self) -> bool:
@@ -167,6 +170,66 @@ class GameData:
                                    "built_at": self.built_at, "build_seconds": self.build_seconds,
                                    "items": self.items}, ensure_ascii=False), encoding="utf-8")
         tmp.replace(self.cache_file)
+
+    # ------------------------------------------------------------------ other texts
+
+    @property
+    def texts_file(self) -> Path:
+        return self.cache_file.with_name("texts.json")
+
+    def text(self, key: str | None) -> dict | None:
+        """{"en", "local"} for a localisation key resolved earlier with resolve_texts(), else None."""
+        return self._texts.get(key) if key else None
+
+    def resolve_texts(self, install: GameInstall, keys) -> int:
+        """Look up localisation keys (weather, sentinel levels, ...) in English and the game language.
+
+        Results are cached per build and language in gamedata/texts.json; only unknown keys cost a pass
+        over the language files (~0.5 s). Keys the game does not know are remembered as unknown too.
+        Returns how many keys were looked up.
+        """
+        if self._texts_for != (install.build_id, install.language):
+            self._texts, self._unknown_texts = self._load_texts(install)
+            self._texts_for = (install.build_id, install.language)
+        todo = {k for k in keys if k and k not in self._texts and k not in self._unknown_texts}
+        if not todo:
+            return 0
+        languages = ["english"] if install.language == "english" else ["english", install.language]
+        found: dict[str, dict[str, str]] = {lang: {} for lang in languages}
+        try:
+            with PakSet(install.pcbanks, PAK_HINTS) as paks:
+                for lang in languages:
+                    for name in paks.names_matching("language/", f"_{lang}.mbin"):
+                        for key, value in mbin.parse_language_table(paks.read(name), todo).items():
+                            found[lang].setdefault(key, value)
+        except (OSError, PakError, ZstdUnavailable, mbin.MbinError) as exc:
+            self.icon_error = f"texts: {type(exc).__name__}: {exc}"
+            return 0
+        for key in todo:
+            en = mbin.clean_text(found["english"].get(key))
+            if en is None:
+                self._unknown_texts.add(key)
+                continue
+            local = mbin.clean_text(found[install.language].get(key)) if install.language != "english" else en
+            self._texts[key] = {"en": en, "local": local or en}
+        self._write_texts(install)
+        return len(todo)
+
+    def _load_texts(self, install: GameInstall) -> tuple[dict, set]:
+        try:
+            cached = json.loads(self.texts_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}, set()
+        if cached.get("build_id") != install.build_id or cached.get("language") != install.language:
+            return {}, set()
+        return cached.get("texts") or {}, set(cached.get("unknown") or [])
+
+    def _write_texts(self, install: GameInstall) -> None:
+        self.texts_file.parent.mkdir(parents=True, exist_ok=True)
+        tmp = self.texts_file.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"build_id": install.build_id, "language": install.language, "texts": self._texts,
+                                   "unknown": sorted(self._unknown_texts)}, ensure_ascii=False), encoding="utf-8")
+        tmp.replace(self.texts_file)
 
     # ------------------------------------------------------------------ icons
 

@@ -12,3 +12,9 @@ def no_real_game(tmp_path, monkeypatch):
     unless a test sets its own (find_game then reports no installation)."""
     monkeypatch.setenv("NMS_GAME_DIR", str(tmp_path / "no-game-installed"))
     monkeypatch.delenv("NMS_LANGUAGE", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def no_real_game_process(monkeypatch):
+    """Tests never read the memory of a running game: no NMS.exe is 'found' unless a test fakes one."""
+    monkeypatch.setattr("nms_connector.memory.find_game_pid", lambda: None)
