@@ -16,7 +16,7 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from . import equipment, galaxy, memory, planets_view, route, saves, settlements, ships, timers, trade
+from . import equipment, frigates, galaxy, memory, planets_view, route, saves, settlements, ships, timers, trade
 from .game_install import GameInstall, find_game
 from .gamedata import GameData
 from .history import PlanetHistory, visits_from_save
@@ -106,6 +106,8 @@ class NmsConnector:
         self.ships: list[dict] = []               # your starships (ships.py)
         self.freighter: dict | None = None        # your freighter's technology (ships.freighter_from_save)
         self.equipment: dict | None = None        # exosuit, multi-tools, freighter technology (equipment.py)
+        self.frigates: list[dict] = []            # your frigates (frigates.py)
+        self.frigate_traits: dict | None = None   # trait names from the game (frigates.load_traits)
         self.galaxy_colors = "kind"               # how the galaxy map colours systems (planets_view.COLOR_MODES)
         self.ship_tables: dict | None = None      # warp-range bonuses from the game's technology tables   # the settlement screen's values (game memory)
         self.snapshot_file: str | None = None
@@ -277,6 +279,9 @@ class NmsConnector:
             self._timer_tables_for = build
             if self.timer_tables.get("error"):
                 self.ctx.logger.warning("[NMS] Timer durations: built-in values (%s)", self.timer_tables["error"])
+            self.frigate_traits = await self.ctx.run_blocking(frigates.load_traits, self.install)
+            if self.frigate_traits.get("error"):
+                self.ctx.logger.warning("[NMS] Frigate trait names unavailable: %s", self.frigate_traits["error"])
             self.ship_tables = await self.ctx.run_blocking(ships.load_tables, self.install)
             if self.ship_tables.get("error"):
                 self.ctx.logger.warning("[NMS] Warp range values: built-in (%s)", self.ship_tables["error"])
@@ -305,9 +310,11 @@ class NmsConnector:
             return
         keys = settlements.text_keys(self.settlements, self.settlement_tables)
         keys |= set(mission_text_keys((self.snapshot or {}).get("current_mission")))
+        keys |= frigates.text_keys(self.frigates, (self.frigate_traits or {}).get("traits") or {})
         await self.ctx.run_blocking(self.gamedata.resolve_texts, self.install, keys)
         await self.ctx.run_blocking(self.gamedata.ensure_icons, self.install,
-                                    settlements.item_ids(self.settlements) + settlements.icon_ids())
+                                    settlements.item_ids(self.settlements) + settlements.icon_ids()
+                                    + list(frigates.icon_textures()))
 
     async def _ensure_icons(self) -> None:
         if self.snapshot and self.install and self.gamedata.ready:
@@ -386,6 +393,7 @@ class NmsConnector:
         self.ships = ships.ships_from_save(readable)
         self.freighter = ships.freighter_from_save(readable)
         self.equipment = equipment.equipment_from_save(readable)
+        self.frigates = frigates.frigates_from_save(readable)
         ps = (readable.get("BaseContext") or {}).get("PlayerStateData") or {}
         try:
             self.anchor = memory.ua_bytes(ps["GameStartAddress1"]) + memory.ua_bytes(ps["GameStartAddress2"])
@@ -599,7 +607,12 @@ class NmsConnector:
     def _fleet(self, snap: dict | None, ctx) -> list[dict]:
         if not snap:
             return [{"type": "text", "text": "Ships and bases appear once a save has been read."}]
-        return ships.ship_sections(self.ships, self.ship_tables or ships.FALLBACK, ctx.texts) + [
+        def system_label(key):
+            visit = ctx.visit(key)
+            return planets_view._system_label(key, visit) if visit else None
+
+        return ships.ship_sections(self.ships, self.ship_tables or ships.FALLBACK, ctx.texts) + frigates.frigate_sections(
+            self.frigates, (self.frigate_traits or {}).get("traits") or {}, ctx.texts, system_label) + [
             {"type": "table", "title": "Bases", "columns": ["Name", "Type", "Galaxy", "Portal address", "Parts"],
              "rows": [[b["name"], b["type"], b["galaxy"], b["portal"], b["objects"]] for b in snap["bases"]]},
         ]

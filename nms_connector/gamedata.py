@@ -74,6 +74,14 @@ EXTRA_ICONS.update({f"SETTLEMENT_{kind.upper()}_{stat.upper()}": f"TEXTURES/UI/F
                     for stat in ("happiness", "production", "maintenance", "alert", "population")})
 
 
+def _frigate_icons() -> dict[str, str]:
+    from .frigates import icon_textures      # the fleet screen's class and trait icons
+    return icon_textures()
+
+
+EXTRA_ICONS.update(_frigate_icons())
+
+
 def icon_file_name(texture: str) -> str | None:
     """'TEXTURES/UI/.../SUBSTANCE.FUEL.1.DDS' -> 'substance.fuel.1.png' (valid asset name), or None."""
     base = texture.replace("\\", "/").rsplit("/", 1)[-1].lower()

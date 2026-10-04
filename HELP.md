@@ -118,6 +118,12 @@ technology, and how many are still damaged) and:
 Below, the primary ship's technology: charge, and what each part adds. The route
 planner starts with the lower warp range of your primary ship.
 
+**Frigates** are listed with their class icon, grade, race, their combat,
+exploration, industry and trade values, their traits (named as in the game; hover
+the frigate for the list, negative ones are marked), how many expeditions they
+flew and how many events they won, the system they were bought in, and whether
+they are out on an expedition or need a repair.
+
 ## The galaxy map
 
 *Systems → Galaxy* shows every system you know in the galaxy you are in -

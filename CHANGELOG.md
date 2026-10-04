@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- **Frigates**: *Ships & bases* lists your frigates with class icon, grade,
+  race, combat/exploration/industry/trade values, traits by their in-game names
+  (from the game's trait table), expedition record, home system and state (out
+  on an expedition, damaged, ready).
 - **Equipment**: *Inventory → Equipment* lists the exosuit's technology, every
   multi-tool (class, which one is in your hand, its technology) and the
   freighter's technology, each part with its icon, category and charge.
