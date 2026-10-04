@@ -226,11 +226,11 @@ class ScanResult:
         """The system most planet records belong to: the one you are in (see current_system_from_planets)."""
         return current_system_from_planets(self.planets)
 
-    def best_player_state(self, reader) -> tuple[int | None, dict | None]:
-        """The player-state copy to follow: prefer one whose current system has planets in this scan."""
+    def best_player_state(self, reader, among=None) -> tuple[int | None, dict | None]:
+        """The player-state copy to follow (of `among`, default all): prefer one whose system has planets here."""
         systems = {p["system"] for p in self.planets}
         fallback: tuple[int | None, dict | None] = (None, None)
-        for address in self.player_states:
+        for address in (self.player_states if among is None else among):
             ua = read_current_address(reader, address)
             if ua is None:
                 continue

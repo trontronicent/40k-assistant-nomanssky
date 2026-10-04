@@ -15,7 +15,10 @@ minutes later). Then the current system is judged from the planet records
 (``memory.current_system_from_planets``) and a system change is noticed by
 re-reading the PlanetUA of the remembered planet slots every tick - 8 bytes per
 planet instead of a 5 GB scan. ``current_source`` says which way it was found;
-the planet you are on is only known from the player state.
+the planet you are on is only known from the player state. The slots are watched
+while a player-state copy is followed too: the game can leave that copy frozen at
+the old system and write the new position into a new copy (seen 2026-10-04); after
+a scan a copy that changed wins over one that did not (``_pick_player_state``).
 
 Blocking throughout; the plugin calls tick() through ctx.run_blocking.
 """
@@ -57,6 +60,7 @@ class LiveMemory:
         self.last_scan_bytes = 0
         self.last_scan_planets = 0
         self._scanned_system: int | None = None
+        self._slots_system: int | None = None   # majority system of the planet slots at the last scan
         self._scanned_with_anchor: bytes | None = None
         self._follow_up_at: float | None = None
 
@@ -105,9 +109,11 @@ class LiveMemory:
                     if self.current_system != self._scanned_system:
                         due = True
                         self._follow_up_at = now + FOLLOW_UP_S
-            elif self.slots:
+            # The planet slots are watched even while a copy is followed: that copy can stay frozen at the old
+            # system while the game writes the new position into a copy elsewhere (seen 2026-10-04).
+            if not due and self.slots:
                 judged = self._system_from_slots()
-                if judged is not None and judged != self._scanned_system:
+                if judged is not None and judged != self._slots_system:
                     due = True
                     self._follow_up_at = now + FOLLOW_UP_S
             if self._follow_up_at is not None and now >= self._follow_up_at:
@@ -116,14 +122,10 @@ class LiveMemory:
                 self.status, self.error = "ok", None
                 return 0
             result = self._scan(self.reader, substances, anchor)
-            previous = self.player_state
-            self.player_state, ua = result.best_player_state(self.reader)
-            if previous in result.player_states:   # still there: keep it (it may be the copy seen moving)
-                kept = memory.read_current_address(self.reader, previous)
-                if kept is not None:
-                    self.player_state, ua = previous, kept
+            addresses = {a: memory.read_current_address(self.reader, a) for a in result.player_states}
+            self.player_state, ua = self._pick_player_state(result, addresses)
             self.player_states = list(result.player_states)
-            self._addresses = {a: memory.read_current_address(self.reader, a) for a in self.player_states}
+            self._addresses = addresses
             if ua is not None:
                 self._set_current(ua)
             else:
@@ -131,6 +133,7 @@ class LiveMemory:
                 self.current_system = result.majority_system()
                 self.current_source = "planets" if self.current_system is not None else None
             self.slots = list(result.slots)
+            self._slots_system = result.majority_system()
             self.name_regions = list(result.name_regions)
             self._scanned_system = self.current_system
             self._scanned_with_anchor = anchor
@@ -148,6 +151,25 @@ class LiveMemory:
             self.close()
             self.status, self.error = "error", str(exc)
             return 0
+
+    def _pick_player_state(self, result, addresses: dict[int, dict | None]) -> tuple[int | None, dict | None]:
+        """The player-state copy to follow after a scan, and its address.
+
+        A copy that is new since the last scan or whose address changed is live; one that kept its address
+        may be frozen. So: the followed copy if it changed; else a changed copy (preferring one whose system
+        has planets in memory); else the followed copy while it is still readable; else the scan's pick. On
+        the first scan nothing is known yet and the scan's pick decides.
+        """
+        previous = self.player_state
+        changed = [a for a in result.player_states if addresses.get(a) is not None and self._addresses
+                   and (a not in self._addresses or self._addresses[a] != addresses[a])]
+        if previous in changed:
+            return previous, addresses[previous]
+        if changed:
+            return result.best_player_state(self.reader, changed)
+        if previous in result.player_states and addresses.get(previous) is not None:
+            return previous, addresses[previous]
+        return result.best_player_state(self.reader)
 
     def _follow_moving_copy(self) -> None:
         """Switch to a player-state copy whose address changed since the last tick while ours did not.

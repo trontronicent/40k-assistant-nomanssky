@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Fixed: the current system stayed on the old one after a warp.** The game
+  sometimes writes your new position into a fresh copy of its player state
+  while the copy the plugin followed stays frozen at the old system. A copy
+  that changed now wins over one that did not, and a warp is also noticed from
+  the planets in memory while a copy is followed.
 - **Game scans are about 10x faster**: reading the planets, system names and
   economies from the running game takes about 2.5 seconds instead of 30 or more
   (measured on 5 GB of game memory). Memory is read into one reused buffer, and

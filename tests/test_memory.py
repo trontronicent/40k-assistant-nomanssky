@@ -560,6 +560,31 @@ def test_live_memory_without_a_player_state_uses_the_planets_and_watches_their_s
     assert calls["n"] == 3
 
 
+def test_a_new_player_state_copy_after_a_warp_wins_over_the_frozen_one(tmp_path):
+    """Seen live 2026-10-04: after a warp the game wrote the new position into a player-state copy at a new
+    address, while the copy being followed stayed frozen at the old system. The warp must still be noticed
+    (the planet slots switch system even while a copy is followed) and the new copy, which changed, must win
+    over the frozen one that did not - otherwise the page shows the old system forever."""
+    frozen, anchor = player_state_region(current=(1, 98))
+    planets = bytearray(0x20000)
+    planets[0x1000:0x1000 + memory.PLANET_SIZE] = planet_blob()
+    planets[0x9000:0x9000 + memory.PLANET_SIZE] = planet_blob("Ezaw 36/M3", 1, ids=("YELLOW2", "DUSTY1", "WATER1"))
+    regions = {0x500000: frozen, 0x100000: planets}
+    reader = FakeReader(regions)
+    live = LiveMemory(PlanetHistory(tmp_path / "h.json"), opener=lambda p: reader, pid_finder=lambda: 4242,
+                      scanner=lambda r, s, a: memory.scan(r, s, a))
+    live.tick(anchor, SUBSTANCES, 0)
+    assert live.player_state == 0x500040 and live.current_system == SYSTEM_98
+    # Warp to system 115: a new copy appears, the followed one keeps 98, one planet slot is reused.
+    regions[0x700000], _ = player_state_region(current=(0, 115))
+    planets[0x1000:0x1000 + memory.PLANET_SIZE] = planet_blob("Itwi A1", 0, system=SYSTEM_115,
+                                                              ids=("YELLOW2", "DUSTY1", "CATALYST1"))
+    planets[0x9000:0x9000 + memory.PLANET_SIZE] = planet_blob("Itwi B2", 1, system=SYSTEM_115,
+                                                              ids=("YELLOW2", "DUSTY1", "CATALYST1"))
+    live.tick(anchor, SUBSTANCES, 10)
+    assert live.player_state == 0x700040 and live.current_system == SYSTEM_115 and live.current_source == "player"
+
+
 def test_a_player_state_copy_whose_memory_was_reused_is_dropped(tmp_path):
     """The player state is trusted only while the save's start addresses still sit in front of it: once the
     game overwrites that memory, its address field is not read as your position (it would be garbage that
