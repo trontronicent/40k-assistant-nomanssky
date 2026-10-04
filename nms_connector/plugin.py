@@ -16,7 +16,7 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from . import galaxy, memory, planets_view, route, saves, settlements, ships, timers, trade
+from . import equipment, galaxy, memory, planets_view, route, saves, settlements, ships, timers, trade
 from .game_install import GameInstall, find_game
 from .gamedata import GameData
 from .history import PlanetHistory, visits_from_save
@@ -105,6 +105,7 @@ class NmsConnector:
         self.settlement_live = settlements.LiveSettlements(self.data_dir / "settlement_screen.json")
         self.ships: list[dict] = []               # your starships (ships.py)
         self.freighter: dict | None = None        # your freighter's technology (ships.freighter_from_save)
+        self.equipment: dict | None = None        # exosuit, multi-tools, freighter technology (equipment.py)
         self.galaxy_colors = "kind"               # how the galaxy map colours systems (planets_view.COLOR_MODES)
         self.ship_tables: dict | None = None      # warp-range bonuses from the game's technology tables   # the settlement screen's values (game memory)
         self.snapshot_file: str | None = None
@@ -305,11 +306,12 @@ class NmsConnector:
         keys = settlements.text_keys(self.settlements, self.settlement_tables)
         keys |= set(mission_text_keys((self.snapshot or {}).get("current_mission")))
         await self.ctx.run_blocking(self.gamedata.resolve_texts, self.install, keys)
-        await self.ctx.run_blocking(self.gamedata.ensure_icons, self.install, settlements.item_ids(self.settlements))
+        await self.ctx.run_blocking(self.gamedata.ensure_icons, self.install,
+                                    settlements.item_ids(self.settlements) + settlements.icon_ids())
 
     async def _ensure_icons(self) -> None:
         if self.snapshot and self.install and self.gamedata.ready:
-            tech = [t["id"] for s in self.ships for t in s["technology"]]
+            tech = [t["id"] for s in self.ships for t in s["technology"]] + equipment.item_ids(self.equipment or {})
             await self.ctx.run_blocking(self.gamedata.ensure_icons, self.install, _snapshot_item_ids(self.snapshot) + tech)
 
     def _substances(self) -> set[str] | None:
@@ -383,6 +385,7 @@ class NmsConnector:
         self.settlements = settlements.settlements_from_save(readable)
         self.ships = ships.ships_from_save(readable)
         self.freighter = ships.freighter_from_save(readable)
+        self.equipment = equipment.equipment_from_save(readable)
         ps = (readable.get("BaseContext") or {}).get("PlayerStateData") or {}
         try:
             self.anchor = memory.ua_bytes(ps["GameStartAddress1"]) + memory.ua_bytes(ps["GameStartAddress2"])
@@ -589,6 +592,8 @@ class NmsConnector:
             {"type": "table", "title": "Freighter inventory", "columns": columns,
              "rows": self._item_rows(snap["freighter"]["inventory"], ctx), "empty": "Empty"}]})
         tabs.append(self._storage_tab(snap, ctx, columns))
+        tabs.append({"id": "equipment", "label": "Equipment",
+                     "sections": equipment.equipment_sections(self.equipment, ctx.texts)})
         return [{"type": "tabs", "id": "inventory-tabs", "tabs": tabs}]
 
     def _fleet(self, snap: dict | None, ctx) -> list[dict]:

@@ -413,3 +413,17 @@ def test_view_without_the_game_explains_where_names_come_from(tmp_path, monkeypa
     view, columns = asyncio.run(scenario())
     assert any("NMS_GAME_DIR" in s.get("text", "") for s in view["sections"])
     assert columns == ["Name", "Category", "Item id", "Amount", "Max"]
+
+
+def test_ids_that_are_not_items_get_the_games_icons_too(tmp_path):
+    """Planet hints (UI_BONES_HINT ...) and the settlement screen's stat icons are no items, yet the game draws
+    icons for them: EXTRA_ICONS names those textures, so icon lookup and conversion treat them like items."""
+    from nms_connector.gamedata import EXTRA_ICONS
+    gd = GameData(tmp_path / "data", tmp_path / "assets")
+    assert gd.icon_texture("UI_BONES_HINT") == "TEXTURES/UI/FRONTEND/ICONS/BONES.DDS"
+    assert gd.icon_texture("SETTLEMENT_NEGATIVE_HAPPINESS").endswith("SETTLEMENT/NEGATIVEHAPPINESS.DDS")
+    assert gd.icon_texture("NOT_AN_ID") is None and gd.icon_name("UI_BONES_HINT") is None     # not converted yet
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets" / "bones.png").write_bytes(b"png")
+    assert gd.icon_name("UI_BONES_HINT") == "bones.png"
+    assert len([k for k in EXTRA_ICONS if k.startswith("SETTLEMENT_")]) == 15

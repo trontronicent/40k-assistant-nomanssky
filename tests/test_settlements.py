@@ -252,3 +252,21 @@ def test_the_last_screen_values_survive_a_restart(tmp_path):
     path.write_text("{broken", encoding="utf-8")
     broken = settlements.LiveSettlements(path)
     assert broken.values == {} and "JSONDecodeError" in broken.load_error
+
+
+def test_stats_and_perks_carry_the_settlement_screens_icons():
+    """Each stat row gets the screen's icon for that stat, each perk the positive or negative icon of the stat
+    it mainly changes - when the icon has been converted (the plugin's GameData knows it)."""
+    class Gamedata:
+        def icon_name(self, icon_id):
+            return icon_id.lower() + ".png"
+
+    texts = FakeTexts()
+    texts.gamedata = Gamedata()
+    out = settlements.settlement_sections(settlements.settlements_from_save(save(kay_city())), tables(), texts, LAST_JUDGEMENT)
+    stats = next(s for s in out if s.get("title") == "Kay City: stats")
+    assert stats["rows"][1][0] == {"text": "Happiness", "icon": "settlement_basic_happiness.png"}
+    perks = next(s for s in out if s.get("title") == "Kay City: perks")["rows"]
+    assert perks[0][0]["icon"] == "settlement_negative_maintenance.png"      # fault line: maintenance worse
+    assert perks[1][0]["icon"] == "settlement_positive_happiness.png"
+    assert settlements.stat_icon_id("Upkeep", "negative") == "SETTLEMENT_NEGATIVE_MAINTENANCE"

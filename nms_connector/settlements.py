@@ -48,6 +48,29 @@ STATS = ["MaxPopulation", "Happiness", "Production", "Upkeep", "Sentinels", "Deb
 STAT_LABELS = {"MaxPopulation": "Population capacity", "Happiness": "Happiness", "Production": "Productivity",
                "Upkeep": "Maintenance", "Sentinels": "Sentinel threat", "Debt": "Debt", "Alert": "Sentinel alert",
                "BugAttack": "Bug attack"}
+# The icon the settlement screen draws for each stat (gamedata.EXTRA_ICONS: SETTLEMENT_<KIND>_<ICON>).
+STAT_ICONS = {"MaxPopulation": "population", "Happiness": "happiness", "Production": "production", "Upkeep": "maintenance",
+              "Sentinels": "alert", "Debt": "maintenance", "Alert": "alert", "BugAttack": "alert"}
+
+
+def stat_icon_id(stat: str, kind: str = "basic") -> str:
+    """'Happiness', 'negative' -> 'SETTLEMENT_NEGATIVE_HAPPINESS' (an icon id gamedata knows)."""
+    return f"SETTLEMENT_{kind.upper()}_{STAT_ICONS[stat].upper()}"
+
+
+def icon_ids() -> list[str]:
+    return [stat_icon_id(s, k) for s in STATS for k in ("basic", "positive", "negative")]
+
+
+def _with_icon(texts, cell, icon_id: str):
+    """`cell` (text or {text, hint}) with the converted icon `icon_id`, when the plugin has it."""
+    gamedata = getattr(texts, "gamedata", None)
+    icon = gamedata.icon_name(icon_id) if gamedata is not None and hasattr(gamedata, "icon_name") else None
+    if not icon:
+        return cell
+    return {**cell, "icon": icon} if isinstance(cell, dict) else {"text": cell, "icon": icon}
+
+
 # GcSettlementStatStrength.SettlementStatStrengthEnum, in order. Positive/negative means better/worse for you,
 # not up/down: STARTING_NEG9 has Upkeep NegativeMedium and the game describes it as "Increases maintenance costs".
 STRENGTHS = ["varies", "large", "medium", "small", "small", "medium", "large"]
@@ -390,7 +413,7 @@ def settlement_sections(items: list[dict], tables: dict, texts, now: float, live
             stored = s["stats"] or [None] * len(STATS)
             rows = []
             for i, stat in enumerate(STATS):
-                rows.append([STAT_LABELS[stat],
+                rows.append([_with_icon(texts, STAT_LABELS[stat], stat_icon_id(stat)),
                              shown(stat, game[i], tables, s["population"]) if game[i] is not None else None,
                              _fmt(stored[i]) if stored[i] is not None else None,
                              f"{_fmt(tables['stats_min'][i])} to {_fmt(tables['stats_max'][i])}"])
@@ -419,7 +442,10 @@ def settlement_sections(items: list[dict], tables: dict, texts, now: float, live
                 label = f"{plain} (named in the game)"     # job descriptions hold placeholders too ("%JOB_STAT%")
                 desc = None
             origin = "founding" if perk["starter"] else "a decision" if perk["procedural"] else "an event"
-            perk_rows.append([{"text": label, "hint": desc} if desc else label, kind, effect, origin])
+            cell = {"text": label, "hint": desc} if desc else label
+            if perk["changes"]:
+                cell = _with_icon(texts, cell, stat_icon_id(perk["changes"][0][0], "negative" if perk["negative"] else "positive"))
+            perk_rows.append([cell, kind, effect, origin])
         if perk_rows:
             out.append({"type": "table", "title": f"{name}: perks", "columns": ["Perk", "Kind", "Effect", "From"],
                         "rows": perk_rows})

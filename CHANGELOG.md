@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Equipment**: *Inventory → Equipment* lists the exosuit's technology, every
+  multi-tool (class, which one is in your hand, its technology) and the
+  freighter's technology, each part with its icon, category and charge.
+- **More icons**: planet hints get the game's own icons (bones, grubs, buried
+  technology), and the settlement's stats and perks the settlement screen's
+  icons (positive or negative for perks).
 - **Ships**: *Ships & bases* lists every ship with type, class, its own bonuses,
   slots (and damaged ones), an **estimated warp range** (hyperdrive 100 ly plus
   upgrades - e.g. an S-class upgrade 220-265 ly - and the ship's hyperdrive bonus,

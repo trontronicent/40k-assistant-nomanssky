@@ -59,6 +59,21 @@ def item_key(item_id: str) -> str:
     return str(item_id).lstrip("^").split("#", 1)[0]
 
 
+# Icons for ids that are not in the item tables. Planet hints (GcPlanetDataResourceHint) carry an icon id next to
+# their text key - read live 2026-10-04: UI_BONES_HINT/BONES, UI_SCRAP_HINT/SALVAGE, UI_BUGS_HINT/GRUBS - and these are
+# the game's textures of that name (the bones icon of the frontend, the grub and buried-technology pickups of the HUD).
+EXTRA_ICONS = {
+    "UI_BONES_HINT": "TEXTURES/UI/FRONTEND/ICONS/BONES.DDS",
+    "UI_BUGS_HINT": "TEXTURES/UI/HUD/ICONS/PICKUPS/PICKUP.GRUB.DDS",
+    "UI_SCRAP_HINT": "TEXTURES/UI/HUD/ICONS/PICKUPS/PICKUP.TECHDEBRIS.DDS",
+}
+# The settlement screen's stat icons (textures/ui/frontend/icons/settlement/<basic|positive|negative><stat>.dds) as
+# SETTLEMENT_<KIND>_<STAT>, e.g. SETTLEMENT_NEGATIVE_HAPPINESS (settlements.stat_icon_id).
+EXTRA_ICONS.update({f"SETTLEMENT_{kind.upper()}_{stat.upper()}": f"TEXTURES/UI/FRONTEND/ICONS/SETTLEMENT/{kind.upper()}{stat.upper()}.DDS"
+                    for kind in ("basic", "positive", "negative")
+                    for stat in ("happiness", "production", "maintenance", "alert", "population")})
+
+
 def icon_file_name(texture: str) -> str | None:
     """'TEXTURES/UI/.../SUBSTANCE.FUEL.1.DDS' -> 'substance.fuel.1.png' (valid asset name), or None."""
     base = texture.replace("\\", "/").rsplit("/", 1)[-1].lower()
@@ -324,22 +339,27 @@ class GameData:
 
     # ------------------------------------------------------------------ icons
 
+    def icon_texture(self, item_id: str) -> str | None:
+        """The game texture of an item's icon (item tables, else EXTRA_ICONS), or None."""
+        entry = self.lookup(item_id)
+        return (entry or {}).get("icon") or EXTRA_ICONS.get(item_id)
+
     def icon_name(self, item_id: str) -> str | None:
         """Asset name of an item's icon if it has been converted, else None."""
-        entry = self.lookup(item_id)
-        name = icon_file_name(entry["icon"]) if entry and entry.get("icon") else None
+        texture = self.icon_texture(item_id)
+        name = icon_file_name(texture) if texture else None
         return name if name and (self.assets_dir / name).is_file() else None
 
     def ensure_icons(self, install: GameInstall, item_ids: list[str]) -> int:
         """Convert the icons of these items that are not converted yet; returns how many were added."""
         todo: dict[str, str] = {}
         for item_id in item_ids:
-            entry = self.lookup(item_id)
-            if not entry or not entry.get("icon"):
+            texture = self.icon_texture(item_id)
+            if not texture:
                 continue
-            name = icon_file_name(entry["icon"])
+            name = icon_file_name(texture)
             if name and not (self.assets_dir / name).is_file():
-                todo[name] = entry["icon"]
+                todo[name] = texture
         if not todo:
             return 0
         try:
