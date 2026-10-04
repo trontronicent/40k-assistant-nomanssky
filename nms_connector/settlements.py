@@ -15,8 +15,9 @@ The save (``SettlementStatesV2``, one entry per settlement; yours are those you 
   ``LastChangeTimestamp``, ``ProductionAccumulationCap``).
 
 **What the settlement screen shows** is computed by the game (stored values + buildings + perks) and found only
-in its memory (``LiveSettlements``): the settlement's seed twice in a row (16 bytes, 8-aligned), then two ints,
-then the eight computed stats. Verified 2026-10-04 against the screen: [52, 41, 489454, 395010, 0, 908027, 358,
+in its memory (``LiveSettlements``): the settlement's seed (u64, 8-aligned), two ints (1, 0), then the eight
+computed stats - only while the settlement's screen is open. (A first reading had the seed twice in a row; the
+second copy was a coincidence, absent at the next opening.) Verified 2026-10-04 against the screen: [52, 41, 489454, 395010, 0, 908027, 358,
 552] = population 20 / 52 (max.), happiness 34 % ((41 + 30) / 210 on the -30..180 scale), productivity
 489,454 units/day, maintenance 395,010 units/day, sentinel alert 36 % (358 / 1000). The save alone had
 [0, 36, 84308, -3250, 0, 913425, 358, 552].
@@ -145,25 +146,29 @@ def load_tables(install) -> dict:
     return out
 
 
-LIVE_STATS_AFTER = 0x18          # the computed stats follow the seed pair (16 bytes) and two ints
+LIVE_STATS_AFTER = 0x10          # the computed stats follow the settlement's seed (8 bytes) and two ints
 LIVE_SIZE = LIVE_STATS_AFTER + 8 * 4
-SEARCH_EVERY_S = 60              # at most one memory search per minute for a settlement not found yet
-RESEARCH_S = 600                 # and a fresh search now and then (a copy can go stale without moving)
+SEARCH_EVERY_S = 15              # memory search (~0.75 s) for a settlement in your system whose screen is not found
 
 
 def seed_needle(seed: int) -> bytes:
-    """The bytes in front of a settlement's computed stats: its seed, twice."""
-    return struct.pack("<QQ", seed, seed)
+    """The bytes in front of a settlement's computed stats: its seed (u64, 8-aligned)."""
+    return struct.pack("<Q", seed)
 
 
 def parse_live(raw: bytes | None, seed: int) -> list[int] | None:
-    """The eight computed stats from LIVE_SIZE bytes read at a seed pair; None when they are not that record."""
-    if not raw or len(raw) < LIVE_SIZE or raw[:16] != seed_needle(seed):
+    """The eight computed stats from LIVE_SIZE bytes read at the seed; None when they are not that record (the
+    seed is in memory ~150 times; only the stats' ranges tell this record apart)."""
+    if not raw or len(raw) < LIVE_SIZE or raw[:8] != seed_needle(seed):
         return None
+    # Between seed and stats: (1, 0) in both readings of 2026-10-04. A look-alike with the seed in front of eight
+    # small in-range ints ([41, 41, 41, 41, 50, 39, 39, 39], ints 36 and 46) passed the range check alone.
+    marker, zero = struct.unpack_from("<2i", raw, 8)
     stats = list(struct.unpack_from("<8i", raw, LIVE_STATS_AFTER))
     capacity, happiness, production, upkeep, sentinels, debt, alert, bugs = stats
-    if not (1 <= capacity <= 1000 and -1000 <= happiness <= 1000 and 0 <= sentinels <= 1000
-            and 0 <= alert <= 100000 and 0 <= bugs <= 100000 and all(abs(v) < 10 ** 9 for v in stats)):
+    if not (0 <= marker <= 16 and zero == 0 and 1 <= capacity <= 1000 and -1000 <= happiness <= 1000
+            and 0 <= production < 10 ** 9 and 0 <= upkeep < 10 ** 9 and 0 <= sentinels <= 1000
+            and 0 <= debt < 10 ** 9 and 0 <= alert <= 100000 and 0 <= bugs <= 100000):
         return None
     return stats
 
@@ -171,16 +176,16 @@ def parse_live(raw: bytes | None, seed: int) -> list[int] | None:
 class LiveSettlements:
     """The settlement screen's values from the running game, per settlement seed (read-only).
 
-    ``tick`` re-reads known records (56 bytes each) and searches memory for the others at most once per
-    SEARCH_EVERY_S. The game builds the record only while you are at the settlement (after a game start the
-    seed was in memory 67 times, the record not once - 2026-10-04), so ``values`` keeps the last good reading per
-    seed with its time, and ``path`` (the plugin's data folder) keeps it across restarts.
+    ``tick`` re-reads known records (48 bytes each) and, for settlements in the system you are in (``nearby``),
+    searches memory for the others at most once per SEARCH_EVERY_S. The game builds the record only while the
+    settlement's screen is open (2026-10-04: on the settlement's planet with the screen closed it was absent), so
+    the search runs often there and nowhere else; ``values`` keeps the last good reading per seed with its time,
+    and ``path`` (the plugin's data folder) keeps it across restarts.
     """
 
-    def __init__(self, path: Path | None = None, chunker=None, finder=None, clock=time.time):
+    def __init__(self, path: Path | None = None, chunker=None, clock=time.time):
         from . import memory
         self._chunks = chunker or memory.chunks
-        self._find = finder or memory.find_aligned
         self._clock = clock
         self.path = path
         self.load_error: str | None = None
@@ -208,15 +213,16 @@ class LiveSettlements:
         tmp.write_text(json.dumps({f"{k:x}": v for k, v in self.values.items()}), encoding="utf-8")
         tmp.replace(self.path)
 
-    def tick(self, reader, seeds: list[int]) -> None:
+    def tick(self, reader, seeds: list[int], nearby: list[int] | None = None) -> None:
+        """Re-read the known records of `seeds`; search for the missing ones of `nearby` (default: all)."""
         before = {k: v["stats"] for k, v in self.values.items()}
         try:
-            self._tick(reader, seeds)
+            self._tick(reader, seeds, seeds if nearby is None else nearby)
         finally:
             if {k: v["stats"] for k, v in self.values.items()} != before:
                 self._save()
 
-    def _tick(self, reader, seeds: list[int]) -> None:
+    def _tick(self, reader, seeds: list[int], nearby: list[int]) -> None:
         now = self._clock()
         for seed in seeds:
             address = self.addresses.get(seed)
@@ -225,26 +231,27 @@ class LiveSettlements:
                 self.addresses.pop(seed, None)
             else:
                 self.values[seed] = {"stats": stats, "at": now}
-        missing = [s for s in seeds if s not in self.addresses]
-        stale = self._searched_at is None or now - self._searched_at >= RESEARCH_S
-        if (missing and (self._searched_at is None or now - self._searched_at >= SEARCH_EVERY_S)) or stale:
-            self._search(reader, seeds, now)
+        missing = [s for s in nearby if s not in self.addresses]
+        if missing and (self._searched_at is None or now - self._searched_at >= SEARCH_EVERY_S):
+            self._search(reader, missing, now)
 
     def _search(self, reader, seeds: list[int], now: float) -> None:
         started = time.perf_counter()
         self._searched_at = now
-        needles = {seed: seed_needle(seed) for seed in seeds}
+        import numpy as np
+        wanted = np.array(seeds, dtype=np.uint64)
         found: dict[int, int] = {}
         for _base, address, buf, valid, length in self._chunks(reader, LIVE_SIZE):
-            for seed, needle in needles.items():
-                if seed in found:
+            words = np.frombuffer(buf, np.uint64, valid // 8)       # chunks are page-aligned: words are 8-aligned
+            for i in np.flatnonzero(np.isin(words, wanted)):
+                at = int(i) * 8
+                seed = int(words[i])
+                if at >= length or seed in found:
                     continue
-                for at in self._find(buf, needle, valid, length, address, align=8):
-                    raw = bytes(buf[at:at + LIVE_SIZE]) if at + LIVE_SIZE <= valid else reader.read(address + at, LIVE_SIZE)
-                    if parse_live(raw, seed) is not None:
-                        found[seed] = address + at
-                        break
-            if len(found) == len(needles):
+                raw = bytes(buf[at:at + LIVE_SIZE]) if at + LIVE_SIZE <= valid else reader.read(address + at, LIVE_SIZE)
+                if parse_live(raw, seed) is not None:
+                    found[seed] = address + at
+            if len(found) == len(seeds):
                 break
         for seed, address in found.items():
             self.addresses[seed] = address
@@ -283,9 +290,11 @@ def settlements_from_save(readable: dict) -> list[dict]:
             seed = int(str(s.get("SeedValue") or "0"), 16) if isinstance(s.get("SeedValue"), str) else int(s.get("SeedValue") or 0)
         except ValueError:
             seed = 0
+        ua = s.get("UniverseAddress")
         out.append({
             "name": s.get("Name") or "Settlement",
             "seed": seed,
+            "system": (ua & ~(0xF << 52)) if isinstance(ua, int) else None,     # memory.system_key
             "race": _enum(s.get("Race"), "AlienRace"),
             "population": int(s.get("Population") or 0),
             "stats": [int(v) for v in stats[:len(STATS)]] if len(stats) >= len(STATS) else [],

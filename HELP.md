@@ -55,10 +55,10 @@ One block per settlement you run, from the save:
   or that a decision is waiting for you.
 - **Stats** - as the settlement's screen shows them: population (20 / 52),
   happiness and sentinel alert in percent, productivity and maintenance in units
-  per day. The game computes these from your buildings and perks and keeps them
-  only while you are at the settlement, so they are read from the running game
-  when you visit it and kept until the next visit (the column heading says
-  when). Next to them, the values the save stores, which are different.
+  per day. The game computes these from your buildings and perks only while the
+  settlement's screen is open, so open it once (at the settlement's terminal):
+  the plugin reads them within about 15 seconds and keeps them until the next
+  time (the column heading says when). Next to them, the values the save stores, which are different.
 - **Production** - what the settlement makes, how much was ready at your last
   visit and how much it holds at most.
 - **Perks** - each with its name (English and your game's language), whether it

@@ -204,6 +204,9 @@ def test_a_seed_pair_followed_by_nonsense_is_not_taken_for_the_stats():
     assert settlements.parse_live(bad.read(bad.base + 0x1008, settlements.LIVE_SIZE), SEED) is None
     assert settlements.parse_live(FakeMemory(seed=SEED + 1).read(0x1666B580000 + 0x1008, 0x38), SEED) is None
     assert settlements.parse_live(None, SEED) is None
+    # Seen live 2026-10-04: the seed in front of other data that looks like stats; the marker ints tell it apart.
+    lookalike = settlements.seed_needle(SEED) + struct.pack("<2i8i", 36, 46, 41, 41, 41, 41, 50, 39, 39, 39)
+    assert settlements.parse_live(lookalike, SEED) is None
 
 
 def test_the_stats_table_shows_the_screen_values_like_the_game():

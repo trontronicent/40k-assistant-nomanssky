@@ -311,9 +311,12 @@ class NmsConnector:
         changed = await self.ctx.run_blocking(self.live.tick, self.anchor, self._substances(), now)
         await self.ctx.run_blocking(self._follow_route)
         seeds = [s["seed"] for s in self.settlements if s.get("seed")]
+        # The settlement screen's values exist only while it is open: search for them in your system only.
+        here = self.live.current_system if self.live.current_system is not None else self.save_system
+        nearby = [s["seed"] for s in self.settlements if s.get("seed") and s.get("system") == here]
         if seeds and self.live.reader is not None and self.live.status == "ok":
             try:
-                await self.ctx.run_blocking(self.settlement_live.tick, self.live.reader, seeds)
+                await self.ctx.run_blocking(self.settlement_live.tick, self.live.reader, seeds, nearby)
             except OSError as exc:      # the game closed mid-read: the next tick reopens it
                 self.ctx.logger.debug("[NMS] Settlement stats not read: %s", exc)
         # Also once after a start or item-database rebuild (icons are cleared then), so planets recorded
