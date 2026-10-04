@@ -325,3 +325,21 @@ def test_the_overview_names_the_primary_ship_and_the_settlements(tmp_path):
     assert plugin._primary_ship_text() == "Bang (Fighter, class C) - warp range ~320-365 ly, red stars"
     plugin.settlements = [{"name": "Kay City", "building": "Farm", "pending": "StrangerVisit"}, {"name": "Rest", "pending": "None"}]
     assert plugin._settlements_text() == "Kay City: Farm in construction, a decision is waiting; Rest (see Settlements)"
+
+
+def test_the_plugin_brings_its_persona_and_answers_chat_questions_from_the_save(tmp_path):
+    """App 3.9.0 stores the persona the plugin brings ("No Man's Sky Plugin Persona", answering from [GAME DATA])
+    and asks chat_context before each of its replies: the answer carries status lines and the named item's
+    totals from the snapshot."""
+    plugin = create_plugin(FakeCtx(tmp_path))
+    persona, = plugin.personas()
+    assert persona["slug"] == "companion" and persona["name"] == "No Man's Sky Plugin Persona"
+    assert "[GAME DATA: No Man's Sky]" in persona["system_prompt"] and persona["temperature"] == 0.3
+    assert plugin.chat_context("how much copper")["text"] == "No save has been read yet, so there is no game data."
+    plugin.snapshot = {"exosuit": [["YELLOW2", 5, 250]], "exosuit_cargo": [], "ships": [], "storage": [],
+                       "freighter": {"name": None, "inventory": []}, "bases": [], "saved_at": None, "units": 1,
+                       "nanites": 2, "quicksilver": 3, "location": {"galaxy": "Euclid", "portal": "x"}, "current_mission": None}
+    plugin.gamedata.lookup = lambda item_id: {"en": "Copper", "local": "Kupfer"} if item_id == "YELLOW2" else None
+    out = plugin.chat_context("how much copper do I have")
+    assert out["title"] == "No Man's Sky"
+    assert "Units 1, Nanites 2, Quicksilver 3" in out["text"] and "[YELLOW2]: 5 in total - Exosuit: 5" in out["text"]

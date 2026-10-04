@@ -25,6 +25,10 @@ credits appear in the 40k Assistant's manual under *Plugin Help* (app 3.4.0+).
   colours each ship reaches; the route planner starts from it
 - **Bases, frigates, expeditions, companions, the current mission** (with the
   game's description)
+- **Plugin persona (app 3.9.0):** brings the *No Man's Sky Plugin Persona*; linked
+  to a model, it answers questions about your game from the live data ("how much
+  copper do I have?" → total and amount per inventory) - `chat_context` gives the
+  app the data for each question (`assistant.py`)
 - **Settlements:** population, the stored stats (productivity, happiness,
   maintenance, debt, alert, bug attacks, ...) on the game's own scale
   (`gcsettlementglobals`), production, perks with their names and effects

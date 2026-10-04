@@ -11,12 +11,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 import time
 import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from . import equipment, frigates, galaxy, memory, planets_view, route, saves, settlements, ships, timers, trade
+from . import assistant, equipment, frigates, galaxy, memory, planets_view, route, saves, settlements, ships, timers, trade
 from .game_install import GameInstall, find_game
 from .gamedata import GameData
 from .history import PlanetHistory, visits_from_save
@@ -544,6 +545,90 @@ class NmsConnector:
         ]})
         return out
 
+    # ------------------------------------------------------------------ chat (app 3.9.0: plugin personas)
+
+    PERSONA_PROMPT = (
+        "You are the No Man's Sky Plugin Persona, the player's companion for No Man's Sky. With every message you "
+        "get a [GAME DATA: No Man's Sky] block: live data from the player's game - inventories with totals per "
+        "item and per place, currencies, location, ships and warp range, settlements, frigates and timers.\n\n"
+        "Answer questions about their game from that block. For amounts, give the total first, then where it is "
+        "(\"You have 1,234 Copper: 500 in the exosuit, 734 in Storage Container 0.\"). Name items in the player's "
+        "language - the block gives the English name and, in brackets, the game's language - and leave out the "
+        "item ids in square brackets unless asked. If the block does not contain what was asked, say so plainly and suggest where to "
+        "look in the game - never invent numbers. Mention when the data comes from an older save if it matters. "
+        "For general No Man's Sky questions (recipes, mechanics) answer from your own knowledge and say that it is "
+        "not from their save. Be concise and friendly; answer in the language the player writes in."
+    )
+
+    def personas(self) -> list[dict]:
+        """The persona this plugin brings (the app stores it once; the user links it to a model)."""
+        return [{
+            "slug": "companion", "name": "No Man's Sky Plugin Persona",
+            "personality": "Helpful, precise with numbers, a seasoned traveller of the Euclid galaxy.",
+            "speech_style": "Short and clear; totals first, then where things are.",
+            "background": "Brought by the No Man's Sky plugin: answers from your live game data - inventories, "
+                          "ships, settlements, frigates, timers and location.",
+            "system_prompt": self.PERSONA_PROMPT, "temperature": 0.3,
+        }]
+
+    def chat_context(self, question: str) -> dict:
+        """The game data for one chat message (see assistant.py); the app injects it into the system prompt."""
+        snap = self.snapshot
+        ctx = planets_view.Context(self.live, self.history, self.visits, self.gamedata, self.combat_timer,
+                                   snap["bases"] if snap else [], origin=self.save_system, save_position=self.save_position)
+
+        def names_of(item_id):
+            entry = self.gamedata.lookup(item_id) or {}
+            names = [entry.get("en"), entry.get("local")]
+            return [n for n in dict.fromkeys(names) if n]
+
+        def name_of(item_id):
+            return ctx.texts.name(item_id) or item_id
+
+        here = self.live.current_system if self.live.current_system is not None else self.save_system
+
+        def planets_offering(item_id):
+            found = []
+            for planet in self.history.planets.values():
+                gas = planets_view.planet_gas(planet)
+                if item_id in (planet.get("common"), planet.get("uncommon"), planet.get("rare"), gas) \
+                        or item_id in (planet.get("extra") or []):
+                    dist = galaxy.distance_ly(here, planet["system"]) if here is not None else None
+                    found.append((dist if dist is not None else 1e12, planet))
+            found.sort(key=lambda d: d[0])
+            out = []
+            for dist, planet in found[:assistant.NEAREST_PLANETS]:
+                system = planets_view._system_label(planet["system"], ctx.visit(planet["system"]))
+                where = "your current system" if planet["system"] == here else galaxy.distance_text(dist if dist < 1e12 else None)
+                out.append(f"{planet.get('name') or 'a planet'} in {system} ({where})")
+            return out
+
+        status = [f"No Man's Sky - data of the save written {assistant.saved_text((snap or {}).get('saved_at'))}"
+                  + (", position live from the running game" if self.live.current_system is not None else "")]
+        if snap:
+            status.append(f"Units {snap.get('units') or 0:,}, Nanites {snap.get('nanites') or 0:,}, "
+                          f"Quicksilver {snap.get('quicksilver') or 0:,}")
+            if here is not None:
+                status.append(f"You are in the system {planets_view._system_label(here, ctx.visit(here))} "
+                              f"({snap['location'].get('galaxy')}), portal address {snap['location'].get('portal')}")
+            status.append(f"Primary ship: {self._primary_ship_text()}")
+            status.append(f"Freighter: {self._freighter_text(snap['freighter']['name'])}")
+            status.append(f"Current mission: {self._mission_text(snap.get('current_mission'))}")
+        extra = []
+        now = time.time()
+        shown = timers.visible(self.timers, now)
+        if shown:
+            extra.append("Timers: " + "; ".join(
+                f"{t['label']} - {'done' if t['ends_at'] <= now else 'ends ' + timers.clock(t['ends_at'])}" for t in shown))
+        if self.settlements:
+            extra.append(f"Settlements: {self._settlements_text()}")
+        out_on = [f for f in self.frigates if f["on_expedition"]]
+        if self.frigates:
+            extra.append(f"Frigates: {len(self.frigates)} ({len(out_on)} out on an expedition)")
+        all_names = {i: [n for n in (e.get("en"), e.get("local")) if n] for i, e in (self.gamedata.items or {}).items()}
+        text = assistant.build_context(question, snap, name_of, names_of, all_names, status, extra, planets_offering)
+        return {"title": "No Man's Sky", "text": text}
+
     def _primary_ship_text(self) -> str:
         """'Bang (Fighter, class C) - warp range ~320-365 ly, red and green stars' (details in Ships & bases)."""
         primary = next((s for s in self.ships if s["primary"]), None)
@@ -580,7 +665,9 @@ class NmsConnector:
         for key in mission_text_keys(mission_id):
             entry = self.gamedata.text(key)
             if entry:
-                text = entry["en"] if len(entry["en"]) <= 220 else entry["en"][:217].rsplit(" ", 1)[0] + "..."
+                # One line, without the game's fill-ins ("%PLANET%", "%SETTLEMENT%": the game names them in play).
+                text = " ".join(re.sub(r"%[A-Z0-9_]+%", "it", entry["en"]).split())
+                text = text if len(text) <= 220 else text[:217].rsplit(" ", 1)[0] + "..."
                 return f"{text} ({mission_id})"
         return mission_id
 

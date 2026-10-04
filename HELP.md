@@ -27,6 +27,26 @@ The tabs:
 - **Settlements** - the economy of each settlement you run: see *Settlements* below.
 - **Saves & source** - how often the game saves, the recent save writes, where the data comes from and the last memory scans.
 
+## The plugin persona
+
+With the 40k Assistant 3.9.0 the plugin brings a persona, the **No Man's Sky
+Plugin Persona**. Open this page and link it to a model in the highlighted card
+at the top (choose a model, **Link**). Then choose it as the persona in the chat
+and ask about your game:
+
+- *How much copper do I have?* - the total and how much is in each inventory
+  (exosuit, ships, freighter, storage containers), and the nearest planets
+  where it was seen.
+- *Wie viel Natrium habe ich?* - item names work in English and in your game's
+  language.
+- *What is my warp range?*, *When does my expedition come back?*, *What is my
+  settlement building?* - it also knows your ships, timers, settlements,
+  frigates, currencies and where you are.
+
+Its answers are as fresh as the game's last save (and the live position while
+the game runs). You can change its prompt and settings in the persona editor;
+other personas can draw on the same data under *Intel → Plugin Data*.
+
 ## Timers
 
 At the top of the *Overview* tab: when the building under construction in each of

@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **The No Man's Sky Plugin Persona** (needs the 40k Assistant 3.9.0): the plugin
+  brings a persona that answers questions about your game from its live data.
+  Link it to a model on the plugin's page, then ask in the chat - "How much
+  copper do I have?" gives the total and how much is in each inventory, and
+  where it was seen on planets; it also knows your currencies, location, ships
+  and warp range, settlements, frigates and timers. Item names work in English
+  and in the game's language.
 - **Decision timers**: each settlement gets a timer for its next decision, ending at
   the latest moment it can come (2 h after the last); with a bell you are
   notified then.
