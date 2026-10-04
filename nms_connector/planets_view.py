@@ -562,6 +562,8 @@ def _galaxy_point(key: int, ctx: Context, color_by: str = "kind") -> dict:
                  {"label": "Portal address", "value": address_portal(addr)},
                  {"label": "Region (voxel X, Y, Z)", "value": ", ".join(str(v) for v in galaxy.region(key))},
                  {"label": "Distance from you", "value": galaxy.distance_text(dist, key == ctx.origin) if ctx.origin is not None else "unknown"},
+                 {"label": "Position", "value": ("exact (read in the game): " + ", ".join(f"{v:.2f}" for v in galaxy.exact(key)))
+                  if galaxy.exact(key) else "region only (exact once you visit it with the game running)"},
                  {"label": "Economy", "value": ctx.economy_summary(key) or "not read yet"},
                  {"label": "Planets with resources", "value": len(planets) or None},
                  {"label": "Named by", "value": visit.get("named_by")},

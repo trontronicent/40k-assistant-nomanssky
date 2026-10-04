@@ -121,6 +121,7 @@ class PlanetHistory:
         self.scans: list[dict] = []
         self.economies: dict[int, dict] = {}       # system key -> star attributes (economy, wealth, conflict, race)
         self.system_names: dict[int, str] = {}     # system key -> generated name from the galaxy map's cache
+        self.positions: dict[int, tuple] = {}      # system key -> exact voxel position (positions.py)
         self.load()
 
     def load(self) -> None:
@@ -142,6 +143,8 @@ class PlanetHistory:
                 self.economies = {int(k, 16): v for k, v in (raw.get("economies") or {}).items() if isinstance(v, dict)}
                 self.system_names = {int(k, 16): v for k, v in (raw.get("system_names") or {}).items()
                                      if isinstance(v, str) and v}
+                self.positions = {int(k, 16): tuple(float(c) for c in v) for k, v in (raw.get("positions") or {}).items()
+                                  if isinstance(v, list) and len(v) == 3}
             else:
                 continue
             return
@@ -151,7 +154,8 @@ class PlanetHistory:
         tmp = self.path.with_suffix(".tmp")
         tmp.write_text(json.dumps({"version": HISTORY_VERSION, "planets": self.planets, "scans": self.scans,
                                    "economies": {f"{k:x}": v for k, v in self.economies.items()},
-                                   "system_names": {f"{k:x}": v for k, v in self.system_names.items()}},
+                                   "system_names": {f"{k:x}": v for k, v in self.system_names.items()},
+                                   "positions": {f"{k:x}": list(v) for k, v in self.positions.items()}},
                                   ensure_ascii=False), encoding="utf-8")
         if self.path.exists():
             self.path.replace(self.path.with_suffix(".json.bak"))

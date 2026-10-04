@@ -161,9 +161,13 @@ Below the map, **Nearest planet with each resource** names, for every resource
 the plugin has read, the closest planet offering it: your own system first,
 then by distance. Click a row to open that system.
 
-Distances are measured between regions (about 400 light years per step) and
-are approximate: the game does not reveal where exactly a system lies in its
-region, so the systems of one region are drawn on a small circle around it.
+Distances are measured between regions (about 400 light years per step) - except
+between systems whose **exact position** is known: while the game runs, the plugin
+reads where the system you are in lies inside its region and keeps it, so every
+system you visit from now on gets an exact position (a system's details on the map
+say *Position: exact*). Between two such systems the distance is exact, and the
+map draws them where they really are; the others sit on a small circle around
+their region's point.
 
 ## Economy and trade
 

@@ -17,7 +17,7 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from . import assistant, equipment, frigates, galaxy, memory, planets_view, route, saves, settlements, ships, timers, trade
+from . import assistant, equipment, frigates, galaxy, memory, planets_view, positions, route, saves, settlements, ships, timers, trade
 from .game_install import GameInstall, find_game
 from .gamedata import GameData
 from .history import PlanetHistory, visits_from_save
@@ -121,6 +121,8 @@ class NmsConnector:
         self._game_checked = 0.0
         self._game_failed = 0.0
         self.history = PlanetHistory(self.data_dir / "planet_history.json")
+        galaxy.set_positions(self.history.positions)
+        self.positions = positions.PositionTracker()   # exact position of the current system (game memory)
         self.live = LiveMemory(self.history)
         self.visits: dict[int, dict] = {}
         self.anchor: bytes | None = None
@@ -156,6 +158,16 @@ class NmsConnector:
         tmp = self.route_path.with_suffix(".tmp")
         tmp.write_text(json.dumps(self.route_state), encoding="utf-8")
         tmp.replace(self.route_path)
+
+    def _track_position(self, now: float) -> None:
+        """Record the current system's exact position when the game shows one that can be its own."""
+        key = self.live.current_system
+        found = self.positions.tick(self.live.reader, key, galaxy.region(key), now)
+        if found and self.history.positions.get(found[0]) != found[1] and positions.accept(self.history.positions, *found):
+            self.history.positions[found[0]] = found[1]
+            galaxy.set_positions(self.history.positions)
+            self.history.save()
+            self.ctx.logger.info("[NMS] Exact position of %x: %s", found[0], found[1])
 
     def _follow_route(self) -> bool:
         """Plan the stored route again from where you are now, when you moved since it was planned.
@@ -337,6 +349,11 @@ class NmsConnector:
             self.live.last_scan_at = None
         changed = await self.ctx.run_blocking(self.live.tick, self.anchor, self._substances(), now)
         await self.ctx.run_blocking(self._follow_route)
+        if self.live.reader is not None and self.live.status == "ok" and self.live.current_system is not None:
+            try:
+                await self.ctx.run_blocking(self._track_position, now)
+            except OSError as exc:      # the game closed mid-read
+                self.ctx.logger.debug("[NMS] Position not read: %s", exc)
         seeds = [s["seed"] for s in self.settlements if s.get("seed")]
         # The settlement screen's values exist only while it is open: search for them in your system only.
         here = self.live.current_system if self.live.current_system is not None else self.save_system

@@ -1,8 +1,11 @@
 """Where systems are in the galaxy, how far apart, and the nearest planet with a resource (pure).
 
 A packed system address names a *region* (voxel X, Y, Z: a cube of the galaxy,
-X and Z -2048..2047, Y -128..127) and a system index inside it. The save and
-the game's memory give no finer position, so:
+X and Z -2048..2047, Y -128..127) and a system index inside it. The save gives no
+finer position; the running game shows the *current* system's exact position
+(positions.py), collected per visited system into ``set_positions``. Two systems
+with exact positions are measured exactly (still at REGION_LY per voxel); for the
+others:
 
 - distances are measured between regions, at REGION_LY light years per voxel
   step (the community's figure for the galaxy map; approximate), and two
@@ -23,6 +26,19 @@ GALAXY_BOUNDS = {"min": [-2048, -128, -2048], "max": [2047, 127, 2047]}
 SPREAD = 0.42          # voxel radius of the display circle for the systems of one region
 GOLDEN_ANGLE = math.pi * (3 - math.sqrt(5))
 
+_positions: dict[int, tuple] = {}     # system key -> exact voxel position (set_positions)
+
+
+def set_positions(positions: dict[int, tuple]) -> None:
+    """The exact positions known (history.positions); distances and the map use them where they can."""
+    global _positions
+    _positions = positions
+
+
+def exact(key: int) -> tuple[float, float, float] | None:
+    """The system's exact voxel position, if it was read in the game."""
+    return _positions.get(key & ~(0xF << 52)) if key is not None else None
+
 
 def _signed(value: int, bits: int) -> int:
     return value - (1 << bits) if value >= (1 << (bits - 1)) else value
@@ -42,7 +58,11 @@ def system_index(key: int) -> int:
 
 
 def map_position(key: int) -> tuple[float, float, float]:
-    """Display position: the region's voxel plus a small, stable offset by system index."""
+    """Display position: the exact one when known, else the region's voxel plus a small, stable offset by
+    system index."""
+    known = exact(key)
+    if known:
+        return known
     x, y, z = region(key)
     index = system_index(key)
     angle = index * GOLDEN_ANGLE
@@ -51,9 +71,13 @@ def map_position(key: int) -> tuple[float, float, float]:
 
 
 def distance_ly(a: int, b: int) -> float | None:
-    """Approximate distance between two systems in light years (0 in one region); None across galaxies."""
+    """Distance between two systems in light years: exact when both positions were read in the game, else
+    between their regions (0 in one region); None across galaxies."""
     if galaxy_of(a) != galaxy_of(b):
         return None
+    pa, pb = exact(a), exact(b)
+    if pa and pb:
+        return REGION_LY * math.dist(pa, pb)
     (ax, ay, az), (bx, by, bz) = region(a), region(b)
     return REGION_LY * math.sqrt((ax - bx) ** 2 + (ay - by) ** 2 + (az - bz) ** 2)
 

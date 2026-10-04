@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Exact system positions**: the game shows where your current system lies
+  inside its region (a render parameter, `gGalacticScale`); the plugin records it
+  for every system you visit with the game running. Distances between two such
+  systems - on the map, in the trade tables and in the route planner - are now
+  exact instead of "same region (< 400 ly)", and the map draws them in place.
 - **The No Man's Sky Plugin Persona** (needs the 40k Assistant 3.9.0): the plugin
   brings a persona that answers questions about your game from its live data.
   Link it to a model on the plugin's page, then ask in the chat - "How much
