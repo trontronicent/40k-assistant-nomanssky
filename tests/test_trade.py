@@ -64,6 +64,28 @@ def test_star_records_are_found_through_planet_seeds():
     assert memory.parse_star_attributes(bytes(star_record(trading=9))) is None
 
 
+def test_star_search_starts_in_the_preferred_region_and_stops_when_done():
+    """The regions holding the name cache are searched first and the pass stops once every system is found:
+    the regions after it are never read, which is what keeps the economy pass short on 5 GB of memory."""
+    p0 = memory.parse_planet(bytes(planet_blob("A", 0, seed=0x1111)))
+    star = bytearray(0x2000)
+    star[0x800:0x800 + memory.STAR_SIZE] = star_record(seeds=[(0, 0x1111)])
+    regions = {0x100000: bytearray(0x2000), 0x200000: star, 0x300000: bytearray(0x2000)}
+
+    class CountingReader(FakeReader):
+        read_bases: list[int] = []
+
+        def read(self, address, size):
+            self.read_bases.append(address & ~0xFFFFF)
+            return super().read(address, size)
+
+    reader = CountingReader(regions)
+    found = memory.find_star_attributes(reader, {SYSTEM_98: [p0]}, prefer=[0x200000])
+    assert found[SYSTEM_98]["economy"] == "Trading"
+    assert set(reader.read_bases) == {0x200000}
+    assert memory.find_star_attributes(FakeReader(regions), {SYSTEM_98: [p0]})[SYSTEM_98]["economy"] == "Trading"
+
+
 def test_economies_are_stored_and_read_once_per_system(tmp_path):
     """Economies persist in the planet history; the live reader looks for a system's star record only while
     it has no economy recorded, so the extra memory pass runs once per new system."""
@@ -78,7 +100,7 @@ def test_economies_are_stored_and_read_once_per_system(tmp_path):
     reader = FakeReader({0x100000: region})
     calls = []
 
-    def finder(r, systems):
+    def finder(r, systems, prefer=()):
         calls.append(sorted(systems))
         return {k: {"economy": "Scientific", "wealth": "Average", "conflict": "Low", "race": "Gek"} for k in systems}
 

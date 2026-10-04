@@ -1,6 +1,6 @@
 """Pacing of the read-only memory reading: when to scan, which system you are in, what was recorded.
 
-A full scan costs ~6-13 s of reading, so it runs only when needed:
+A full scan reads ~5 GB (about 3-4 s since 0.9.1, 18 s before), so it runs only when needed:
 
 - when the game (re)starts, or the player-state anchor is lost;
 - when the current system changes (the current address is re-read cheaply every
@@ -50,6 +50,7 @@ class LiveMemory:
         self.current_system: int | None = None  # packed system key
         self.current_source: str | None = None  # "player" (exact position) | "planets" (judged from memory)
         self.slots: list[int] = []              # planet records of the last scan (warp detection)
+        self.name_regions: list[int] = []       # where the last scan found the name cache (star records nearby)
         self.last_scan_at: float | None = None
         self.last_scan_iso: str | None = None
         self.last_scan_seconds: float | None = None
@@ -130,6 +131,7 @@ class LiveMemory:
                 self.current_system = result.majority_system()
                 self.current_source = "planets" if self.current_system is not None else None
             self.slots = list(result.slots)
+            self.name_regions = list(result.name_regions)
             self._scanned_system = self.current_system
             self._scanned_with_anchor = anchor
             self.last_scan_at = now
@@ -173,7 +175,7 @@ class LiveMemory:
         if not missing:
             return 0
         known = {key: plist for key, plist in self.history.systems().items() if key in missing}
-        found = self._find_stars(self.reader, known)
+        found = self._find_stars(self.reader, known, self.name_regions)
         self.last_economy_systems = len(found)
         return self.history.record_economies(found, self.last_scan_iso)
 

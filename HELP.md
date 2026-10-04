@@ -13,7 +13,7 @@ listed at the end of this section.
 Open it from **Plugins → No Man's Sky** in the header. The buttons at the top:
 
 - **Rescan** - read the newest save file again now.
-- **Scan game now** - read the planets of the current system from the running game now (takes about 10 seconds).
+- **Scan game now** - read the planets of the current system from the running game now (takes about 3 seconds).
 - **Update key mapping** - download the newest key list after a game update (when the page reports unknown keys).
 - **Re-read item names** - read item names and icons from the game files again, for example after changing the game's language in Steam.
 - **Clear save history** - forget the recorded save writes.

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+- **Game scans are about 10x faster**: reading the planets, system names and
+  economies from the running game takes about 2.5 seconds instead of 30 or more
+  (measured on 5 GB of game memory). Memory is read into one reused buffer, and
+  planet, name and star records are found with vectorised checks instead of
+  parsing a million false candidates and searching memory once per planet seed.
+  The economy lookup searches the galaxy map's memory first and stops as soon as
+  every system is found.
+
 ## 0.9.0 — 2026-10-04
 
 - **Categories and tooltips for items and resources**: inventory tables have a

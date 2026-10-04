@@ -149,6 +149,60 @@ def test_scan_finds_planets_hints_and_the_player_state(monkeypatch):
     assert address == 0x600000 + 0x40 and ua["GalacticAddress"]["SolarSystemIndex"] == 98
 
 
+class IntoReader(FakeReader):
+    """A FakeReader that also reads into a caller's buffer, as ProcessReader does (one buffer for every chunk)."""
+
+    def read_into(self, address, target, size):
+        data = self.read(address, size)
+        if not data:
+            return 0
+        target[:len(data)] = data
+        return len(data)
+
+
+def test_scan_through_a_reused_buffer_finds_the_same(monkeypatch):
+    """Scanning through read_into (one buffer reused for every chunk, stale bytes left behind a short read)
+    finds exactly what the copying reader finds: planets, the one crossing a chunk boundary, the player state
+    and system names - so the faster path cannot lose or invent records."""
+    monkeypatch.setattr(memory, "CHUNK", 0x8000)
+    region = bytearray(0x30000)
+    region[0x1000:0x1000 + memory.PLANET_SIZE] = planet_blob()
+    at = 0x8000 - memory.P_COMMON - 0x20
+    at -= at % 16
+    region[at:at + memory.PLANET_SIZE] = planet_blob("Ezaw 36/M3", 1, ids=("YELLOW2", "DUSTY1", "WATER1"))
+    region[0x20004:0x20004 + memory.NAME_RECORD] = name_record_bytes("Ulebsk", SYSTEM_98)
+    small = bytearray(0x3000)                       # shorter than the planets' region: stale bytes stay behind
+    state, anchor = player_state_region()
+    regions = {0x100000: region, 0x500000: small, 0x600000: state}
+    plain, reused = memory.scan(FakeReader(regions), SUBSTANCES, anchor), memory.scan(IntoReader(regions), SUBSTANCES, anchor)
+    assert [p["name"] for p in reused.planets] == ["Yaksh Primus", "Ezaw 36/M3"]
+    assert reused.planets == plain.planets and reused.slots == plain.slots
+    assert reused.player_states == plain.player_states == [0x600040]
+    assert reused.system_names == plain.system_names == {SYSTEM_98: "Ulebsk"}
+
+
+def test_candidates_are_filtered_by_index_and_address():
+    """Rows that look like three ids but whose record has no valid planet index / PlanetUA are dropped before
+    parsing (on the game's memory that cut 1.1 million candidates to ~6000); a record that starts before the
+    buffer cannot be checked and is kept for the caller to read."""
+    buf = bytearray(0x10000)
+    buf[0x4000:0x4000 + memory.PLANET_SIZE] = planet_blob()
+    fake = planet_blob()
+    struct.pack_into("<Q", fake, memory.P_PLANET_UA, SYSTEM_98 | 7 << 52)     # nibble does not match index 0
+    buf[0x8000:0x8000 + memory.PLANET_SIZE] = fake
+    buf[0x10:0x10 + 0x70] = planet_blob()[memory.P_COMMON:memory.P_COMMON + 0x70]   # record starts before buf
+    assert memory.candidate_rows(bytes(buf)) == [0x10, 0x4000 + memory.P_COMMON]
+
+
+def test_name_markers_only_count_where_a_record_can_start():
+    """A marker counts only at 1 mod 8 of the memory address (a record starts at 4 mod 8 because of its u64
+    address): shifting the same bytes by one finds nothing, and the alignment follows the chunk's address."""
+    record = name_record_bytes("Ulebsk", SYSTEM_98)
+    assert memory.system_names_in(b"\0" * 4 + record) == {SYSTEM_98: "Ulebsk"}
+    assert memory.system_names_in(b"\0" * 5 + record) == {}
+    assert memory.system_names_in(b"\0" * 5 + record, address=7) == {SYSTEM_98: "Ulebsk"}
+
+
 # --------------------------------------------------------------------------- history
 
 
@@ -599,7 +653,8 @@ def test_generated_system_names_are_read_from_the_name_cache():
     records = [name_record_bytes(long_name, SYSTEM_115), name_record_bytes("", 0),
                name_record_bytes("Ulebsk", SYSTEM_98), name_record_bytes("Kitima-Wos", 0x440002926E7F)]
     assert b"PROC NAME" not in records[0][:0x20]          # the long name hides the marker
-    buf = bytes(range(256)) * 4 + b"".join(records) + b"\xff" * 0x800
+    # Records start at 4 mod 8, as in the game (their packed address at +0x20C is an 8-aligned u64).
+    buf = bytes(range(256)) * 4 + b"\0" * 4 + b"".join(records) + b"\xff" * 0x800
     names = memory.system_names_in(buf)
     assert names == {SYSTEM_115: long_name, SYSTEM_98: "Ulebsk", 0x440002926E7F: "Kitima-Wos"}
     assert memory.system_names_in(buf.replace(b"PROC NAME", b"proc name")) == {}   # nothing without the marker
@@ -616,9 +671,10 @@ def test_name_records_are_validated():
 
 def test_scan_reports_generated_names_and_history_keeps_them(tmp_path):
     """The scan collects names over all regions; the history stores them and keeps them across a reload."""
-    reader = FakeReader({0x10000: bytearray(b"\0" * 64 + name_record_bytes("Ulebsk", SYSTEM_98) + b"\xff" * 0x300)})
+    reader = FakeReader({0x10000: bytearray(b"\0" * 68 + name_record_bytes("Ulebsk", SYSTEM_98) + b"\xff" * 0x300),
+                         0x20000: bytearray(0x400)})
     result = memory.scan(reader, SUBSTANCES, None)
-    assert result.system_names == {SYSTEM_98: "Ulebsk"}
+    assert result.system_names == {SYSTEM_98: "Ulebsk"} and result.name_regions == [0x10000]
     history = PlanetHistory(tmp_path / "h.json")
     assert history.record_system_names(result.system_names) == 1 and history.record_system_names(result.system_names) == 0
     history.save()

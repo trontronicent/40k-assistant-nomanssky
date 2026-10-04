@@ -21,7 +21,9 @@ What is read:
   ``system_names_in``): the names the game shows for systems nobody renamed.
 
 Scanning reads the game's private read/write memory (~5 GB) in 64 MB chunks
-and takes about 6 s; numpy (part of the 40k Assistant) does the filtering.
+into one reused buffer; numpy (part of the 40k Assistant) does the filtering.
+Measured 2026-10-04 on 4.9 GB: 18.6 s before the vectorised filters below,
+the star-record pass another ~10 s; see ``scan`` for where the time went.
 """
 
 from __future__ import annotations
@@ -164,17 +166,50 @@ def parse_planet(blob: bytes, read=None, substances: set[str] | None = None) -> 
     }
 
 
-def candidate_rows(buf: bytes):
-    """Offsets of 16-byte-aligned rows where common/rare/uncommon id strings sit 0x30 apart."""
-    n = len(buf) // 16
+def _id_start_table():
+    """Bool table over a little-endian u16: True when its two bytes can start an id ([A-Z][A-Z0-9_])."""
+    first = np.zeros(256, bool)
+    first[65:91] = True
+    second = first.copy()
+    second[48:58] = True
+    second[95] = True
+    return (second[:, None] & first[None, :]).ravel()     # index = second byte * 256 + first byte
+
+
+ID_START = _id_start_table() if np is not None else None
+
+
+def _gather(arr, offsets, width: int, dtype: str):
+    """Values of `width` bytes at each of `offsets` (any alignment) as a flat array of `dtype`."""
+    return np.ascontiguousarray(arr[offsets[:, None] + np.arange(width)]).view(dtype).ravel()
+
+
+def candidate_rows(buf, valid: int | None = None):
+    """Offsets of 16-byte-aligned rows where common/rare/uncommon id strings sit 0x30 apart.
+
+    A candidate whose whole record lies in ``buf[:valid]`` must also pass parse_planet's structural checks
+    (planet index 0-15, PlanetUA with an empty top byte and planet nibble index + 1), vectorised: on the
+    game's memory the id test alone let 1.1 million rows through for 5 planets, and parsing them took 4 s
+    (measured 2026-10-04). Records reaching outside the buffer are returned unchecked (the caller reads them).
+    """
+    valid = len(buf) if valid is None else valid
+    n = valid // 16
     if n < 8:
         return []
-    rows = np.frombuffer(buf, np.uint8, n * 16).reshape(n, 16)
-    first, second = rows[:, 0], rows[:, 1]
-    ok = (first >= 65) & (first <= 90) & (((second >= 65) & (second <= 90)) | ((second >= 48) & (second <= 57))
-                                         | (second == 95))
-    hit = ok[:-6] & ok[3:-3] & ok[6:]
-    return (np.nonzero(hit)[0] * 16).tolist()
+    arr = np.frombuffer(buf, np.uint8, valid)
+    ok = ID_START[arr[:n * 16].view(np.uint16)[::8]]      # one table lookup per row instead of 8 comparisons
+    pos = np.flatnonzero(ok[:-6] & ok[3:-3] & ok[6:]) * 16
+    start = pos - P_COMMON
+    inside = (start >= 0) & (start + PLANET_SIZE <= valid)
+    keep = pos[~inside].tolist()
+    s = start[inside]
+    if len(s):
+        index = _gather(arr, s + P_INDEX, 4, "<i4").astype(np.int64)
+        ua = _gather(arr, s + P_PLANET_UA, 8, "<u8")
+        nibble = ((ua >> np.uint64(52)) & np.uint64(0xF)).astype(np.int64)
+        good = (index >= 0) & (index < 16) & ((ua >> np.uint64(56)) == 0) & (nibble == index + 1)
+        keep += (s[good] + P_COMMON).tolist()
+    return sorted(keep)
 
 
 @dataclass
@@ -185,6 +220,7 @@ class ScanResult:
     seconds: float
     slots: list[int] = field(default_factory=list)   # where each planet record lives (re-read cheaply per tick)
     system_names: dict[int, str] = field(default_factory=dict)   # system key -> generated name (system_names_in)
+    name_regions: list[int] = field(default_factory=list)  # bases of the regions holding the name cache
 
     def majority_system(self) -> int | None:
         """The system most planet records belong to: the one you are in (see current_system_from_planets)."""
@@ -263,6 +299,38 @@ class ProcessReader:
             return None
         return buf.raw[:done.value]
 
+    def read_into(self, address: int, target: bytearray, size: int) -> int:
+        """Read `size` bytes into the start of `target` (no allocation, no copy); bytes read, 0 on failure."""
+        view = (self._ct.c_char * len(target)).from_buffer(target)
+        done = self._ct.c_size_t()
+        if not self._k32.ReadProcessMemory(self._handle, self._ct.c_void_p(address), view, size, self._ct.byref(done)):
+            return 0
+        return done.value
+
+
+def chunks(reader, overlap: int = 0, regions=None):
+    """(region base, address, buf, valid, length) for every chunk of the private regions.
+
+    ``buf[:valid]`` holds the bytes read: ``length`` of them belong to this chunk, the rest overlaps the next
+    one. When the reader can ``read_into`` (ProcessReader), one buffer is reused for every chunk: allocating,
+    zeroing and copying a fresh 64 MB per chunk took 4.7 s of a 4.9 GB scan, reading into one buffer 0.7 s
+    (measured 2026-10-04). Consumers must therefore copy what they keep. Chunk addresses keep the regions'
+    page alignment, which the aligned searches below rely on.
+    """
+    into = getattr(reader, "read_into", None)
+    buf = bytearray(CHUNK + overlap) if into else None
+    for base, size in (reader.regions() if regions is None else regions):
+        for offset in range(0, size, CHUNK):
+            length = min(CHUNK, size - offset)
+            want = min(length + overlap, size - offset)
+            if into:
+                data, valid = buf, into(base + offset, buf, want)
+            else:
+                data = reader.read(base + offset, want)
+                valid = len(data) if data else 0
+            if valid:
+                yield base, base + offset, data, valid, min(valid, length)
+
 
 def current_system_from_planets(planets) -> int | None:
     """The system you are in, judged from the planet records in memory.
@@ -293,7 +361,12 @@ def planet_system_at(reader, address: int) -> int | None:
 
 
 def scan(reader, substances: set[str] | None, anchor: bytes | None, clock=None) -> ScanResult:
-    """Find every planet record (and, with the save's GameStartAddress anchor, the player state)."""
+    """Find every planet record (and, with the save's GameStartAddress anchor, the player state).
+
+    Per 4.9 GB (measured 2026-10-04, game running): reading 0.7 s, planet candidates 1.2 s, name markers
+    0.7 s, anchor search 0.7 s. Before the reused buffer and the vectorised filters it was 18.6 s: reading
+    4.7 s, candidates 6 s, parsing 1.1 million false candidates 4 s, name search 2 s.
+    """
     import time
     clock = clock or time.perf_counter
     started = clock()
@@ -301,44 +374,44 @@ def scan(reader, substances: set[str] | None, anchor: bytes | None, clock=None) 
     slots: dict[tuple[int, str], int] = {}
     player_states: list[int] = []
     names: dict[int, str] = {}
+    name_regions: list[int] = []
     total = 0
-    for base, size in reader.regions():
-        for offset in range(0, size, CHUNK):
-            length = min(CHUNK, size - offset)
-            # Overlap the next chunk a little so a record split across chunks is still seen whole.
-            buf = reader.read(base + offset, min(length + PLANET_SIZE, size - offset))
-            if not buf:
-                continue
-            total += min(len(buf), length)
-            if anchor:
-                at = buf.find(anchor)
-                while 0 <= at < length:
-                    ua = ua_from_bytes(buf[at + UA_AFTER_GAME_START:at + UA_AFTER_GAME_START + 24]) \
-                        if at + UA_AFTER_GAME_START + 24 <= len(buf) else None
-                    if ua is None:
-                        raw = reader.read(base + offset + at + UA_AFTER_GAME_START, 24)
-                        ua = ua_from_bytes(raw) if raw and len(raw) == 24 else None
-                    if ua is not None:
-                        player_states.append(base + offset + at)
-                    at = buf.find(anchor, at + 1)
-            names.update(system_names_in(buf, length))
-            for row in candidate_rows(buf):
-                if row >= length:
-                    break
-                start = row - P_COMMON
-                if start >= 0 and start + PLANET_SIZE <= len(buf):
-                    blob = buf[start:start + PLANET_SIZE]
-                else:
-                    blob = reader.read(base + offset + start, PLANET_SIZE)
-                    if not blob:
-                        continue
-                planet = parse_planet(blob, reader.read, substances)
-                if planet:
-                    # By address and name: a reused slot can carry another planet's address (history.planet_id).
-                    planets[(planet["ua"], planet["name"])] = planet
-                    slots[(planet["ua"], planet["name"])] = base + offset + start
+    # Overlap the next chunk a little so a record split across chunks is still seen whole.
+    for base, address, buf, valid, length in chunks(reader, PLANET_SIZE):
+        total += length
+        if anchor:
+            at = buf.find(anchor, 0, valid)
+            while 0 <= at < length:
+                ua = ua_from_bytes(bytes(buf[at + UA_AFTER_GAME_START:at + UA_AFTER_GAME_START + 24])) \
+                    if at + UA_AFTER_GAME_START + 24 <= valid else None
+                if ua is None:
+                    raw = reader.read(address + at + UA_AFTER_GAME_START, 24)
+                    ua = ua_from_bytes(raw) if raw and len(raw) == 24 else None
+                if ua is not None:
+                    player_states.append(address + at)
+                at = buf.find(anchor, at + 1, valid)
+        found = system_names_in(buf, length, valid, address)
+        if found:
+            names.update(found)
+            if base not in name_regions:
+                name_regions.append(base)
+        for row in candidate_rows(buf, valid):
+            if row >= length:
+                break
+            start = row - P_COMMON
+            if start >= 0 and start + PLANET_SIZE <= valid:
+                blob = bytes(buf[start:start + PLANET_SIZE])
+            else:
+                blob = reader.read(address + start, PLANET_SIZE)
+                if not blob:
+                    continue
+            planet = parse_planet(blob, reader.read, substances)
+            if planet:
+                # By address and name: a reused slot can carry another planet's address (history.planet_id).
+                planets[(planet["ua"], planet["name"])] = planet
+                slots[(planet["ua"], planet["name"])] = address + start
     return ScanResult(sorted(planets.values(), key=lambda p: (p["system"], p["index"])), player_states, total,
-                      round(clock() - started, 2), sorted(slots.values()), names)
+                      round(clock() - started, 2), sorted(slots.values()), names, name_regions)
 
 
 def read_current_address(reader, player_state: int) -> dict | None:
@@ -399,38 +472,48 @@ def _star_matches(blob: bytes, planets: list[dict]) -> bool:
     return True
 
 
-def find_star_attributes(reader, planets_by_system: dict[int, list[dict]]) -> dict[int, dict]:
+def find_star_attributes(reader, planets_by_system: dict[int, list[dict]], prefer=()) -> dict[int, dict]:
     """{system key: star attributes} for the given systems, found through their planets' seeds (one memory pass).
 
-    Every known planet of a system (with a seed) must sit at its index in the record's PlanetSeeds.
+    Every known planet of a system (with a seed) must sit at its index in the record's PlanetSeeds. A seed is a
+    u64 in a GcSeed, so it sits 8-aligned: each chunk is searched as u64 values, first through a table of the
+    seeds' low 16 bits, then exactly. The regions in ``prefer`` (where the scan found the galaxy map's name
+    cache - the star records live beside it) are searched first, and the pass stops once every system is found.
+    Measured 2026-10-04 for 3 systems: 9.6 s with one ``bytes.find`` per seed over all memory.
     """
-    needles: dict[bytes, tuple[int, int]] = {}
+    needles: dict[int, tuple[int, int]] = {}
     for system, planets in planets_by_system.items():
         for planet in planets:
             if planet.get("seed") and isinstance(planet.get("index"), int):
-                needles[struct.pack("<Q", int(planet["seed"], 16))] = (system, planet["index"])
+                needles[int(planet["seed"], 16)] = (system, planet["index"])
     found: dict[int, dict] = {}
     if not needles:
         return found
-    for base, size in reader.regions():
-        for offset in range(0, size, CHUNK):
-            buf = reader.read(base + offset, min(CHUNK, size - offset))
-            if not buf:
+    seeds = np.array(sorted(needles), np.uint64)
+    low = np.zeros(1 << 16, bool)
+    low[(seeds & np.uint64(0xFFFF)).astype(np.intp)] = True
+    regions = list(reader.regions())
+    regions.sort(key=lambda r: r[0] not in prefer)      # stable: preferred regions first, otherwise in order
+    wanted = {system for system, _index in needles.values()}
+    for _base, address, buf, valid, _length in chunks(reader, 0, regions):
+        count = valid - valid % 8
+        if count < 8:
+            continue
+        arr = np.frombuffer(buf, np.uint8, count)
+        candidates = np.flatnonzero(low[arr.view(np.uint16)[::4]])   # low 16 bits of each u64
+        values = arr.view(np.uint64)
+        for i in candidates[np.isin(values[candidates], seeds)].tolist():
+            system, index = needles[int(values[i])]
+            if system in found:
                 continue
-            for needle, (system, index) in needles.items():
-                if system in found:
-                    continue
-                at = buf.find(needle)
-                while at >= 0:
-                    start = base + offset + at - STAR_PLANET_SEEDS - index * 0x10
-                    blob = reader.read(start, STAR_SIZE)
-                    attrs = parse_star_attributes(blob) if blob else None
-                    if attrs and _star_matches(blob, planets_by_system[system]):
-                        found[system] = attrs
-                        break
-                    at = buf.find(needle, at + 1)
-            if len(found) == len(planets_by_system):
-                return found
+            start = i * 8 - STAR_PLANET_SEEDS - index * 0x10
+            blob = bytes(buf[start:start + STAR_SIZE]) if 0 <= start and start + STAR_SIZE <= valid \
+                else reader.read(address + start, STAR_SIZE)
+            attrs = parse_star_attributes(blob) if blob else None
+            if attrs and _star_matches(blob, planets_by_system[system]):
+                found[system] = attrs
+        if wanted <= found.keys():
+            return found
     return found
 
 
@@ -452,13 +535,13 @@ NAME_RE = re.compile(r"[A-Za-z][A-Za-z0-9' .-]{1,40}")
 NAME_WALK_GAP = 2                # unreadable records tolerated in a row before the walk stops
 
 
-def name_record(buf: bytes, start: int) -> tuple[int, str] | None | bool:
+def name_record(buf: bytes, start: int, valid: int | None = None) -> tuple[int, str] | None | bool:
     """(system key, name) of the record whose name starts at ``start``; False for an empty (unused) record,
-    None when the bytes are no name record at all."""
-    if start < 0 or start + NAME_ADDRESS + 8 > len(buf):
+    None when the bytes (within ``buf[:valid]``) are no name record at all."""
+    if start < 0 or start + NAME_ADDRESS + 8 > (len(buf) if valid is None else valid):
         return None
     packed = struct.unpack_from("<Q", buf, start + NAME_ADDRESS)[0]
-    raw = buf[start:start + NAME_FIELD].split(b"\x00", 1)[0]
+    raw = bytes(buf[start:start + NAME_FIELD]).split(b"\x00", 1)[0]
     if not raw or b"PROC NAME" in raw:
         return False if packed >> 52 == 0 else None
     try:
@@ -471,19 +554,38 @@ def name_record(buf: bytes, start: int) -> tuple[int, str] | None | bool:
     return packed, name
 
 
-def system_names_in(buf: bytes, length: int | None = None) -> dict[int, str]:
-    """Generated system names in a chunk of memory: {system key: name} (see NAME_MARKER)."""
-    length = len(buf) if length is None else length
+def name_markers(buf, length: int, valid: int, address: int = 0) -> list[int]:
+    """Offsets (< length) of NAME_MARKER in ``buf[:valid]`` where a record can start; ``buf[0]`` is at `address`.
+
+    A record holds its packed address (a u64, so 8-aligned) at +0x20C, so a record starts at 4 mod 8 and its
+    marker sits at 1 mod 8 (all 65 markers in the game's memory did, 2026-10-04). Comparing u64 values at that
+    alignment takes 0.7 s per 4.9 GB, ``bytes.find`` took 1.5 s.
+    """
+    phase = (NAME_MARKER_AT - NAME_ADDRESS - address) % 8      # marker address = 1 mod 8
+    count = (valid - phase) // 8
+    if count <= 0:
+        return []
+    head = np.frombuffer(buf, np.uint64, count, phase) == np.frombuffer(NAME_MARKER[:8], np.uint64)[0]
+    hits = (np.flatnonzero(head) * 8 + phase).tolist()
+    return [at for at in hits if at < length and buf[at:at + len(NAME_MARKER)] == NAME_MARKER]
+
+
+def system_names_in(buf: bytes, length: int | None = None, valid: int | None = None, address: int = 0) -> dict[int, str]:
+    """Generated system names in a chunk of memory: {system key: name} (see NAME_MARKER).
+
+    ``buf[:valid]`` holds the bytes, read from `address`; markers are looked for in the first `length`.
+    """
+    valid = len(buf) if valid is None else valid
+    length = valid if length is None else length
     found: dict[int, str] = {}
     done: set[int] = set()
-    at = buf.find(NAME_MARKER)
-    while 0 <= at < length:
+    for at in name_markers(buf, length, valid, address):
         start = at - NAME_MARKER_AT
-        if start not in done and name_record(buf, start) is not None:
+        if start not in done and name_record(buf, start, valid) is not None:
             for step in (-NAME_RECORD, NAME_RECORD):
                 pos, misses = (start if step > 0 else start - NAME_RECORD), 0
                 while misses < NAME_WALK_GAP and pos not in done:
-                    record = name_record(buf, pos)
+                    record = name_record(buf, pos, valid)
                     if record is None:
                         misses += 1
                     else:
@@ -492,5 +594,4 @@ def system_names_in(buf: bytes, length: int | None = None) -> dict[int, str]:
                         if record:
                             found[system_key(record[0])] = record[1]
                     pos += step
-        at = buf.find(NAME_MARKER, at + 1)
     return found
