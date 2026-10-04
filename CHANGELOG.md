@@ -7,7 +7,9 @@
   upgrades - e.g. an S-class upgrade 220-265 ly - and the ship's hyperdrive bonus,
   from the game's technology tables) and the star colours it can reach; the
   primary ship's technology with charge and what each part adds. The route
-  planner's jump range starts with the primary ship's estimate.
+  planner's jump range starts with the primary ship's estimate. The Overview
+  names the primary ship with its range, the freighter with its own range
+  (freighter hyperdrive and its upgrades) and each settlement's state.
 - **Galaxy map**: shows the systems around you that the game's galaxy map knows
   (small grey points), can colour systems by economy or conflict level, and
   draws the planned route; it can also colour systems by star colour. Those

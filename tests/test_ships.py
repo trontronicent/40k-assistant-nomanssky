@@ -127,3 +127,15 @@ def test_the_ships_table_explains_the_estimate_and_lists_the_primary_ships_techn
     assert tech["HYPERDRIVE"] == ["96 / 120", "100 ly warp range"] and tech["UP_HYP4#66014"][1] == "220-265 ly warp range"
     assert tech["HDRIVEBOOST1"][1] == "opens red star systems" and tech["UP_HYP4#66014"][0] is None
     assert ships.ship_sections([], dict(ships.FALLBACK), Texts())[0]["text"] == "No ships in this save."
+
+
+def test_the_freighters_warp_range_comes_from_its_own_hyperdrive():
+    """The freighter has its own drive (F_HYPERDRIVE 100 ly, UP_FRHYP upgrades; stat
+    Freighter_Hyperdrive_JumpDistance): read from FreighterInventory_TechOnly; no freighter, no estimate."""
+    readable = {"BaseContext": {"PlayerStateData": {"PlayerFreighterName": "Iron", "FreighterInventory_TechOnly": {
+        "Class": {"InventoryClass": "C"}, "Slots": [slot("F_HYPERDRIVE", 96, 120), slot("UP_FRHYP2#5"), slot("F_SCANNER")]}}}}
+    freighter = ships.freighter_from_save(readable)
+    assert freighter["name"] == "Iron" and freighter["class"] == "C"
+    est = ships.freighter_range(freighter, dict(ships.FALLBACK))
+    assert (est["low"], est["high"]) == (200, 250)
+    assert ships.freighter_from_save({}) is None

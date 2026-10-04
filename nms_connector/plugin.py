@@ -104,6 +104,7 @@ class NmsConnector:
         self.settlement_tables: dict | None = None
         self.settlement_live = settlements.LiveSettlements(self.data_dir / "settlement_screen.json")
         self.ships: list[dict] = []               # your starships (ships.py)
+        self.freighter: dict | None = None        # your freighter's technology (ships.freighter_from_save)
         self.galaxy_colors = "kind"               # how the galaxy map colours systems (planets_view.COLOR_MODES)
         self.ship_tables: dict | None = None      # warp-range bonuses from the game's technology tables   # the settlement screen's values (game memory)
         self.snapshot_file: str | None = None
@@ -381,6 +382,7 @@ class NmsConnector:
         self.timers = timers.timers_from_save(readable, self.timer_tables or timers.FALLBACK)
         self.settlements = settlements.settlements_from_save(readable)
         self.ships = ships.ships_from_save(readable)
+        self.freighter = ships.freighter_from_save(readable)
         ps = (readable.get("BaseContext") or {}).get("PlayerStateData") or {}
         try:
             self.anchor = memory.ua_bytes(ps["GameStartAddress1"]) + memory.ua_bytes(ps["GameStartAddress2"])
@@ -517,15 +519,46 @@ class NmsConnector:
             {"label": "Bases in this system", "value": ", ".join(b["name"] for b in snap["bases"] if b["here"]) or "none"},
         ]})
         out.append({"type": "kv", "title": "Fleet and companions", "items": [
+            {"label": "Primary ship", "value": self._primary_ship_text()},
+            {"label": "Settlements", "value": self._settlements_text()},
             {"label": "Ships", "value": len(snap["ships"])},
             {"label": "Frigates", "value": snap["frigates"]},
             {"label": "Frigate expeditions", "value": snap["expeditions"]},
             {"label": "Companions (pets)", "value": snap["pets"]},
-            {"label": "Freighter", "value": snap["freighter"]["name"] or "(unnamed)"},
+            {"label": "Freighter", "value": self._freighter_text(snap["freighter"]["name"])},
             {"label": "Current mission", "value": self._mission_text(snap["current_mission"])},
             {"label": "Difficulty", "value": snap["difficulty"]},
         ]})
         return out
+
+    def _primary_ship_text(self) -> str:
+        """'Bang (Fighter, class C) - warp range ~320-365 ly, red and green stars' (details in Ships & bases)."""
+        primary = next((s for s in self.ships if s["primary"]), None)
+        if primary is None:
+            return "none"
+        est = ships.warp_range(primary, self.ship_tables or ships.FALLBACK)
+        stars = f", {' and '.join(est['colours'])} stars" if est["colours"] else ""
+        return f"{ships.ship_label(primary)} ({primary['type']}, class {primary['class']}) - warp range {ships.range_text(est)}{stars}"
+
+    def _freighter_text(self, name: str | None) -> str:
+        """'Iron Maiden - warp range ~100 ly' (the freighter's hyperdrive, estimated like a ship's)."""
+        label = name or "(unnamed)"
+        if not self.freighter:
+            return label
+        est = ships.freighter_range(self.freighter, self.ship_tables or ships.FALLBACK)
+        return f"{label} (class {self.freighter['class']}) - warp range {ships.range_text(est)}"
+
+    def _settlements_text(self) -> str:
+        """'Kay City: Farm in construction, decision waiting' - one line per settlement for the Overview."""
+        if not self.settlements:
+            return "none"
+        parts = []
+        for s in self.settlements:
+            bits = [f"{s['building']} in construction"] if s.get("building") else []
+            if s.get("pending") and s["pending"] != "None":
+                bits.append("a decision is waiting")
+            parts.append(f"{s['name']}: {', '.join(bits)}" if bits else s["name"])
+        return "; ".join(parts) + " (see Settlements)"
 
     def _mission_text(self, mission_id: str | None) -> str:
         """The current mission as the game describes it, with its id; the id alone when no text is known."""

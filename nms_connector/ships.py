@@ -30,6 +30,7 @@ TECH_FILE = "metadata/reality/tables/nms_reality_gctechnologytable.mbin"
 PROC_FILE = "metadata/reality/tables/nms_reality_gcproceduraltechnologytable.mbin"
 TABLE_PAK = "NMSARC.Precache.pak"
 JUMP_DISTANCE = 149              # GcStatsTypes.Ship_Hyperdrive_JumpDistance (libMBIN 7.04)
+FREIGHTER_JUMP_DISTANCE = 171    # GcStatsTypes.Freighter_Hyperdrive_JumpDistance (F_HYPERDRIVE 100 ly, UP_FRHYP*)
 TECH_ID_AT, TECH_BONUSES_AT, BONUS_SIZE = 0x108, 0x158, 0xC
 PROC_ID_AT, PROC_LEVELS_AT, LEVEL_SIZE = 0x40, 0x50, 0x14
 
@@ -43,6 +44,9 @@ FALLBACK = {
                    "UP_HYP3": (165.0, 220.0), "UP_HYP4": (220.0, 265.0), "UP_HYPX": (50.0, 320.0),
                    "CV_HYP2": (115.0, 165.0), "CV_HYP3": (165.0, 220.0), "UA_HYP1": (50.0, 100.0),
                    "UA_HYP2": (115.0, 165.0), "UA_HYP3": (165.0, 220.0), "UA_HYP4": (220.0, 265.0)},
+    "freighter_fixed": {"F_HYPERDRIVE": 100.0},
+    "freighter_procedural": {"UP_FRHYP1": (50.0, 100.0), "UP_FRHYP2": (100.0, 150.0), "UP_FRHYP3": (150.0, 200.0),
+                             "UP_FRHYP4": (200.0, 250.0)},
     "source": "built-in (measured 2026-10-04)",
 }
 
@@ -58,6 +62,8 @@ def parse_tables(tech: bytes, proc: bytes) -> dict | None:
     is not the expected one (HYPERDRIVE must give 100 ly)."""
     fixed: dict[str, float] = {}
     procedural: dict[str, tuple[float, float]] = {}
+    freighter_fixed: dict[str, float] = {}
+    freighter_procedural: dict[str, tuple[float, float]] = {}
     try:
         start, count = mbin.root_list(tech)
         size = mbin.record_size(tech, start, count)
@@ -71,6 +77,8 @@ def parse_tables(tech: bytes, proc: bytes) -> dict | None:
                 bonus, _level, stat = struct.unpack_from("<fiI", tech, at + j * BONUS_SIZE)
                 if stat == JUMP_DISTANCE and bonus > 0:
                     fixed[tech_id] = round(bonus, 2)
+                elif stat == FREIGHTER_JUMP_DISTANCE and bonus > 0:
+                    freighter_fixed[tech_id] = round(bonus, 2)
         start, count = mbin.root_list(proc)
         size = mbin.record_size(proc, start, count)
         for k in range(count):
@@ -83,11 +91,14 @@ def parse_tables(tech: bytes, proc: bytes) -> dict | None:
                 stat, vmax, vmin = struct.unpack_from("<Iff", proc, at + j * LEVEL_SIZE)
                 if stat == JUMP_DISTANCE and 0 < vmin <= vmax:
                     procedural[proc_id] = (round(vmin, 2), round(vmax, 2))
+                elif stat == FREIGHTER_JUMP_DISTANCE and 0 < vmin <= vmax:
+                    freighter_procedural[proc_id] = (round(vmin, 2), round(vmax, 2))
     except (struct.error, mbin.MbinError, IndexError):
         return None
     if fixed.get("HYPERDRIVE") != 100.0 or not procedural:
         return None
-    return {"fixed": fixed, "procedural": procedural, "source": "game files"}
+    return {"fixed": fixed, "procedural": procedural, "freighter_fixed": freighter_fixed or FALLBACK["freighter_fixed"],
+            "freighter_procedural": freighter_procedural or FALLBACK["freighter_procedural"], "source": "game files"}
 
 
 def load_tables(install) -> dict:
@@ -165,6 +176,25 @@ def warp_range(ship: dict, tables: dict) -> dict:
     high = sum(p[2] for p in parts) * factor if low else 0.0
     colours = [STAR_COLOURS[t] for t in STAR_COLOURS if any(tech_id(x["id"]) == t for x in ship["technology"])]
     return {"low": round(low), "high": round(high), "parts": parts, "bonus": bonus, "colours": colours}
+
+
+def freighter_from_save(readable: dict) -> dict | None:
+    """Your freighter's name, class and technology (FreighterInventory_TechOnly + FreighterInventory), or None."""
+    ps = ((readable or {}).get("BaseContext") or {}).get("PlayerStateData") or {}
+    tech_inv = ps.get("FreighterInventory_TechOnly") or {}
+    if not tech_inv and not ps.get("FreighterInventory"):
+        return None
+    ship = {"Inventory_TechOnly": tech_inv, "Inventory": ps.get("FreighterInventory") or {}}
+    return {"name": ps.get("PlayerFreighterName") or "", "class": ((tech_inv.get("Class") or {}).get("InventoryClass")) or "?",
+            "technology": _technology(ship)}
+
+
+def freighter_range(freighter: dict, tables: dict) -> dict:
+    """Like warp_range, for the freighter's hyperdrive (Freighter_Hyperdrive_JumpDistance)."""
+    as_ship = {"technology": freighter["technology"], "stats": {}}
+    fr = {"fixed": tables.get("freighter_fixed") or FALLBACK["freighter_fixed"],
+          "procedural": tables.get("freighter_procedural") or FALLBACK["freighter_procedural"]}
+    return warp_range(as_ship, fr)
 
 
 def range_text(estimate: dict) -> str:

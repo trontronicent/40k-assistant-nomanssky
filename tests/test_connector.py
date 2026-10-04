@@ -313,3 +313,15 @@ def test_the_current_mission_is_shown_as_the_games_text(tmp_path):
     text = plugin._mission_text("ACT1_STEP10")
     assert text.startswith("Apollo has asked me") and text.endswith("... (ACT1_STEP10)") and len(text) < 240
     assert plugin._mission_text("UNKNOWN_STEP") == "UNKNOWN_STEP" and plugin._mission_text(None) == "none"
+
+
+def test_the_overview_names_the_primary_ship_and_the_settlements(tmp_path):
+    """The Overview's fleet block leads with the primary ship and its warp range estimate and a line per
+    settlement (construction, waiting decision) - the details live in Ships & bases and Settlements."""
+    plugin = create_plugin(FakeCtx(tmp_path))
+    assert plugin._primary_ship_text() == "none" and plugin._settlements_text() == "none"
+    plugin.ships = [{"name": "Bang", "type": "Fighter", "class": "C", "primary": True, "stats": {"hyperdrive": 0.0},
+                     "technology": [{"id": "HYPERDRIVE"}, {"id": "UP_HYP4#1"}, {"id": "HDRIVEBOOST1"}]}]
+    assert plugin._primary_ship_text() == "Bang (Fighter, class C) - warp range ~320-365 ly, red stars"
+    plugin.settlements = [{"name": "Kay City", "building": "Farm", "pending": "StrangerVisit"}, {"name": "Rest", "pending": "None"}]
+    assert plugin._settlements_text() == "Kay City: Farm in construction, a decision is waiting; Rest (see Settlements)"
