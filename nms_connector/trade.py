@@ -67,6 +67,15 @@ def parse_trading_table(data: bytes) -> dict | None:
     return out
 
 
+def category_of(item_id: str | None) -> str | None:
+    """'TRA_ALLOY3' (or '^TRA_ALLOY3') -> 'Alloy'; None for anything that is no trade good."""
+    raw = str(item_id or "").lstrip("^").split("#", 1)[0]
+    for category, prefix in GOODS_PREFIX.items():
+        if raw.startswith(prefix) and raw[len(prefix):].isdigit():
+            return category
+    return None
+
+
 def goods(category: str) -> list[str]:
     """The trade goods of a category, tier 1 to 5 (item ids)."""
     prefix = GOODS_PREFIX.get(category)

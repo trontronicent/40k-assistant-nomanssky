@@ -32,7 +32,9 @@ credits appear in the 40k Assistant's manual under *Plugin Help* (app 3.4.0+).
   planets by biome and size; click a planet for its details
 - Everything is grouped into tabs: *Overview*, *Systems* (*Current system*,
   *Visited systems*, *Planets*), *Inventory* (*Exosuit*, *Starship*,
-  *Freighter*), *Ships & bases*, *Saves & source*
+  *Freighter*, *Storage*), *Ships & bases*, *Saves & source*
+- **Item categories and tooltips:** category column, the game's description on
+  hover, and for trade goods where they sell and whether you know such a system
 - **How often the game saves:** every save write the connector sees, with the
   time since the previous one
 

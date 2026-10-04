@@ -367,20 +367,43 @@ class NmsConnector:
 
     def _item_columns(self) -> list[str]:
         if self.gamedata.ready and self.gamedata.language != "english":
-            return ["Name (English)", f"Name ({self.gamedata.language_label})", "Item id", "Amount", "Max"]
-        return ["Name", "Item id", "Amount", "Max"]
+            return ["Name (English)", f"Name ({self.gamedata.language_label})", "Category", "Item id", "Amount", "Max"]
+        return ["Name", "Category", "Item id", "Amount", "Max"]
 
-    def _item_rows(self, rows: list[list]) -> list[list]:
-        """[id, amount, max] -> [{text, icon}, (local name,) id, amount, max] with the game's names and icon."""
+    def _item_rows(self, rows: list[list], ctx) -> list[list]:
+        """[id, amount, max] -> [{text, icon, hint}, (local name,) category, id, amount, max]: the game's names,
+        icon and category; the tooltip holds the description and, for trade goods, where they sell."""
         bilingual = self.gamedata.ready and self.gamedata.language != "english"
         out = []
         for item_id, amount, maximum in rows:
             entry = self.gamedata.lookup(item_id) or {}
-            icon = self.gamedata.icon_name(item_id)
-            name = {"text": entry.get("en"), "icon": icon} if icon else entry.get("en")
-            out.append([name, entry.get("local"), item_id, amount, maximum] if bilingual
-                       else [name, item_id, amount, maximum])
+            name = ctx.texts.item(item_id, entry.get("en") or item_id)
+            category = ctx.texts.category(item_id)
+            out.append([name, entry.get("local"), category, item_id, amount, maximum] if bilingual
+                       else [name, category, item_id, amount, maximum])
         return out
+
+    def _storage_tab(self, snap: dict, ctx, columns: list[str]) -> dict:
+        """The Storage tab: one table per storage container that holds something (containers 0-9 as numbered
+        in the game), and which containers are empty."""
+        sections, empty = [], []
+        for chest in snap.get("storage") or []:
+            if chest["number"] is not None:
+                custom = chest["name"] if chest["name"] and not str(chest["name"]).startswith("BLD_") else None
+                title = f"Storage Container {chest['number']}" + (f": {custom}" if custom else "")
+            else:
+                title = f"Other storage ({chest['key'].removesuffix('Inventory')})"
+            if not chest["rows"]:
+                empty.append(str(chest["number"]))
+                continue
+            sections.append({"type": "table", "title": f"{title} - {len(chest['rows'])} stacks", "columns": columns,
+                             "rows": self._item_rows(chest["rows"], ctx)})
+        if empty:
+            sections.append({"type": "text", "text": f"Empty storage containers: {', '.join(empty)}."})
+        if not sections:
+            sections.append({"type": "text", "text": "No storage container in this save holds anything."})
+        return {"id": "storage", "label": "Storage", "badge": sum(1 for c in snap.get("storage") or [] if c["rows"]) or None,
+                "sections": sections}
 
     def _overview(self, snap: dict | None, ctx) -> list[dict]:
         out: list[dict] = []
@@ -420,21 +443,24 @@ class NmsConnector:
         ]})
         return out
 
-    def _inventories(self, snap: dict | None) -> list[dict]:
+    def _inventories(self, snap: dict | None, ctx) -> list[dict]:
         if not snap:
             return [{"type": "text", "text": "Inventories appear once a save has been read."}]
         columns = self._item_columns()
-        tabs = [{"id": "exosuit", "label": "Exosuit", "sections": [
+        hint = {"type": "text", "text": "Hover an item's name for its description; trade goods also tell where they "
+                                        "sell and whether you know such a system."}
+        tabs = [{"id": "exosuit", "label": "Exosuit", "sections": [hint,
             {"type": "table", "title": "Exosuit inventory", "columns": columns,
-             "rows": self._item_rows(snap["exosuit"] + snap["exosuit_cargo"]), "empty": "Empty"}]}]
+             "rows": self._item_rows(snap["exosuit"] + snap["exosuit_cargo"], ctx), "empty": "Empty"}]}]
         primary = next((s for s in snap["ships"] if s["primary"]), None)
         if primary:
             tabs.append({"id": "starship", "label": f"Starship: {primary['name']}", "sections": [
                 {"type": "table", "title": f"Starship inventory: {primary['name']}", "columns": columns,
-                 "rows": self._item_rows(primary["inventory"]), "empty": "Empty"}]})
+                 "rows": self._item_rows(primary["inventory"], ctx), "empty": "Empty"}]})
         tabs.append({"id": "freighter", "label": "Freighter", "sections": [
             {"type": "table", "title": "Freighter inventory", "columns": columns,
-             "rows": self._item_rows(snap["freighter"]["inventory"]), "empty": "Empty"}]})
+             "rows": self._item_rows(snap["freighter"]["inventory"], ctx), "empty": "Empty"}]})
+        tabs.append(self._storage_tab(snap, ctx, columns))
         return [{"type": "tabs", "id": "inventory-tabs", "tabs": tabs}]
 
     def _fleet(self, snap: dict | None) -> list[dict]:
@@ -520,7 +546,7 @@ class NmsConnector:
             {"id": "overview", "label": "Overview", "sections": self._overview(snap, ctx)},
             {"id": "systems", "label": "Systems", "badge": len(ctx.keys()) or None,
              "sections": [planets_view.systems_tabs(ctx, self.selected_system, self.route_state)]},
-            {"id": "inventory", "label": "Inventory", "sections": self._inventories(snap)},
+            {"id": "inventory", "label": "Inventory", "sections": self._inventories(snap, ctx)},
             {"id": "fleet", "label": "Ships & bases", "sections": self._fleet(snap)},
             {"id": "saves", "label": "Saves & source", "sections": self._saves(snap, ctx)},
         ]})

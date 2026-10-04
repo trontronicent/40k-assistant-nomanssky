@@ -23,7 +23,8 @@ from . import mbin, trade
 from .game_install import GameInstall, language_label
 from .hgpak import PakError, PakSet, ZstdUnavailable
 
-CACHE_FORMAT = 1
+CACHE_FORMAT = 2                 # 2: item categories and descriptions (0.9.0)
+DESC_CHARS = 600
 ICON_PX = 64
 TABLE_DIR = "metadata/reality/tables/"
 # Tables that hold everything an inventory slot can contain; first one wins an id clash.
@@ -53,8 +54,18 @@ def icon_file_name(texture: str) -> str | None:
     return name if name[0].isalnum() and len(name) <= 120 else None
 
 
+def _plain(text: str | None) -> str | None:
+    """A game text without colour markup and with collapsed blank lines, cut to DESC_CHARS."""
+    text = mbin.clean_text(text)
+    if not text:
+        return None
+    text = re.sub(r"\n{3,}", "\n\n", text.replace("\r", ""))
+    return text if len(text) <= DESC_CHARS else text[:DESC_CHARS - 1].rstrip() + "…"
+
+
 def build_items(paks: PakSet, language: str) -> dict[str, dict]:
-    """{id: {"en": name, "local": name, "icon": texture}} for every item in the game's tables."""
+    """{id: {"en", "local", "icon", "cat_en", "cat_local", "desc_en", "desc_local"}} for every item in the game's
+    tables (category = the subtitle the game shows under an item's name; *_local only when it differs)."""
     records: dict[str, mbin.ItemRecord] = {}
     for table in ITEM_TABLES:
         try:
@@ -70,7 +81,8 @@ def build_items(paks: PakSet, language: str) -> dict[str, dict]:
     if not records:
         raise GameDataError("no item table could be read from the game files")
 
-    wanted = {k for r in records.values() for k in (r.name_key, r.lower_key, r.subtitle_key) if k}
+    wanted = {k for r in records.values()
+              for k in (r.name_key, r.lower_key, r.subtitle_key, r.category_key, r.desc_key) if k}
     languages = ["english"] if language == "english" else ["english", language]
     strings: dict[str, dict[str, str]] = {}
     for lang in languages:
@@ -88,6 +100,13 @@ def build_items(paks: PakSet, language: str) -> dict[str, dict]:
         icon = record.icon or (records[record.template].icon if record.template in records else "")
         entry = {"en": mbin.display_name(record, strings["english"]), "icon": icon}
         entry["local"] = mbin.display_name(record, strings[language]) if language != "english" else entry["en"]
+        for field, text_key in (("cat", record.category_key), ("desc", record.desc_key)):
+            en = _plain(strings["english"].get(text_key)) if text_key else None
+            if en:
+                entry[f"{field}_en"] = en
+                local = _plain(strings[language].get(text_key)) if language != "english" else None
+                if local and local != en:
+                    entry[f"{field}_local"] = local
         items[key] = entry
     return items
 

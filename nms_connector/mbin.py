@@ -37,6 +37,7 @@ ID_RE = re.compile(r"^[A-Z0-9_]{2,15}$")
 NOT_ID_SUFFIXES = ("_NAME", "_NAME_L", "_DESC", "_SUB", "_L")
 SUB_RE = re.compile(r"(^|_)SUB(_\d+)?$")
 MARKUP_RE = re.compile(r"<[A-Z0-9_]*>|<>")
+KEY_RE = re.compile(r"^[A-Za-z0-9_]{2,63}$")
 
 
 class MbinError(ValueError):
@@ -51,6 +52,8 @@ class ItemRecord:
     icon: str = ""          # game texture path, e.g. TEXTURES/UI/FRONTEND/ICONS/.../X.DDS
     template: str = ""      # procedural upgrades: id of the technology that lends its icon
     subtitle_key: str = ""  # procedural upgrades: text with %NAME% is the displayed name
+    category_key: str = ""  # the subtitle the game shows under the name ("Trade Commodity", "Stellar Metal")
+    desc_key: str = ""      # the item's description text
 
 
 def fixed_str(data: bytes, pos: int, size: int) -> str | None:
@@ -175,6 +178,9 @@ def parse_item_table(data: bytes) -> dict[str, ItemRecord]:
     # Only real columns count: a stray value (a description key starting with T_) must not become one.
     template_off = _best_fixed(sample, 0x10, lambda v: v.startswith("T_"), exclude=(id_off,), min_share=0.5)
     sub_off = _best_fixed(sample, 0x20, lambda v: bool(SUB_RE.search(v)), min_share=0.5)
+    # Subtitle and description are dynamic strings holding a localisation key (UI_FUEL1_SUB, UI_FUEL_1_DESC).
+    cat_off = _best_dyn(data, sample_starts, size, lambda b: b.endswith(b"_SUB"))
+    desc_off = _best_dyn(data, sample_starts, size, lambda b: b.endswith((b"_DESC", b"_DESCRIPTION")))
 
     items: dict[str, ItemRecord] = {}
     for s in starts:
@@ -189,8 +195,22 @@ def parse_item_table(data: bytes) -> dict[str, ItemRecord]:
             icon=dyn_bytes(data, s + icon_off).decode("ascii", "replace") if icon_off is not None else "",
             template=(fixed_str(rec, template_off, 0x10) or "") if template_off is not None else "",
             subtitle_key=(fixed_str(rec, sub_off, 0x20) or "") if sub_off is not None else "",
+            category_key=_dyn_key(data, s, cat_off),
+            desc_key=_dyn_key(data, s, desc_off),
         )
     return items
+
+
+def _dyn_key(data: bytes, start: int, offset: int | None) -> str:
+    """A localisation key held in a dynamic string field, or '' when absent or not key-like."""
+    if offset is None:
+        return ""
+    raw = dyn_bytes(data, start + offset)
+    try:
+        text = raw.decode("ascii")
+    except UnicodeDecodeError:
+        return ""
+    return text if KEY_RE.match(text) else ""
 
 
 def parse_language_table(data: bytes, wanted: set[str] | None = None) -> dict[str, str]:

@@ -96,14 +96,14 @@ def build_pak(files: dict[str, bytes], compressed: bool = False, raw_first_chunk
 
 # Product-table-like layout with the id NOT first and a unique decoy field (the description key).
 PRODUCT_LAYOUT = {"desc": (0x10, "f16"), "icon": (0x30, "dyn"), "id": (0x50, "f16"),
-                  "name": (0x60, "f32"), "lower": (0x80, "f32")}
+                  "name": (0x60, "f32"), "lower": (0x80, "f32"), "cat": (0xA0, "dyn"), "text": (0xB0, "dyn")}
 PRODUCTS = [
     {"desc": "CASING_DESC", "icon": "TEXTURES/UI/FRONTEND/ICONS/U4PRODUCTS/PRODUCT.CASING.DDS", "id": "CASING",
-     "name": "CASING_NAME", "lower": "CASING_NAME_L"},
+     "name": "CASING_NAME", "lower": "CASING_NAME_L", "cat": "CRAFTPROD_SUB", "text": "CASING_DESC"},
     {"desc": "FUEL1_DESC", "icon": "TEXTURES/UI/FRONTEND/ICONS/U4SUBSTANCES/SUBSTANCE.FUEL.1.DDS", "id": "FUEL1",
-     "name": "UI_FUEL_1_NAME", "lower": "UI_FUEL_1_NAME_L"},
+     "name": "UI_FUEL_1_NAME", "lower": "UI_FUEL_1_NAME_L", "cat": "UI_FUEL1_SUB", "text": "UI_FUEL_1_DESC"},
     {"desc": "CATA_DESC", "icon": "TEXTURES/UI/FRONTEND/ICONS/U4SUBSTANCES/SUBSTANCE.CATALYST.1.DDS",
-     "id": "CATALYST1", "name": "UI_CATA_NAME", "lower": "UI_CATA_NAME_L"},
+     "id": "CATALYST1", "name": "UI_CATA_NAME", "lower": "UI_CATA_NAME_L", "cat": "UI_CATA_SUB"},
     {"desc": "T_COLD_DESC", "icon": "TEXTURES/UI/FRONTEND/ICONS/TECHNOLOGY/RENDER.PROTECTCOLD.DDS",
      "id": "T_COLDPROT", "name": "TEMPLATE_NAME", "lower": "TEMPLATE_NAME_L"},
 ]
@@ -114,9 +114,12 @@ UPGRADES = [{"lower": "UI_COLD_NAME_CORE_L", "id": f"UP_COLD{i}", "template": "T
              "sub": f"UPGRADE_SUB_{i}", "pad": "x"} for i in (1, 2, 3)]
 ENGLISH = {"CASING_NAME_L": "Metal Plating", "UI_FUEL_1_NAME_L": "Carbon", "UI_CATA_NAME_L": "<SPECIAL>Sodium<>",
            "UI_COLD_NAME_CORE_L": "Thermal Protection", "UPGRADE_SUB_1": "C-Class %NAME% Upgrade",
-           "UPGRADE_SUB_2": "B-Class %NAME% Upgrade", "UPGRADE_SUB_3": "A-Class %NAME% Upgrade"}
+           "UPGRADE_SUB_2": "B-Class %NAME% Upgrade", "UPGRADE_SUB_3": "A-Class %NAME% Upgrade",
+           "CRAFTPROD_SUB": "Crafted Technology Component", "UI_FUEL1_SUB": "Fuel Element",
+           "UI_CATA_SUB": "Catalytic Element", "UI_FUEL_1_DESC": "A <FUEL>basic<> fuel.\n\n\n\nMined from plants."}
 GERMAN = {"CASING_NAME_L": "Metallplatten", "UI_FUEL_1_NAME_L": "Kohlenstoff", "UI_CATA_NAME_L": "Natrium",
-          "UI_COLD_NAME_CORE_L": "Wärmeschutz", "UPGRADE_SUB_2": "%NAME%-Upgrade der B-Klasse"}
+          "UI_COLD_NAME_CORE_L": "Wärmeschutz", "UPGRADE_SUB_2": "%NAME%-Upgrade der B-Klasse",
+          "UI_FUEL1_SUB": "Brennstoff-Element", "UI_CATA_SUB": "Catalytic Element"}
 
 
 def dds(color=(200, 30, 30, 255), size=128) -> bytes:
@@ -239,7 +242,9 @@ def test_item_table_offsets_are_calibrated_from_the_data():
     items = parse_item_table(build_table(PRODUCTS, PRODUCT_LAYOUT, 0xC0))
     assert set(items) == {"CASING", "FUEL1", "CATALYST1", "T_COLDPROT"}
     assert items["FUEL1"] == ItemRecord("FUEL1", "UI_FUEL_1_NAME", "UI_FUEL_1_NAME_L",
-                                        "TEXTURES/UI/FRONTEND/ICONS/U4SUBSTANCES/SUBSTANCE.FUEL.1.DDS")
+                                        "TEXTURES/UI/FRONTEND/ICONS/U4SUBSTANCES/SUBSTANCE.FUEL.1.DDS",
+                                        category_key="UI_FUEL1_SUB", desc_key="UI_FUEL_1_DESC")
+    assert items["CATALYST1"].desc_key == "" and items["T_COLDPROT"].category_key == ""
 
 
 def test_procedural_upgrade_names_come_from_the_subtitle_template():
@@ -282,7 +287,9 @@ def test_gamedata_builds_caches_and_converts_icons(tmp_path):
     data.load(game)
     assert data.error is None and data.language_label == "Deutsch"
     assert data.lookup("^FUEL1") == {"en": "Carbon", "local": "Kohlenstoff",
-                                     "icon": "TEXTURES/UI/FRONTEND/ICONS/U4SUBSTANCES/SUBSTANCE.FUEL.1.DDS"}
+                                     "icon": "TEXTURES/UI/FRONTEND/ICONS/U4SUBSTANCES/SUBSTANCE.FUEL.1.DDS",
+                                     "cat_en": "Fuel Element", "cat_local": "Brennstoff-Element",
+                                     "desc_en": "A basic fuel.\n\nMined from plants."}   # markup gone, blank lines collapsed
     up = data.lookup("^UP_COLD2#12345")
     assert up["en"] == "B-Class Thermal Protection Upgrade" and up["local"] == "Wärmeschutz-Upgrade der B-Klasse"
     assert up["icon"].endswith("RENDER.PROTECTCOLD.DDS")
@@ -345,10 +352,14 @@ def test_view_shows_english_and_game_language_names_with_icons(tmp_path, monkeyp
 
     view, result = asyncio.run(scenario())
     table = section(view, "Exosuit inventory")
-    assert table["columns"] == ["Name (English)", "Name (Deutsch)", "Item id", "Amount", "Max"]
-    rows = {r[2]: r for r in table["rows"]}
-    assert rows["CATALYST1"][:2] == ["Sodium", "Natrium"]
-    assert rows["FUEL1"][0] == {"text": "Carbon", "icon": "substance.fuel.1.png"} and rows["FUEL1"][1] == "Kohlenstoff"
+    assert table["columns"] == ["Name (English)", "Name (Deutsch)", "Category", "Item id", "Amount", "Max"]
+    rows = {r[3]: r for r in table["rows"]}
+    assert rows["CATALYST1"][0] == {"text": "Sodium", "hint": "Category: Catalytic Element"}
+    assert rows["CATALYST1"][1:3] == ["Natrium", "Catalytic Element"]
+    fuel = rows["FUEL1"]
+    assert fuel[0]["text"] == "Carbon" and fuel[0]["icon"] == "substance.fuel.1.png"
+    assert fuel[0]["hint"] == "Category: Fuel Element / Brennstoff-Element\n\nA basic fuel.\n\nMined from plants."
+    assert fuel[1:3] == ["Kohlenstoff", "Fuel Element / Brennstoff-Element"]
     assert (data / "assets" / "substance.fuel.1.png").is_file()
     assert result["ok"] is True and "Deutsch" in result["message"]
     source = section(view, "Source")
@@ -368,4 +379,4 @@ def test_view_without_the_game_explains_where_names_come_from(tmp_path, monkeypa
 
     view, columns = asyncio.run(scenario())
     assert any("NMS_GAME_DIR" in s.get("text", "") for s in view["sections"])
-    assert columns == ["Name", "Item id", "Amount", "Max"]
+    assert columns == ["Name", "Category", "Item id", "Amount", "Max"]

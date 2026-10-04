@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.0 — 2026-10-04
+
+- **Categories and tooltips for items and resources**: inventory tables have a
+  *Category* column (the subtitle the game shows under an item's name, English
+  and game language), and hovering an item's name shows its category and the
+  game's description. Planet resources get the same tooltip.
+- **Trade goods** say in their tooltip which economies pay well for them (with
+  the price factor), the nearest system of such an economy you know (or that you
+  have not found one yet), and where they are cheap to buy.
+- **Storage tab**: storage containers 0-9 (numbered as in the game; renamed
+  containers show their name), other storages that hold something, and which
+  containers are empty. Freighter cargo now counts as freighter inventory.
+- The item cache is rebuilt once (new fields); icons are converted again.
+- Needs the 40k Assistant 3.7.0 (tooltips on table cells).
+
 ## 0.8.1 — 2026-10-04
 
 - **Generated system names**: systems nobody renamed show the name the game made

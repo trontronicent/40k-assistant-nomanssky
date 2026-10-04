@@ -22,7 +22,7 @@ The tabs:
 
 - **Overview** - units, nanites, quicksilver, health, where you were at the last save, where you are now, your fleet and companions.
 - **Systems** - *Current system* (live from the game, with a map), *Visited systems* (every system from your save; click one to see its map), *Planets* (every planet whose resources were read), *Galaxy* (the galaxy map and the nearest planet with each resource) and *Trade* (economies and trade routes) and *Route* (the route planner).
-- **Inventory** - exosuit, starship and freighter, each item with its icon and its name in English and in the game's language.
+- **Inventory** - exosuit, starship, freighter and **storage containers** (0-9, numbered as in the game), each item with its icon, its name in English and in the game's language, and its **category**. Hover an item's name for its description; **trade goods** also tell which economies pay well for them, the nearest such system you know (or that you have not found one yet) and where they are cheap to buy. Planet resources have the same tooltip.
 - **Ships & bases** - your ships and bases with portal addresses.
 - **Saves & source** - how often the game saves, the recent save writes, where the data comes from and the last memory scans.
 

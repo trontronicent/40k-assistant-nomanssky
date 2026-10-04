@@ -89,6 +89,7 @@ class Texts:
 
     def __init__(self, gamedata):
         self.gamedata = gamedata
+        self.trade_hint = None          # set by Context: where a trade good sells (needs your economies)
 
     @staticmethod
     def both(en, local) -> str | None:
@@ -117,13 +118,41 @@ class Texts:
         entry = self.gamedata.lookup(item_id) or {}
         return self.both(entry.get("en"), entry.get("local")) or item_id
 
-    def item(self, item_id: str | None):
-        """A resource id -> table cell with the game's icon and name (id when unknown)."""
+    def category(self, item_id: str | None) -> str | None:
+        """The category the game shows under an item's name ('Trade Goods (Construction) / Handelsgüter (Bau)':
+        a slash, since categories often carry brackets themselves)."""
+        entry = (self.gamedata.lookup(item_id) or {}) if item_id else {}
+        en, local = entry.get("cat_en"), entry.get("cat_local")
+        return f"{en} / {local}" if en and local and local != en else (en or local or None)
+
+    def hint(self, item_id: str | None) -> str | None:
+        """Tooltip of an item: category, description and - for trade goods - where they sell."""
         if not item_id:
             return None
-        label = self.name(item_id)
+        entry = self.gamedata.lookup(item_id) or {}
+        lines = []
+        if self.category(item_id):
+            lines.append(f"Category: {self.category(item_id)}")
+        if entry.get("desc_en"):
+            lines.append(entry["desc_en"])
+        trade_lines = self.trade_hint(item_id) if self.trade_hint else None
+        if trade_lines:
+            lines.append(trade_lines)
+        return "\n\n".join(lines) or None
+
+    def item(self, item_id: str | None, text: str | None = None):
+        """An item id -> table cell with the game's icon, name (id when unknown) and tooltip."""
+        if not item_id:
+            return None
+        label = text or self.name(item_id)
+        cell = {"text": label}
         icon = self.gamedata.icon_name(item_id)
-        return {"text": label, "icon": icon} if icon else label
+        if icon:
+            cell["icon"] = icon
+        hint = self.hint(item_id)
+        if hint:
+            cell["hint"] = hint
+        return cell if len(cell) > 1 else label
 
     def items(self, ids) -> str | None:
         names = [(self.gamedata.lookup(i) or {}).get("en") or i for i in ids or []]
@@ -172,6 +201,50 @@ class Context:
         self.system_names = getattr(history, "system_names", {}) or {}
         self.trading = getattr(gamedata, "trading", None) or trade.FALLBACK
         self.trading_source = getattr(gamedata, "trading_source", "built-in")
+        self.texts.trade_hint = self.trade_hint
+
+    def trade_hint(self, item_id: str | None) -> str | None:
+        """For a trade good: which economies pay well for it and whether you know such a system (nearest first),
+        and where it is cheap to buy. None for anything else."""
+        category = trade.category_of(item_id)
+        if category is None:
+            return None
+        buyers = [e for e, t in self.trading.items() if t.get("needs") == category]
+        sellers = [e for e, t in self.trading.items() if t.get("sells") == category]
+        lines = []
+        if buyers:
+            low, high = (self.trading[buyers[0]].get("buys_at") or ("?", "?"))[:2]
+            lines.append(f"Sell at: {', '.join(self.economy_name(e) for e in buyers)} economies "
+                         f"(they pay x{low}-{high} of the value).")
+            known = self._nearest_economy(buyers)
+            if known:
+                lines.append(f"Known system that buys it: {known}.")
+                more = sum(1 for e in self.economies.values() if e.get("economy") in buyers) - 1
+                if more > 0:
+                    lines.append(f"({more} more known; see Systems -> Trade.)")
+            else:
+                lines.append("You have not found such a system yet (a system's economy is read while you visit it "
+                             "with the game running).")
+        if sellers:
+            known = self._nearest_economy(sellers)
+            lines.append(f"Cheap to buy at: {', '.join(self.economy_name(e) for e in sellers)} economies"
+                         + (f" - nearest known: {known}." if known else "."))
+        return "\n".join(lines) or None
+
+    def _nearest_economy(self, economy_classes: list[str]) -> str | None:
+        """'Name - 1,200 ly away (Wealthy)' for the nearest known system with one of these economies."""
+        keys = [k for k, e in self.economies.items() if e.get("economy") in economy_classes]
+        if not keys:
+            return None
+
+        def rank(k):
+            d = galaxy.distance_ly(self.origin, k) if self.origin is not None else None
+            return (k != self.origin, d is None, d or 0.0, k)
+        key = min(keys, key=rank)
+        where = ("you are there" if key == self.origin else galaxy.distance_text(galaxy.distance_ly(self.origin, key)))\
+            if self.origin is not None and galaxy.distance_ly(self.origin, key) is not None else "distance unknown"
+        wealth = self.economies[key].get("wealth")
+        return f"{_system_label(key, self.visit(key))} - {where}" + (f" ({wealth})" if wealth else "")
 
     # --- economy texts (the game's names, English and game language)
 

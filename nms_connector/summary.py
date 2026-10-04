@@ -93,6 +93,29 @@ def inventory_rows(inventory) -> list[list]:
     return sorted(rows, key=lambda r: (-(r[1] or 0), r[0]))
 
 
+# Storage containers: the save's Chest1Inventory..Chest10Inventory are the game's containers 0-9. Other
+# storages are listed by their save key (what the game calls them is not certain for every key).
+CHESTS = 10
+OTHER_STORAGE = ("ChestMagicInventory", "ChestMagic2Inventory", "CorvetteStorageInventory",
+                 "CookingIngredientsInventory", "FishBaitBoxInventory", "FishPlatformInventory", "FoodUnitInventory")
+
+
+def storage(ps: dict) -> list[dict]:
+    """[{number, key, name, rows}] for the ten storage containers (number = the game's 0-9), then every other
+    storage that holds something ({number: None})."""
+    out = []
+    for n in range(1, CHESTS + 1):
+        inv = ps.get(f"Chest{n}Inventory")
+        if isinstance(inv, dict):
+            out.append({"number": n - 1, "key": f"Chest{n}Inventory", "name": inv.get("Name") or None,
+                        "rows": inventory_rows(inv)})
+    for key in OTHER_STORAGE:
+        rows = inventory_rows(ps.get(key))
+        if rows:
+            out.append({"number": None, "key": key, "name": (ps.get(key) or {}).get("Name") or None, "rows": rows})
+    return out
+
+
 def ship_class(filename) -> str:
     parts = str(filename or "").upper().split("/")
     for part in parts:
@@ -147,7 +170,9 @@ def summarize(save: dict) -> dict:
         "exosuit": inventory_rows(ps.get("Inventory")),
         "exosuit_cargo": inventory_rows(ps.get("Inventory_Cargo")),
         "freighter": {"name": ps.get("PlayerFreighterName") or None,
-                      "inventory": inventory_rows(ps.get("FreighterInventory"))},
+                      "inventory": inventory_rows(ps.get("FreighterInventory"))
+                      + inventory_rows(ps.get("FreighterInventory_Cargo"))},
+        "storage": storage(ps),
         "ships": ships,
         "bases": bases,
         "frigates": len(ps.get("FleetFrigates") or []),
