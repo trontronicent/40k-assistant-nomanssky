@@ -120,7 +120,7 @@ def tables():
 
 def test_the_tab_shows_the_decision_window_stats_production_and_perks():
     """The next decision is a window (the game draws the wait between 15 min and 2 h), stats sit on the game's
-    scale, procedural perks (names built from a seed) are shown by their description, unknown perks by id."""
+    range, procedural perks (names built from a seed) are shown by their description, unknown perks by id."""
     items = settlements.settlements_from_save(save(kay_city()))
     out = settlements.settlement_sections(items, tables(), FakeTexts(), LAST_JUDGEMENT + 60)
     status = next(s for s in out if s.get("title") == "Kay City")
@@ -128,8 +128,8 @@ def test_the_tab_shows_the_decision_window_stats_production_and_perks():
     assert values["Next decision"].startswith("between ") and "15 min to 2 h" in values["Next decision"]
     assert values["Construction"] == "Farm" and values["Population"].startswith("20 ")
     stats = next(s for s in out if s.get("title") == "Kay City: stats")
-    assert ["Happiness", "36", "31 %", "-30 to 180"] in stats["rows"]
-    assert ["Debt", "931'025", "9 %", "0 to 10'000'000"] in stats["rows"]
+    assert ["Happiness", None, "36", "-30 to 180"] in stats["rows"]          # without the game: the save's values
+    assert ["Debt", None, "931'025", "0 to 10'000'000"] in stats["rows"]
     production = next(s for s in out if s.get("title") == "Kay City: production")
     assert production["rows"][0][:3] == [{"text": "item GAS2"}, "120", "1'500"]
     perks = next(s for s in out if s.get("title") == "Kay City: perks")["rows"]
@@ -151,3 +151,90 @@ def test_the_decision_line_follows_the_clock_and_a_waiting_decision():
     assert line(kay_city(), LAST_JUDGEMENT + 8000).startswith("any time now")
     assert line(kay_city(pending="StrangerVisit"), LAST_JUDGEMENT) == "waiting for you (Stranger visit)"
     assert settlements.settlement_sections([], tables(), FakeTexts(), 0)[0]["text"] == settlements.EMPTY
+
+
+SEED = 0x5E3651AAEADBCE06
+SCREEN = [52, 41, 489454, 395010, 0, 908027, 358, 552]     # Kay City's settlement screen, 2026-10-04
+
+
+class FakeMemory:
+    """One region holding a settlement's computed-stats record at `at` (read-only reader + chunker)."""
+
+    def __init__(self, at=0x1008, stats=SCREEN, seed=SEED, size=0x4000):
+        self.buf = bytearray(size)
+        record = settlements.seed_needle(seed) + struct.pack("<2i8i", 1, 0, *stats)
+        self.buf[at:at + len(record)] = record
+        self.base, self.searches = 0x1666B580000, 0
+
+    def read(self, address, size):
+        off = address - self.base
+        return bytes(self.buf[off:off + size]) if 0 <= off < len(self.buf) else None
+
+    def chunks(self, reader, overlap=0):
+        self.searches += 1
+        yield self.base, self.base, self.buf, len(self.buf), len(self.buf)
+
+
+def test_the_settlement_screen_values_are_found_by_the_seed_pair_and_re_read():
+    """The screen's values exist only in the game's memory, right after the settlement's seed stored twice.
+    The first tick searches, later ticks re-read 56 bytes; a record that is gone (freed, game restarted) is
+    searched again at most once a minute, and the last reading is kept with its time."""
+    mem = FakeMemory()
+    now = [1000.0]
+    live = settlements.LiveSettlements(chunker=mem.chunks, clock=lambda: now[0])
+    live.tick(mem, [SEED])
+    assert live.addresses == {SEED: mem.base + 0x1008} and live.values[SEED] == {"stats": SCREEN, "at": 1000.0}
+    now[0] += 5
+    live.tick(mem, [SEED])
+    assert mem.searches == 1 and live.values[SEED]["at"] == 1005.0
+    mem.buf[0x1008:0x1010] = b"\0" * 8                       # freed
+    now[0] += 5
+    live.tick(mem, [SEED])
+    assert SEED not in live.addresses and mem.searches == 1 and live.values[SEED]["at"] == 1005.0
+    now[0] += settlements.SEARCH_EVERY_S
+    live.tick(mem, [SEED])
+    assert mem.searches == 2 and SEED not in live.addresses
+
+
+def test_a_seed_pair_followed_by_nonsense_is_not_taken_for_the_stats():
+    """The seed alone is no proof: a population capacity of 0 or values far outside the game's ranges mean
+    another structure, and parse_live refuses it."""
+    assert settlements.parse_live(FakeMemory().read(0x1666B580000 + 0x1008, settlements.LIVE_SIZE), SEED) == SCREEN
+    bad = FakeMemory(stats=[0, 41, 489454, 395010, 0, 908027, 358, 552])
+    assert settlements.parse_live(bad.read(bad.base + 0x1008, settlements.LIVE_SIZE), SEED) is None
+    assert settlements.parse_live(FakeMemory(seed=SEED + 1).read(0x1666B580000 + 0x1008, 0x38), SEED) is None
+    assert settlements.parse_live(None, SEED) is None
+
+
+def test_the_stats_table_shows_the_screen_values_like_the_game():
+    """With a live reading the table writes each stat as the settlement screen does - 20 / 52, 34 % happiness
+    ((41 + 30) / 210), 489'454 units/day, alert 36 % - next to what the save stores; without one it says the
+    game must run."""
+    state = dict(kay_city(), SeedValue="0x5E3651AAEADBCE06")
+    items = settlements.settlements_from_save(save(state))
+    assert items[0]["seed"] == SEED
+    out = settlements.settlement_sections(items, tables(), FakeTexts(), 2000, {SEED: {"stats": SCREEN, "at": 1990}})
+    stats = next(s for s in out if s.get("title") == "Kay City: stats")
+    assert stats["columns"][1] == "In the game (now)"
+    rows = {r[0]: r[1:3] for r in stats["rows"]}
+    assert rows["Population capacity"] == ["20 / 52", "0"] and rows["Happiness"] == ["34 %", "36"]
+    assert rows["Productivity"] == ["489'454 units/day", "84'308"] and rows["Maintenance"][0] == "395'010 units/day"
+    assert rows["Sentinel alert"][0] == "36 %"
+    later = settlements.settlement_sections(items, tables(), FakeTexts(), 9000, {SEED: {"stats": SCREEN, "at": 1990}})
+    assert next(s for s in later if s.get("title") == "Kay City: stats")["columns"][1].startswith("In the game (at ")
+    none = settlements.settlement_sections(items, tables(), FakeTexts(), 2000)
+    stats = next(s for s in none if s.get("title") == "Kay City: stats")
+    assert "start it" in stats["columns"][1] and stats["rows"][1][1] is None
+
+
+def test_the_last_screen_values_survive_a_restart(tmp_path):
+    """The record exists only while you are at the settlement, so the last reading is written to the plugin's
+    data folder and read back by the next start; a damaged file starts empty and says why."""
+    path = tmp_path / "settlement_screen.json"
+    mem = FakeMemory()
+    settlements.LiveSettlements(path, chunker=mem.chunks, clock=lambda: 1000.0).tick(mem, [SEED])
+    again = settlements.LiveSettlements(path)
+    assert again.values == {SEED: {"stats": SCREEN, "at": 1000.0}}
+    path.write_text("{broken", encoding="utf-8")
+    broken = settlements.LiveSettlements(path)
+    assert broken.values == {} and "JSONDecodeError" in broken.load_error

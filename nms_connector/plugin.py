@@ -99,6 +99,7 @@ class NmsConnector:
         self._timer_tables_for = None
         self.settlements: list[dict] = []         # your settlements' economy (settlements.py)
         self.settlement_tables: dict | None = None
+        self.settlement_live = settlements.LiveSettlements(self.data_dir / "settlement_screen.json")   # the settlement screen's values (game memory)
         self.snapshot_file: str | None = None
         self.decoded_at: str | None = None
         self.decode_seconds: float | None = None
@@ -309,6 +310,12 @@ class NmsConnector:
             self.live.last_scan_at = None
         changed = await self.ctx.run_blocking(self.live.tick, self.anchor, self._substances(), now)
         await self.ctx.run_blocking(self._follow_route)
+        seeds = [s["seed"] for s in self.settlements if s.get("seed")]
+        if seeds and self.live.reader is not None and self.live.status == "ok":
+            try:
+                await self.ctx.run_blocking(self.settlement_live.tick, self.live.reader, seeds)
+            except OSError as exc:      # the game closed mid-read: the next tick reopens it
+                self.ctx.logger.debug("[NMS] Settlement stats not read: %s", exc)
         # Also once after a start or item-database rebuild (icons are cleared then), so planets recorded
         # earlier get their texts and icons - including the gas icons added in 0.4.0.
         if (changed or not self._planet_icons_ready) and self.install and self.gamedata.ready:
@@ -602,7 +609,7 @@ class NmsConnector:
             {"id": "fleet", "label": "Ships & bases", "sections": self._fleet(snap)},
             {"id": "settlements", "label": "Settlements", "badge": len(self.settlements) or None,
              "sections": settlements.settlement_sections(self.settlements, self.settlement_tables or settlements.FALLBACK,
-                                                         ctx.texts, time.time())},
+                                                         ctx.texts, time.time(), self.settlement_live.values)},
             {"id": "saves", "label": "Saves & source", "sections": self._saves(snap, ctx)},
         ]})
         return {

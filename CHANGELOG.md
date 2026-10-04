@@ -8,7 +8,10 @@
   ready, how much it holds), perks with their names, kind and which stats they
   make better or worse, and the window in which the next decision comes (the
   game waits 15 min to 2 h). Ranges, the wait and the perk table come from the
-  game's files.
+  game's files. The stats appear as the settlement screen shows them (20 / 52,
+  34 %, 489,454 units/day): the game computes them from buildings and perks and
+  keeps them in memory while you are at the settlement, where the plugin reads
+  them (and remembers the last reading); the save's stored values differ.
 - The timers no longer claim the game saves about once a minute: it saves when
   you leave your ship, warp or use a save point, and a new construction shows
   after that save.

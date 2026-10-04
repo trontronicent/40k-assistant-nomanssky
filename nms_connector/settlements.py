@@ -14,6 +14,13 @@ The save (``SettlementStatesV2``, one entry per settlement; yours are those you 
 - ``ProductionState``: the products the settlement makes (``ElementId``, ``Amount`` made by
   ``LastChangeTimestamp``, ``ProductionAccumulationCap``).
 
+**What the settlement screen shows** is computed by the game (stored values + buildings + perks) and found only
+in its memory (``LiveSettlements``): the settlement's seed twice in a row (16 bytes, 8-aligned), then two ints,
+then the eight computed stats. Verified 2026-10-04 against the screen: [52, 41, 489454, 395010, 0, 908027, 358,
+552] = population 20 / 52 (max.), happiness 34 % ((41 + 30) / 210 on the -30..180 scale), productivity
+489,454 units/day, maintenance 395,010 units/day, sentinel alert 36 % (358 / 1000). The save alone had
+[0, 36, 84308, -3250, 0, 913425, 358, 552].
+
 From the game's files (``load_tables``): the stat ranges and thresholds, the wait between decisions
 (``JudgementWaitTimeMin``/``Max``: 900 and 7200 s - the game draws the actual wait in between, so only the
 window is known) and the perk table (``settlementperkstable.mbin``: name/description keys, negative or not,
@@ -23,8 +30,11 @@ against the installed game (build 25625620) on 2026-10-04; values that make no s
 
 from __future__ import annotations
 
+import json
 import re
 import struct
+import time
+from pathlib import Path
 
 from . import mbin
 from .timers import BUILDING_NAMES, MBIN_HEADER, SETTLEMENT_FILE, clock, player_uid
@@ -135,6 +145,114 @@ def load_tables(install) -> dict:
     return out
 
 
+LIVE_STATS_AFTER = 0x18          # the computed stats follow the seed pair (16 bytes) and two ints
+LIVE_SIZE = LIVE_STATS_AFTER + 8 * 4
+SEARCH_EVERY_S = 60              # at most one memory search per minute for a settlement not found yet
+RESEARCH_S = 600                 # and a fresh search now and then (a copy can go stale without moving)
+
+
+def seed_needle(seed: int) -> bytes:
+    """The bytes in front of a settlement's computed stats: its seed, twice."""
+    return struct.pack("<QQ", seed, seed)
+
+
+def parse_live(raw: bytes | None, seed: int) -> list[int] | None:
+    """The eight computed stats from LIVE_SIZE bytes read at a seed pair; None when they are not that record."""
+    if not raw or len(raw) < LIVE_SIZE or raw[:16] != seed_needle(seed):
+        return None
+    stats = list(struct.unpack_from("<8i", raw, LIVE_STATS_AFTER))
+    capacity, happiness, production, upkeep, sentinels, debt, alert, bugs = stats
+    if not (1 <= capacity <= 1000 and -1000 <= happiness <= 1000 and 0 <= sentinels <= 1000
+            and 0 <= alert <= 100000 and 0 <= bugs <= 100000 and all(abs(v) < 10 ** 9 for v in stats)):
+        return None
+    return stats
+
+
+class LiveSettlements:
+    """The settlement screen's values from the running game, per settlement seed (read-only).
+
+    ``tick`` re-reads known records (56 bytes each) and searches memory for the others at most once per
+    SEARCH_EVERY_S. The game builds the record only while you are at the settlement (after a game start the
+    seed was in memory 67 times, the record not once - 2026-10-04), so ``values`` keeps the last good reading per
+    seed with its time, and ``path`` (the plugin's data folder) keeps it across restarts.
+    """
+
+    def __init__(self, path: Path | None = None, chunker=None, finder=None, clock=time.time):
+        from . import memory
+        self._chunks = chunker or memory.chunks
+        self._find = finder or memory.find_aligned
+        self._clock = clock
+        self.path = path
+        self.load_error: str | None = None
+        self.addresses: dict[int, int] = {}
+        self.values: dict[int, dict] = self._load()
+        self._searched_at: float | None = None
+        self.last_search_seconds: float | None = None
+
+    def _load(self) -> dict[int, dict]:
+        try:
+            raw = json.loads(self.path.read_text(encoding="utf-8")) if self.path else {}
+            return {int(k, 16): {"stats": [int(v) for v in e["stats"]][:8], "at": float(e["at"])} for k, e in raw.items()
+                    if len(e.get("stats") or []) == 8}
+        except FileNotFoundError:
+            return {}
+        except (OSError, ValueError, TypeError, AttributeError, KeyError) as exc:
+            # A damaged file only loses the last readings; the next visit writes it again.
+            self.load_error = f"{type(exc).__name__}: {exc}"
+            return {}
+
+    def _save(self) -> None:
+        if not self.path:
+            return
+        tmp = self.path.with_suffix(".tmp")
+        tmp.write_text(json.dumps({f"{k:x}": v for k, v in self.values.items()}), encoding="utf-8")
+        tmp.replace(self.path)
+
+    def tick(self, reader, seeds: list[int]) -> None:
+        before = {k: v["stats"] for k, v in self.values.items()}
+        try:
+            self._tick(reader, seeds)
+        finally:
+            if {k: v["stats"] for k, v in self.values.items()} != before:
+                self._save()
+
+    def _tick(self, reader, seeds: list[int]) -> None:
+        now = self._clock()
+        for seed in seeds:
+            address = self.addresses.get(seed)
+            stats = parse_live(reader.read(address, LIVE_SIZE), seed) if address is not None else None
+            if stats is None:
+                self.addresses.pop(seed, None)
+            else:
+                self.values[seed] = {"stats": stats, "at": now}
+        missing = [s for s in seeds if s not in self.addresses]
+        stale = self._searched_at is None or now - self._searched_at >= RESEARCH_S
+        if (missing and (self._searched_at is None or now - self._searched_at >= SEARCH_EVERY_S)) or stale:
+            self._search(reader, seeds, now)
+
+    def _search(self, reader, seeds: list[int], now: float) -> None:
+        started = time.perf_counter()
+        self._searched_at = now
+        needles = {seed: seed_needle(seed) for seed in seeds}
+        found: dict[int, int] = {}
+        for _base, address, buf, valid, length in self._chunks(reader, LIVE_SIZE):
+            for seed, needle in needles.items():
+                if seed in found:
+                    continue
+                for at in self._find(buf, needle, valid, length, address, align=8):
+                    raw = bytes(buf[at:at + LIVE_SIZE]) if at + LIVE_SIZE <= valid else reader.read(address + at, LIVE_SIZE)
+                    if parse_live(raw, seed) is not None:
+                        found[seed] = address + at
+                        break
+            if len(found) == len(needles):
+                break
+        for seed, address in found.items():
+            self.addresses[seed] = address
+            self.values[seed] = {"stats": parse_live(reader.read(address, LIVE_SIZE), seed) or self.values.get(seed, {}).get("stats"),
+                                 "at": now}
+        self.last_search_seconds = round(time.perf_counter() - started, 2)
+
+
 def _enum(value, field: str) -> str | None:
     return (value or {}).get(field) if isinstance(value, dict) else None
 
@@ -161,8 +279,13 @@ def settlements_from_save(readable: dict) -> list[dict]:
                                    "cap": int(slot.get("ProductionAccumulationCap") or 0),
                                    "at": int(slot.get("LastChangeTimestamp") or 0)})
         building = _enum(s.get("NextBuildingUpgradeClass"), "BuildingClass")
+        try:
+            seed = int(str(s.get("SeedValue") or "0"), 16) if isinstance(s.get("SeedValue"), str) else int(s.get("SeedValue") or 0)
+        except ValueError:
+            seed = 0
         out.append({
             "name": s.get("Name") or "Settlement",
+            "seed": seed,
             "race": _enum(s.get("Race"), "AlienRace"),
             "population": int(s.get("Population") or 0),
             "stats": [int(v) for v in stats[:len(STATS)]] if len(stats) >= len(STATS) else [],
@@ -207,14 +330,33 @@ def _fmt(value: int) -> str:
 EMPTY = "You have no settlement in this save. Settlements you run appear here after the game's next save."
 
 
-def settlement_sections(items: list[dict], tables: dict, texts, now: float) -> list[dict]:
-    """The Settlements tab: one block per settlement (status, stats, production, perks)."""
+# How the settlement screen writes each stat: "count" (population), "percent" of the game's scale, "per day".
+SHOWN_AS = {"MaxPopulation": "count", "Happiness": "percent", "Production": "per day", "Upkeep": "per day",
+            "Sentinels": "percent", "Debt": "count", "Alert": "percent", "BugAttack": "percent"}
+
+
+def shown(stat: str, value: int, tables: dict, population: int | None = None) -> str:
+    """A computed stat the way the settlement screen writes it (20 / 52, 34 %, 489'454 units/day)."""
+    how = SHOWN_AS[stat]
+    if stat == "MaxPopulation" and population is not None:
+        return f"{population} / {value}"
+    if how == "percent":
+        return f"{level(stat, value, tables)} %"
+    if how == "per day":
+        return f"{_fmt(value)} units/day"
+    return _fmt(value)
+
+
+def settlement_sections(items: list[dict], tables: dict, texts, now: float, live: dict | None = None) -> list[dict]:
+    """The Settlements tab: one block per settlement (status, stats, production, perks). ``live``: seed ->
+    {stats, at} from LiveSettlements (the settlement screen's values)."""
     if not items:
         return [{"type": "text", "text": EMPTY}]
+    live = live or {}
     out: list[dict] = [{"type": "text", "text":
-        "From your save (updated when the game saves). Stats are the values the save stores, with where they "
-        "sit between the lowest and highest value the game allows. The settlement screen's bars also count your "
-        "buildings and perks, so they can look different."}]
+        "Stats as the settlement screen shows them are read from the running game (they include your buildings "
+        "and perks); without the game, only what the save stores is known, which differs. Everything else comes "
+        "from your save (updated when the game saves)."}]
     wait_min, wait_max = tables["judgement_wait"]
     for s in items:
         name = s["name"]
@@ -233,14 +375,20 @@ def settlement_sections(items: list[dict], tables: dict, texts, now: float) -> l
             {"label": "Next decision", "value": decision},
             {"label": "Construction", "value": s["building"] or "none in progress"},
         ]})
-        if s["stats"]:
+        reading = live.get(s.get("seed"))
+        if s["stats"] or reading:
+            game = reading["stats"] if reading else [None] * len(STATS)
+            stored = s["stats"] or [None] * len(STATS)
             rows = []
-            for stat, value in zip(STATS, s["stats"]):
-                i = STATS.index(stat)
-                rows.append([STAT_LABELS[stat], _fmt(value), f"{level(stat, value, tables)} %",
+            for i, stat in enumerate(STATS):
+                rows.append([STAT_LABELS[stat],
+                             shown(stat, game[i], tables, s["population"]) if game[i] is not None else None,
+                             _fmt(stored[i]) if stored[i] is not None else None,
                              f"{_fmt(tables['stats_min'][i])} to {_fmt(tables['stats_max'][i])}"])
-            out.append({"type": "table", "title": f"{name}: stats", "columns": ["Stat", "Stored value", "Of scale", "Game's range"],
-                        "rows": rows})
+            when = (f"in the game ({'now' if now - reading['at'] < 120 else 'at ' + clock(reading['at'])})" if reading
+                    else "in the game (start it to read)")
+            out.append({"type": "table", "title": f"{name}: stats", "columns": ["Stat", when.capitalize(), "Stored in the save",
+                                                                               "Game's range"], "rows": rows})
         if s["production"]:
             out.append({"type": "table", "title": f"{name}: production",
                         "columns": ["Product", "Ready at last visit", "Holds up to", "Last collected or updated"],

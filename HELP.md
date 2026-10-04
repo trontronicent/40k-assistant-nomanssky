@@ -53,10 +53,12 @@ One block per settlement you run, from the save:
   the game waits between 15 minutes and 2 hours after a decision before it asks
   the next one (both limits from the game's files), so the tab shows that window,
   or that a decision is waiting for you.
-- **Stats** - productivity, happiness, maintenance, debt, sentinel alert, bug
-  attacks and the others: the value the save stores and where it sits between
-  the lowest and highest value the game allows. The bars on the settlement's
-  screen also count your buildings and perks, so they can look different.
+- **Stats** - as the settlement's screen shows them: population (20 / 52),
+  happiness and sentinel alert in percent, productivity and maintenance in units
+  per day. The game computes these from your buildings and perks and keeps them
+  only while you are at the settlement, so they are read from the running game
+  when you visit it and kept until the next visit (the column heading says
+  when). Next to them, the values the save stores, which are different.
 - **Production** - what the settlement makes, how much was ready at your last
   visit and how much it holds at most.
 - **Perks** - each with its name (English and your game's language), whether it
