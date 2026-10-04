@@ -73,7 +73,7 @@ flying, events) would need a game mod and is a possible later addition.
   is in the same system (else it shows as unknown). A scan reads
   ~5 GB in ~1-2 s on four threads (the economy lookup for a new system adds well under a
   second), so it runs when the game starts, when you arrive in another
-  system (and once more 45 s later, when the other planets have been
+  system (and again 15 s and 45 s later, when the other planets have been
   generated), and every 5 minutes; in between only your address (or the
   addresses in the loaded planet slots) is re-read. Windows only.
 - Planet resources are not in the save (the game generates them from the

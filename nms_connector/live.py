@@ -4,7 +4,7 @@ A full scan reads ~5 GB (about 3-4 s since 0.9.1, 18 s before), so it runs only 
 
 - when the game (re)starts, or the player-state anchor is lost;
 - when the current system changes (the current address is re-read cheaply every
-  tick), and once more FOLLOW_UP_S later, because the game generates the other
+  tick), and again FOLLOW_UPS seconds later, because the game generates the other
   planets of a system over the first seconds after arrival;
 - otherwise every RESCAN_S.
 
@@ -32,7 +32,7 @@ from . import memory
 from .history import PlanetHistory
 
 RESCAN_S = 300
-FOLLOW_UP_S = 45
+FOLLOW_UPS = (15, 45)   # follow-up scans after arriving: a scan costs 1-2 s since 0.9.2 (was 30 s)
 
 
 class LiveMemory:
@@ -62,7 +62,7 @@ class LiveMemory:
         self._scanned_system: int | None = None
         self._slots_system: int | None = None   # majority system of the planet slots at the last scan
         self._scanned_with_anchor: bytes | None = None
-        self._follow_up_at: float | None = None
+        self._follow_ups: list[float] = []      # when the follow-up scans after an arrival are due
 
     def close(self) -> None:
         if self.reader is not None:
@@ -108,16 +108,17 @@ class LiveMemory:
                     self._set_current(ua)
                     if self.current_system != self._scanned_system:
                         due = True
-                        self._follow_up_at = now + FOLLOW_UP_S
+                        self._follow_ups = [now + delay for delay in FOLLOW_UPS]
             # The planet slots are watched even while a copy is followed: that copy can stay frozen at the old
             # system while the game writes the new position into a copy elsewhere (seen 2026-10-04).
             if not due and self.slots:
                 judged = self._system_from_slots()
                 if judged is not None and judged != self._slots_system:
                     due = True
-                    self._follow_up_at = now + FOLLOW_UP_S
-            if self._follow_up_at is not None and now >= self._follow_up_at:
-                due, self._follow_up_at = True, None
+                    self._follow_ups = [now + delay for delay in FOLLOW_UPS]
+            if self._follow_ups and now >= self._follow_ups[0]:
+                due = True
+                self._follow_ups = [at for at in self._follow_ups if at > now]
             if not due:
                 self.status, self.error = "ok", None
                 return 0

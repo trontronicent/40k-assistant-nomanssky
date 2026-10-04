@@ -8,6 +8,9 @@
   threads: on CPUs with performance and efficiency cores (such as Intel's 12th-14th
   generation) Windows moves a busy background thread to a slower core after a
   few seconds, which made scans 2.5 times slower.
+- **New planets appear sooner after a warp**: with scans this cheap, the
+  follow-up scan after arriving runs twice - 15 and 45 seconds after arrival
+  (it used to run once, after 45 seconds).
 - **Flora and fauna in English too**: some planets hold these values already
   translated into the game language ("Verloren"); they are now matched back to
   the game's text so the page shows "Lost (Verloren)" like everywhere else. A

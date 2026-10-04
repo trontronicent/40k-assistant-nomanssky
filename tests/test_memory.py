@@ -373,12 +373,19 @@ def test_live_memory_scans_only_when_needed(tmp_path):
         "PlanetIndex": 0, "SolarSystemIndex": 115, "VoxelX": -384, "VoxelY": 2, "VoxelZ": -1755}})
     live.tick(anchor, None, 20)
     assert scan.calls == 2 and live.current_system == SYSTEM_115
-    live.tick(anchor, None, 20 + live_mod.FOLLOW_UP_S - 1)
+    first, last = live_mod.FOLLOW_UPS
+    live.tick(anchor, None, 20 + first - 1)
     assert scan.calls == 2
-    live.tick(anchor, None, 20 + live_mod.FOLLOW_UP_S)
+    live.tick(anchor, None, 20 + first)                  # planets generated soon after arrival show up quickly
     assert scan.calls == 3
-    live.tick(anchor, None, 20 + live_mod.FOLLOW_UP_S + live_mod.RESCAN_S)
+    live.tick(anchor, None, 20 + last - 1)
+    assert scan.calls == 3
+    live.tick(anchor, None, 20 + last)                   # and the slower ones a little later
     assert scan.calls == 4
+    live.tick(anchor, None, 20 + last + 5)
+    assert scan.calls == 4                               # no more follow-ups
+    live.tick(anchor, None, 20 + last + live_mod.RESCAN_S)
+    assert scan.calls == 5
     pid["value"] = None
     live.tick(anchor, None, 9999)
     assert reader.closed and live.current_system is None
@@ -595,7 +602,7 @@ def test_live_memory_without_a_player_state_uses_the_planets_and_watches_their_s
                                                               ids=("YELLOW2", "DUSTY1", "CATALYST1"))
     live.tick(b"anchor-not-in-memory", SUBSTANCES, 20)
     assert calls["n"] == 2 and live.current_system == SYSTEM_115
-    live.tick(b"anchor-not-in-memory", SUBSTANCES, 20 + live_mod.FOLLOW_UP_S)
+    live.tick(b"anchor-not-in-memory", SUBSTANCES, 20 + live_mod.FOLLOW_UPS[0])
     assert calls["n"] == 3
 
 
