@@ -41,6 +41,10 @@ PLAN_ROUTE = "plan_route"
 ROUTE_FORM_ID = "route-form"
 ROUTE_RESULT_ID = "route-result"
 DEFAULT_RANGE_LY = 1000
+ROUTE_WIP_NOTE = ("Work in progress: the route planner is very much work in progress. Distances are estimated from "
+                  "regions (about 400 ly per step, not yet checked against the game), the exact position of a system "
+                  "inside its region is unknown, and routes have not been tested in the game yet. Use them as a rough "
+                  "guide and check the jumps on the in-game galaxy map.")
 POINT_COLORS = {"resources": "#5fbf6a", "save": "#8fa3b8", "bases": "#7ad7ff"}
 SYSTEM_MAP_ID = "system-map"
 CURRENT_MAP_ID = "current-map"
@@ -571,7 +575,7 @@ def route_sections(ctx: Context, state: dict | None) -> list[dict]:
     """The Route tab: the form (target, portal address, jump range) and the last planned route."""
     state = state or {}
     request = state.get("request") or {}
-    out: list[dict] = []
+    out: list[dict] = [{"type": "notice", "level": "warn", "text": ROUTE_WIP_NOTE}]
     if ctx.origin is None:
         out.append({"type": "notice", "level": "info", "text":
                     "Where you are is not known yet (no save read and no live data), so routes cannot start anywhere."})

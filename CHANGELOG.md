@@ -6,6 +6,10 @@
   address) and jump range; the route with the fewest jumps, using your known
   systems as stops where they cost no extra jump and naming the regions to aim
   for through unknown space; listed leg by leg and drawn on a map.
+- The route planner is marked as **very much work in progress** (plugin description,
+  Route tab, help): distances are estimated from regions and routes are not tested
+  in the game yet.
+- The help names the author (Reto Kummer alias Reat Kay) at the top.
 - Needs the 40k Assistant 3.6.0 (forms and map lines in plugin views).
 
 ## 0.7.0 — 2026-10-04

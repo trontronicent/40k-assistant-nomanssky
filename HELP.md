@@ -5,6 +5,9 @@ runs - the game's memory, and shows what you have, where you are and every
 system you visited. It only reads: nothing in the game or its folders is ever
 changed, and the game process is never modified.
 
+Made by **Reto Kummer alias Reat Kay**. The credits for the work this plugin builds on are
+listed at the end of this section.
+
 ## The page
 
 Open it from **Plugins → No Man's Sky** in the header. The buttons at the top:
@@ -84,6 +87,12 @@ Prices also move with what you buy and sell, and wealthier systems trade the
 higher tiers.
 
 ## Route planner
+
+> **Work in progress:** the route planner is very much work in progress. Distances
+> are estimated from regions (about 400 light years per step, a community figure
+> not yet checked against the game), the exact position of a system inside its
+> region is unknown, and routes have not been tested in the game yet. Use them as a
+> rough guide and check the jumps on the in-game galaxy map.
 
 *Systems → Route*: choose a target - one of your known systems, or **any system
 by its portal address** (12 glyphs as hex digits) - and your ship's **jump

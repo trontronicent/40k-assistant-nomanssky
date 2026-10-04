@@ -24,8 +24,8 @@ credits appear in the 40k Assistant's manual under *Plugin Help* (app 3.4.0+).
   nearest planet with each resource
 - **Economy and trade:** economy, wealth, conflict and race per system, what is
   cheap to buy and what sells well there, and trade routes between your systems
-- **Route planner:** the fewest-jumps route to a known system or a portal address
-  for your jump range
+- **Route planner** (very much work in progress): the fewest-jumps route to a known
+  system or a portal address for your jump range
 - **Visited systems and planets:** every system you visited (from the save,
   with uploaded names) and every planet the plugin has seen, with its resources.
   Click a system for its **map**: the star with the system's facts and its

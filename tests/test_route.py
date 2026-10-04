@@ -74,7 +74,8 @@ def test_route_tab_shows_the_form_and_the_planned_route(tmp_path):
     ctx = planets_view.Context(Live(), PlanetHistory(tmp_path / "h.json"), visits, Texts(), None)
     plan = route.plan_route(planets_view.route_nodes(ctx), ORIGIN, TARGET, 1600)
     state = {"request": {"target": f"{TARGET:x}", "portal": "", "range": 1600}, "result": plan}
-    form, summary, legs, routemap = planets_view.route_sections(ctx, state)
+    wip, form, summary, legs, routemap = planets_view.route_sections(ctx, state)
+    assert wip["type"] == "notice" and "work in progress" in wip["text"]      # the disclaimer comes first
     assert form["type"] == "form" and form["action"] == planets_view.PLAN_ROUTE
     fields = {f["id"]: f for f in form["fields"]}
     assert fields["target"]["value"] == f"{TARGET:x}" and fields["range"]["value"] == 1600
