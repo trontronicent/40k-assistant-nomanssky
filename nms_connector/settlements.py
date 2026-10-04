@@ -386,7 +386,7 @@ def settlement_sections(items: list[dict], tables: dict, texts, now: float, live
                              _fmt(stored[i]) if stored[i] is not None else None,
                              f"{_fmt(tables['stats_min'][i])} to {_fmt(tables['stats_max'][i])}"])
             when = (f"in the game ({'now' if now - reading['at'] < 120 else 'at ' + clock(reading['at'])})" if reading
-                    else "in the game (start it to read)")
+                    else "in the game (read when you visit the settlement)")
             out.append({"type": "table", "title": f"{name}: stats", "columns": ["Stat", when.capitalize(), "Stored in the save",
                                                                                "Game's range"], "rows": rows})
         if s["production"]:

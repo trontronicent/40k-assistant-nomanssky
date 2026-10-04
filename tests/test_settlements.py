@@ -224,7 +224,7 @@ def test_the_stats_table_shows_the_screen_values_like_the_game():
     assert next(s for s in later if s.get("title") == "Kay City: stats")["columns"][1].startswith("In the game (at ")
     none = settlements.settlement_sections(items, tables(), FakeTexts(), 2000)
     stats = next(s for s in none if s.get("title") == "Kay City: stats")
-    assert "start it" in stats["columns"][1] and stats["rows"][1][1] is None
+    assert "visit the settlement" in stats["columns"][1] and stats["rows"][1][1] is None
 
 
 def test_the_last_screen_values_survive_a_restart(tmp_path):
