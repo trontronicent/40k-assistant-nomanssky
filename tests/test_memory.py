@@ -676,6 +676,27 @@ def test_where_you_are_says_when_the_planet_is_unknown(tmp_path):
     assert where["Planet"].startswith("unknown") and where["Found by"].startswith("the planets")
 
 
+def test_where_you_are_falls_back_to_the_last_save_in_the_same_system(tmp_path):
+    """The game saves about once a minute while you play, and each save holds your planet. When the newest
+    save is in the system you are in now, its planet is shown (named, with the save's time) instead of
+    'unknown'; a save from another system or in space says nothing about the planet."""
+    class Live:
+        status, error, current, current_system, current_source = "ok", None, None, SYSTEM_98, "planets"
+    history = PlanetHistory(tmp_path / "h.json")
+    history.record([memory.parse_planet(bytes(planet_blob("Yaksh Primus", 1)))], "t1", SYSTEM_98)
+
+    def planet(save_position):
+        ctx = planets_view.Context(Live(), history, {}, FakeGameData(), None, save_position=save_position)
+        return {i["label"]: i["value"] for i in planets_view.where_you_are(ctx)["items"]}["Planet"]
+
+    assert planet({"system": SYSTEM_98, "planet": 2, "at": "2026-10-04T12:00:00"}) == \
+        "Yaksh Primus (at the last save, 2026-10-04T12:00:00)"
+    assert planet({"system": SYSTEM_98, "planet": 0, "at": "2026-10-04T12:00:00"}) == \
+        "in space (at the last save, 2026-10-04T12:00:00)"
+    assert planet({"system": SYSTEM_115, "planet": 2, "at": "x"}).startswith("unknown")
+    assert planet(None).startswith("unknown")
+
+
 # --------------------------------------------------------------------------- generated system names
 
 def name_record_bytes(name: str, packed: int) -> bytes:

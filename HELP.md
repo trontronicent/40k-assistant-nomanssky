@@ -44,8 +44,10 @@ name as *Generated name* under *Where you are*.
 
 Your exact position (the planet you are on) can only be read around saves and
 loads; the rest of the time the plugin tells your system from the planets the
-game has loaded, and the planet shows as *unknown*. Save in the game and press
-**Scan game now** to get it.
+game has loaded. The planet then comes from your newest save when that save is
+in the same system (shown with the save's time - the game saves about once a
+minute while you play); otherwise it shows as *unknown*. Save in the game and
+press **Scan game now** to get it.
 
 Live data needs Windows. If the game runs as administrator, the app must too.
 

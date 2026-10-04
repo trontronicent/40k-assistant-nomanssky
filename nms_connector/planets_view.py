@@ -194,8 +194,10 @@ def _planet_row(texts: Texts, planet: dict, visit: dict | None, sentinel_index: 
 class Context:
     """Everything the system and planet sections are built from."""
 
-    def __init__(self, live, history, visits: dict, gamedata, combat_timer: str | None, bases=None, origin=None):
+    def __init__(self, live, history, visits: dict, gamedata, combat_timer: str | None, bases=None, origin=None,
+                 save_position: dict | None = None):
         self.live, self.history, self.visits = live, history, visits
+        self.save_position = save_position     # {system, planet (save layout: 0 = space), at} of the newest save
         self.texts = Texts(gamedata)
         self.sentinel_index = COMBAT_TIMERS.get(combat_timer or "Normal", 2)
         self.recorded = history.systems()
@@ -333,8 +335,16 @@ def where_you_are(ctx: Context) -> dict | None:
     index = ctx.current_planet_index()
     here = next((p for p in ctx.recorded.get(key, []) if p.get("index") == index), None) if index is not None else None
     exact = getattr(ctx.live, "current_source", "player") == "player"
+    saved = ctx.save_position if not exact and ctx.save_position and ctx.save_position.get("system") == key else None
     if here:
         planet = _planet_name(here, visit)
+    elif saved:
+        # The game saves about once a minute while you play: in the same system, the save's planet is the best
+        # answer when memory has no exact position (it may be a minute old, so the time is shown).
+        on = saved.get("planet") or 0
+        there = next((p for p in ctx.recorded.get(key, []) if p.get("index") == on - 1), None) if on else None
+        name = _planet_name(there, visit) if there else (f"planet {on}" if on else "in space")
+        planet = f"{name} (at the last save, {saved.get('at')})"
     elif not exact:
         planet = "unknown (your exact position cannot be read right now)"
     else:

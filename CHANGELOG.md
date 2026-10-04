@@ -11,6 +11,10 @@
   are whenever you reach another system, so it shrinks as you fly it, and in
   the target system the page says you have arrived. Before, it kept showing the
   system you planned it in as "(you)".
+- **Your planet from the last save**: while the exact position cannot be read
+  from memory, *Where you are now* shows the planet of your newest save when
+  that save is in the system you are in (marked *at the last save* with its
+  time) instead of *unknown*.
 
 ## 0.9.1 — 2026-10-04
 

@@ -69,7 +69,8 @@ flying, events) would need a game mod and is a possible later addition.
   packed address). Your exact position comes from the player state (found via
   the save's fixed start addresses), which the game keeps readable only around
   saves and loads; otherwise the current system is judged from the planets the
-  game has loaded, and the planet you are on shows as unknown. A scan reads
+  game has loaded, and the planet you are on comes from the newest save when it
+  is in the same system (else it shows as unknown). A scan reads
   ~5 GB in ~2-3 s (the economy lookup for a new system adds well under a
   second), so it runs when the game starts, when you arrive in another
   system (and once more 45 s later, when the other planets have been
