@@ -236,7 +236,19 @@ class GameData:
 
     def text(self, key: str | None) -> dict | None:
         """{"en", "local"} for a localisation key resolved earlier with resolve_texts(), else None."""
-        return self._texts.get(key) if key else None
+        entry = self._texts.get(key) if key else None
+        return entry if entry and "en" in entry else None
+
+    def text_like(self, value: str | None, sibling: str | None) -> dict | None:
+        """text(value), or - for a translated value with several meanings - the meaning from the family of a
+        sibling key on the same planet: exotic planets use RARITY_WEIRD* for flora and fauna alike, others not."""
+        entry = self.text(value)
+        choices = (self._texts.get(value) or {}).get("choices") if value and not entry and sibling else None
+        if not choices:
+            return entry
+        weird = "WEIRD" in sibling
+        english = {en for key, en in choices.items() if ("WEIRD" in key) == weird}
+        return {"en": english.pop(), "local": value} if len(english) == 1 else None
 
     def resolve_texts(self, install: GameInstall, keys) -> int:
         """Look up localisation keys (weather, sentinel levels, ...) in English and the game language.
@@ -275,6 +287,9 @@ class GameData:
             english = {mbin.clean_text(found["english"].get(key)) for key in reverse.get(value, [])} - {None}
             if len(english) == 1:
                 self._texts[value] = {"en": english.pop(), "local": value}
+            elif english:      # kept for text_like, which picks the meaning by the planet's other value
+                self._texts[value] = {"choices": {key: mbin.clean_text(found["english"].get(key))
+                                                  for key in reverse[value] if found["english"].get(key)}}
             else:
                 self._unknown_texts.add(value)
         for key in todo - translated:

@@ -97,11 +97,16 @@ class Texts:
             return local or None
         return en if not local or local == en else f"{en} ({local})"
 
-    def key(self, key: str | None) -> str | None:
-        """A localisation key -> text; strings that are not keys (already translated) pass through."""
+    def key(self, key: str | None, sibling: str | None = None) -> str | None:
+        """A localisation key -> text; strings that are not keys (already translated) pass through.
+
+        ``sibling`` (the planet's fauna key for its flora and vice versa) decides between the meanings of a
+        translated value that has several (GameData.text_like)."""
         if not key:
             return None
         entry = self.gamedata.text(key)
+        if not entry and sibling and not key.isupper():
+            entry = self.gamedata.text_like(key, sibling)
         return self.both(entry["en"], entry["local"]) if entry else key
 
     def description(self, info: dict) -> str | None:
@@ -181,8 +186,8 @@ def _planet_row(texts: Texts, planet: dict, visit: dict | None, sentinel_index: 
     row = [] if system_cell is None else [system_cell]
     row += [_planet_name(planet, visit), texts.description(info) or planet.get("biome"), texts.key(info.get("weather")),
             texts.item(planet.get("common")), texts.item(planet.get("uncommon")), texts.item(planet.get("rare")),
-            texts.items(planet.get("extra")), texts.item(planet_gas(planet)), texts.key(info.get("flora")),
-            texts.key(info.get("fauna")), texts.key(_sentinel(planet, sentinel_index))]
+            texts.items(planet.get("extra")), texts.item(planet_gas(planet)), texts.key(info.get("flora"), info.get("fauna")),
+            texts.key(info.get("fauna"), info.get("flora")), texts.key(_sentinel(planet, sentinel_index))]
     return row
 
 
@@ -400,8 +405,8 @@ def _body(planet: dict | None, index: int, saved: dict, visit: dict, ctx: Contex
             {"label": "Resources", "value": ", ".join(n for n in (texts.name(planet.get(k)) for k in ("common", "uncommon", "rare")) if n)},
             {"label": "Plants", "value": texts.items(planet.get("extra"))},
             {"label": "Gas (atmosphere harvester)", "value": texts.name(gas) or ("none" if biome == "Dead" else "unknown")},
-            {"label": "Flora", "value": texts.key(info.get("flora"))},
-            {"label": "Fauna", "value": texts.key(info.get("fauna")) + (" (special fauna)" if planet.get("special_fauna") else "")
+            {"label": "Flora", "value": texts.key(info.get("flora"), info.get("fauna"))},
+            {"label": "Fauna", "value": texts.key(info.get("fauna"), info.get("flora")) + (" (special fauna)" if planet.get("special_fauna") else "")
              if info.get("fauna") else None},
             {"label": "Sentinels", "value": texts.key(_sentinel(planet, ctx.sentinel_index))},
             {"label": "Resources last read", "value": planet.get("last_seen")},

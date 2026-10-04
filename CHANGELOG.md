@@ -5,7 +5,8 @@
 - **Flora and fauna in English too**: some planets hold these values already
   translated into the game language ("Verloren"); they are now matched back to
   the game's text so the page shows "Lost (Verloren)" like everywhere else. A
-  text with two different English meanings is shown as read.
+  text with two English meanings ("Ungewöhnlich": Unusual or Uncommon) is told
+  apart by the planet's other value (exotic planets use the unusual set).
 - **The route follows you**: a planned route is planned again from where you
   are whenever you reach another system, so it shrinks as you fly it, and in
   the target system the page says you have arrived. Before, it kept showing the

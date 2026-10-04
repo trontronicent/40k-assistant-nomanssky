@@ -393,6 +393,23 @@ class FakeGameData:
         return {"en": en, "local": local} if en else None
 
 
+def test_a_translated_flora_value_is_read_with_the_planets_fauna():
+    """A translated value with two meanings ('Ungewöhnlich') is resolved with the planet's other value as the
+    sibling (flora asks the fauna key and vice versa); keys and unambiguous values never take that path."""
+    class Data(FakeGameData):
+        asked = []
+
+        def text_like(self, value, sibling):
+            self.asked.append((value, sibling))
+            return {"en": "Unusual", "local": value} if "WEIRD" in sibling else None
+
+    planet = memory.parse_planet(bytes(planet_blob()))
+    planet["info"]["flora"], planet["info"]["fauna"] = "Ungewöhnlich", "RARITY_WEIRD6"
+    data = Data()
+    row = planets_view._planet_row(planets_view.Texts(data), planet, None, 0)
+    assert "Unusual (Ungewöhnlich)" in row and data.asked == [("Ungewöhnlich", "RARITY_WEIRD6")]
+
+
 class LiveIn98:
     status, error = "ok", None
     current_system = SYSTEM_98

@@ -295,6 +295,10 @@ def test_translated_rarity_texts_from_memory_get_their_english(tmp_path):
     assert data.text("Verloren") == {"en": "Lost", "local": "Verloren"}      # not the fleet name "Gone"
     assert data.text("Wenig") == {"en": "Few", "local": "Wenig"}             # not ABUNDANCE4 "Little"
     assert data.text("Ungewöhnlich") is None and data.text("Nirgends") is None
+    # The planet's other value decides between the meanings: exotic planets use the RARITY_WEIRD* texts.
+    assert data.text_like("Ungewöhnlich", "RARITY_WEIRD6") == {"en": "Unusual", "local": "Ungewöhnlich"}
+    assert data.text_like("Ungewöhnlich", "RARITY_MID5") == {"en": "Uncommon", "local": "Ungewöhnlich"}
+    assert data.text_like("Ungewöhnlich", None) is None and data.text_like("Verloren", None)["en"] == "Lost"
     cached = GameData(tmp_path / "data")
     cached.load(game)
     assert cached.resolve_texts(game, {"Verloren"}) == 0 and cached.text("Verloren")["en"] == "Lost"
