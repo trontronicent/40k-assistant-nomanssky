@@ -6,6 +6,10 @@
   translated into the game language ("Verloren"); they are now matched back to
   the game's text so the page shows "Lost (Verloren)" like everywhere else. A
   text with two different English meanings is shown as read.
+- **The route follows you**: a planned route is planned again from where you
+  are whenever you reach another system, so it shrinks as you fly it, and in
+  the target system the page says you have arrived. Before, it kept showing the
+  system you planned it in as "(you)".
 
 ## 0.9.1 — 2026-10-04
 

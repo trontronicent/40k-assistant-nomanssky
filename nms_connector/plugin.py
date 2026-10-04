@@ -139,6 +139,25 @@ class NmsConnector:
         tmp.write_text(json.dumps(self.route_state), encoding="utf-8")
         tmp.replace(self.route_path)
 
+    def _follow_route(self) -> bool:
+        """Plan the stored route again from where you are now, when you moved since it was planned.
+
+        A route shrinks as you fly it, and in the target system it says you arrived. Without this the page kept
+        'From: <the system you planned in> (you)' after travelling (seen 2026-10-04). True when it changed.
+        """
+        request, result = self.route_state.get("request"), self.route_state.get("result") or {}
+        origin = self.live.current_system if self.live.current_system is not None else self.save_system
+        if not request or not result.get("ok") or origin is None or result["legs"][0]["from"] == origin:
+            return False
+        target = result["legs"][-1]["to"]
+        if origin == target:
+            self.route_state = {"request": request, "result": {"ok": False, "arrived": True, "target": target,
+                                                               "reason": "you have arrived"}}
+            self._save_route()
+        else:
+            self._plan_route(request)
+        return True
+
     def _plan_route(self, params: dict) -> dict:
         """The plan_route action: form values are untrusted input, checked here before use."""
         target_text = str(params.get("target") or "")[:20]
@@ -265,6 +284,7 @@ class NmsConnector:
         if force:
             self.live.last_scan_at = None
         changed = await self.ctx.run_blocking(self.live.tick, self.anchor, self._substances(), now)
+        await self.ctx.run_blocking(self._follow_route)
         # Also once after a start or item-database rebuild (icons are cleared then), so planets recorded
         # earlier get their texts and icons - including the gas icons added in 0.4.0.
         if (changed or not self._planet_icons_ready) and self.install and self.gamedata.ready:

@@ -686,12 +686,15 @@ def route_sections(ctx: Context, state: dict | None) -> list[dict]:
     result = state.get("result")
     if not result:
         return out
+    def label(key):
+        return _system_label(key, ctx.visit(key))
+
+    if result.get("arrived"):
+        out.append({"type": "notice", "level": "info", "text": f"You have arrived at {label(result['target'])}."})
+        return out
     if not result.get("ok"):
         out.append({"type": "notice", "level": "warn", "text": f"No route: {result.get('reason')}"})
         return out
-
-    def label(key):
-        return _system_label(key, ctx.visit(key))
 
     legs = result["legs"]
     target = legs[-1]["to"]

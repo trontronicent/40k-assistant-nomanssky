@@ -110,3 +110,25 @@ def test_plan_route_action_checks_its_input_and_remembers_the_route(tmp_path, mo
     assert good["ok"] is True and good["focus"] == planets_view.ROUTE_RESULT_ID and "3 jump" in good["message"]
     again = create_plugin(FakeCtx(tmp_path / "data"))
     assert again.route_state["request"]["portal"] == "00000000000A" and again.route_state["result"]["jumps"] == 3
+
+
+def test_the_route_follows_you_and_says_when_you_arrived(tmp_path, monkeypatch):
+    """Seen live 2026-10-04: a route planned in Ulebsk still said 'From: Ulebsk (you)' in another system.
+    When you move, the stored route is planned again from where you are (it shrinks as you fly it); in the
+    target system it says you have arrived instead of 'No route'; unchanged position plans nothing."""
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    plugin.save_system = ORIGIN
+    asyncio.run(plugin.action("plan_route", {"portal": "00000000000A", "range": 1600}))
+    assert plugin.route_state["result"]["jumps"] == 3 and plugin._follow_route() is False   # not moved
+    plugin.save_system = key(4, 0, 0)
+    assert plugin._follow_route() is True
+    result = plugin.route_state["result"]
+    assert result["legs"][0]["from"] == key(4, 0, 0) and result["jumps"] == 2
+    assert plugin.route_state["request"]["portal"] == "00000000000A"             # the form keeps its values
+    plugin.save_system = result["legs"][-1]["to"]                                 # the portal's system
+    assert plugin._follow_route() is True and plugin.route_state["result"]["arrived"] is True
+    ctx = planets_view.Context(Live(), PlanetHistory(tmp_path / "h.json"), {}, Texts(), None)
+    notice = planets_view.route_sections(ctx, plugin.route_state)[-1]
+    assert notice["level"] == "info" and notice["text"].startswith("You have arrived")
+    assert plugin._follow_route() is False

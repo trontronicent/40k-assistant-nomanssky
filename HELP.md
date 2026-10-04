@@ -110,7 +110,8 @@ has the **fewest jumps**. Your known systems are used as stops where they cost
 no extra jump; where none is close enough, a leg crosses unknown space in
 several jumps and names the region to aim for on each one - on the galaxy map,
 pick a star near that region. The route is listed leg by leg and drawn on a
-map; the last route and range are kept.
+map; the last route and range are kept. As you travel, the route is planned
+again from where you are, and in the target system it says you have arrived.
 
 Distances are measured between regions and are approximate, so leave some
 margin on the range.
