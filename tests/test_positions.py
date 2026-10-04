@@ -84,3 +84,19 @@ def test_distances_and_map_use_exact_positions_where_both_are_known(tmp_path):
         assert PlanetHistory(tmp_path / "h.json").positions == {YIBRAZH: (-383.5, 2.0, -1754.5)}
     finally:
         galaxy.set_positions({})
+
+
+def test_a_value_that_moved_since_arriving_is_the_map_camera_and_not_recorded():
+    """With the galaxy map open the parameter follows the map's camera (seen 2026-10-05). A reading that changed
+    since you arrived in the system is therefore not recorded for it - until the next arrival."""
+    game = FakeGame()
+    tracker = positions.PositionTracker(chunker=game.chunks)
+    region = galaxy.region(YIBRAZH)
+    assert tracker.tick(game, YIBRAZH, region, 1000) is None
+    game.set((-3.834871, 0.023259, -17.543201))                     # the camera moved, still inside the region
+    assert tracker.tick(game, YIBRAZH, region, 1040) is None
+    game.set(VALUE)
+    assert tracker.tick(game, YIBRAZH, region, 1080) is None          # still tainted for this stay
+    other = 0x0180002925E80
+    assert tracker.tick(game, other, region, 1100) is None            # arrival elsewhere: a fresh start
+    assert tracker.tick(game, other, region, 1100 + positions.SETTLE_S) == (other, (-383.7331, 2.0779, -1754.1409))

@@ -8,10 +8,13 @@ system's position divided by 100, in voxel units. Read 2026-10-05 in Yibrazh, re
 voxel; stable over half a minute in the system. Only the *current* system's position is there, so positions are
 collected as you travel (history.positions) and every distance between two recorded systems becomes exact.
 
-A value is recorded for the current system only when it can be its own: inside that system's region (each axis
-between the region's voxel and the next), after you have been in the system for SETTLE_S (the value of the
-system you left may linger during a warp), and different from every position recorded for another system (a
-stale value is refused).
+**It is the galaxy map's camera focus** (seen 2026-10-05 with the map open: it moved to (-383.487, 2.326,
+-1754.320) while you stayed in Yibrazh). With the map closed it sits on the current system. So a value is recorded
+for the current system only when it can be its own: inside that system's region (each axis between the region's
+voxel and the next), unchanged since you arrived in the system and for at least SETTLE_S (the value of the system
+you left may linger during a warp; a value that moved means the map was open and the camera wandered - that
+system is then not recorded until the next arrival), and different from every position recorded for another
+system (a stale value is refused).
 """
 
 from __future__ import annotations
@@ -53,6 +56,8 @@ class PositionTracker:
         self._searched_at: float | None = None
         self._system: int | None = None
         self._since: float = 0.0
+        self._first: tuple[float, float, float] | None = None   # the first reading since arriving
+        self._moved = False                                      # the value changed since arriving (map open)
         self.last: tuple[float, float, float] | None = None
 
     def _search(self, reader, now: float) -> None:
@@ -70,13 +75,18 @@ class PositionTracker:
             self._system = None
             return None
         if system_key != self._system:
-            self._system, self._since = system_key, now
+            self._system, self._since, self._first, self._moved = system_key, now, None, False
         value = parse_value(reader.read(self.address, 12)) if self.address is not None else None
         if value is None and (self._searched_at is None or now - self._searched_at >= SEARCH_EVERY_S):
             self._search(reader, now)
             value = parse_value(reader.read(self.address, 12)) if self.address is not None else None
         self.last = value
-        if value is None or now - self._since < SETTLE_S or not inside_region(value, region):
+        if value is not None:
+            if self._first is None:
+                self._first = value
+            elif value != self._first:
+                self._moved = True
+        if value is None or self._moved or now - self._since < SETTLE_S or not inside_region(value, region):
             return None
         return system_key, value
 
