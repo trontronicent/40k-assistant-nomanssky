@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.1 — 2026-10-04
 
 - **Fixed: the current system stayed on the old one after a warp.** The game
   sometimes writes your new position into a fresh copy of its player state

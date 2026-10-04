@@ -3,7 +3,7 @@
   "manifest_version": 1,
   "id": "nomanssky",
   "name": "No Man's Sky",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Connector to No Man's Sky: inventories and storage containers with item categories and tooltips (where trade goods sell), galaxy and system maps with system names, economies and trade routes, a route planner (work in progress), and live planets and resources.",
   "author": {
     "name": "Reto Kummer alias Reat Kay",
