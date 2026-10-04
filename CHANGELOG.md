@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1 — 2026-10-04
+
+- Shorter plugin description: 0.4.0's exceeded the registry's 300-character
+  limit, so 0.4.0 was never published. Otherwise identical to 0.4.0.
+
 ## 0.4.0 — 2026-10-03
 
 - **Tabs:** the page is split into *Overview*, *Systems* (sub-tabs *Current

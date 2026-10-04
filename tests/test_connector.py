@@ -282,3 +282,12 @@ def test_clicking_a_visited_system_selects_it_and_focuses_the_map(tmp_path, monk
     plugin, ok, bad = asyncio.run(scenario())
     assert ok == {"ok": True, "focus": "system-map"} and bad["ok"] is False
     assert plugin.selected_system == 0x620002925E80
+
+
+def test_manifest_fits_the_registry_rules():
+    """The registry and the app refuse a description over 300 characters (0.4.0 was unpublishable because of
+    it); the tag the registry pins must be v<version>, so the version must be plain semver."""
+    import re
+    manifest = json.loads((Path(__file__).resolve().parent.parent / "strategicum-plugin.json").read_text(encoding="utf-8"))
+    assert 0 < len(manifest["description"]) <= 300
+    assert re.fullmatch(r"\d+\.\d+\.\d+", manifest["version"])

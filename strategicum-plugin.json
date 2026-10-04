@@ -3,8 +3,8 @@
   "manifest_version": 1,
   "id": "nomanssky",
   "name": "No Man's Sky",
-  "version": "0.4.0",
-  "description": "Connector to No Man's Sky: reads your save files and shows location, inventories (with the game's item names and icons), ships, bases, every system you visited and - read live from the running game - the planets, resources and atmosphere gas of the systems you visit, with a clickable map of every visited system.",
+  "version": "0.4.1",
+  "description": "Connector to No Man's Sky: save data (location, inventories with item names and icons, ships, bases), every visited system on a clickable map, and - read live from the running game - planets, resources and gas.",
   "author": {
     "name": "TronTronicEnt",
     "url": "https://github.com/trontronicent"
