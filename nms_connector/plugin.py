@@ -16,7 +16,7 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from . import memory, planets_view, saves, trade
+from . import galaxy, memory, planets_view, route, saves, trade
 from .game_install import GameInstall, find_game
 from .gamedata import GameData
 from .history import PlanetHistory, visits_from_save
@@ -108,6 +108,8 @@ class NmsConnector:
         self.visits: dict[int, dict] = {}
         self.anchor: bytes | None = None
         self.save_system: int | None = None
+        self.route_path = self.data_dir / "route.json"
+        self.route_state: dict = self._load_route()
         self.combat_timer: str | None = None
         self._live_checked = 0.0
         self.selected_system: int | None = None   # clicked in the visited-systems table
@@ -122,6 +124,55 @@ class NmsConnector:
     async def stop(self) -> None:
         await self.ctx.run_blocking(self._save_events)
         await self.ctx.run_blocking(self.live.close)
+
+    def _load_route(self) -> dict:
+        """The last route request (target, portal, range) and its result - kept across restarts."""
+        try:
+            data = json.loads(self.route_path.read_text(encoding="utf-8"))
+            return data if isinstance(data, dict) else {}
+        except (OSError, ValueError):
+            return {}
+
+    def _save_route(self) -> None:
+        self.data_dir.mkdir(parents=True, exist_ok=True)
+        tmp = self.route_path.with_suffix(".tmp")
+        tmp.write_text(json.dumps(self.route_state), encoding="utf-8")
+        tmp.replace(self.route_path)
+
+    def _plan_route(self, params: dict) -> dict:
+        """The plan_route action: form values are untrusted input, checked here before use."""
+        target_text = str(params.get("target") or "")[:20]
+        portal = str(params.get("portal") or "").strip()[:20]
+        try:
+            range_ly = float(params.get("range"))
+        except (TypeError, ValueError):
+            range_ly = 0.0
+        request = {"target": target_text, "portal": portal, "range": range_ly if range_ly > 0 else None}
+        origin = self.live.current_system if self.live.current_system is not None else self.save_system
+        if origin is None:
+            result = {"ok": False, "reason": "where you are is not known yet"}
+        elif not 50 <= range_ly <= 20000:
+            result = {"ok": False, "reason": "the jump range must be between 50 and 20,000 light years"}
+        else:
+            if portal:
+                target = route.portal_to_key(portal, galaxy.galaxy_of(origin))
+                reason = "the portal address must be 12 hex digits (0-9, A-F)"
+            else:
+                target = planets_view.parse_system_key(target_text)
+                reason = "choose a target system"
+            if target is None:
+                result = {"ok": False, "reason": reason}
+            else:
+                target = memory.system_key(target)
+                ctx = planets_view.Context(self.live, self.history, self.visits, self.gamedata, self.combat_timer,
+                                           (self.snapshot or {}).get("bases") or [], origin=self.save_system)
+                result = route.plan_route(planets_view.route_nodes(ctx), origin, target, range_ly)
+        self.route_state = {"request": request, "result": result}
+        self._save_route()
+        if not result.get("ok"):
+            return {"ok": False, "message": f"No route: {result['reason']}"}
+        return {"ok": True, "focus": planets_view.ROUTE_RESULT_ID,
+                "message": f"Route planned: {result['jumps']} jump(s), {galaxy.distance_text(result['distance'])}."}
 
     def _load_events(self) -> list[dict]:
         try:
@@ -275,6 +326,8 @@ class NmsConnector:
     # ------------------------------------------------------------------ UI
 
     async def action(self, action_id: str, params: dict) -> dict:
+        if action_id == planets_view.PLAN_ROUTE:
+            return await self.ctx.run_blocking(self._plan_route, params or {})
         if action_id == planets_view.OPEN_SYSTEM:
             key = planets_view.parse_system_key((params or {}).get("key"))
             if key is None:
@@ -466,7 +519,7 @@ class NmsConnector:
         sections.append({"type": "tabs", "id": "main", "tabs": [
             {"id": "overview", "label": "Overview", "sections": self._overview(snap, ctx)},
             {"id": "systems", "label": "Systems", "badge": len(ctx.keys()) or None,
-             "sections": [planets_view.systems_tabs(ctx, self.selected_system)]},
+             "sections": [planets_view.systems_tabs(ctx, self.selected_system, self.route_state)]},
             {"id": "inventory", "label": "Inventory", "sections": self._inventories(snap)},
             {"id": "fleet", "label": "Ships & bases", "sections": self._fleet(snap)},
             {"id": "saves", "label": "Saves & source", "sections": self._saves(snap, ctx)},

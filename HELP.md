@@ -18,7 +18,7 @@ Open it from **Plugins → No Man's Sky** in the header. The buttons at the top:
 The tabs:
 
 - **Overview** - units, nanites, quicksilver, health, where you were at the last save, where you are now, your fleet and companions.
-- **Systems** - *Current system* (live from the game, with a map), *Visited systems* (every system from your save; click one to see its map), *Planets* (every planet whose resources were read), *Galaxy* (the galaxy map and the nearest planet with each resource) and *Trade* (economies and trade routes).
+- **Systems** - *Current system* (live from the game, with a map), *Visited systems* (every system from your save; click one to see its map), *Planets* (every planet whose resources were read), *Galaxy* (the galaxy map and the nearest planet with each resource) and *Trade* (economies and trade routes) and *Route* (the route planner).
 - **Inventory** - exosuit, starship and freighter, each item with its icon and its name in English and in the game's language.
 - **Ships & bases** - your ships and bases with portal addresses.
 - **Saves & source** - how often the game saves, the recent save writes, where the data comes from and the last memory scans.
@@ -63,7 +63,6 @@ then by distance. Click a row to open that system.
 Distances are measured between regions (about 400 light years per step) and
 are approximate: the game does not reveal where exactly a system lies in its
 region, so the systems of one region are drawn on a small circle around it.
-A route planner (for jumps longer than your hyperdrive allows) is planned.
 
 ## Economy and trade
 
@@ -83,6 +82,22 @@ the plugin reads this from the game's trading table. You see it:
 
 Prices also move with what you buy and sell, and wealthier systems trade the
 higher tiers.
+
+## Route planner
+
+*Systems → Route*: choose a target - one of your known systems, or **any system
+by its portal address** (12 glyphs as hex digits) - and your ship's **jump
+range** in light years, and press **Plan route**.
+
+A jump costs one warp cell however far it goes within your range, so the route
+has the **fewest jumps**. Your known systems are used as stops where they cost
+no extra jump; where none is close enough, a leg crosses unknown space in
+several jumps and names the region to aim for on each one - on the galaxy map,
+pick a star near that region. The route is listed leg by leg and drawn on a
+map; the last route and range are kept.
+
+Distances are measured between regions and are approximate, so leave some
+margin on the range.
 
 ## Good to know
 

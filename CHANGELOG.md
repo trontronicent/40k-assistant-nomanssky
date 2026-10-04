@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0 — 2026-10-04
+
+- **Route planner** (*Systems → Route*): target system (known, or any portal
+  address) and jump range; the route with the fewest jumps, using your known
+  systems as stops where they cost no extra jump and naming the regions to aim
+  for through unknown space; listed leg by leg and drawn on a map.
+- Needs the 40k Assistant 3.6.0 (forms and map lines in plugin views).
+
 ## 0.7.0 — 2026-10-04
 
 - **Economy per system:** economy, wealth, conflict and dominant race, read from

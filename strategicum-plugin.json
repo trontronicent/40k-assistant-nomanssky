@@ -3,8 +3,8 @@
   "manifest_version": 1,
   "id": "nomanssky",
   "name": "No Man's Sky",
-  "version": "0.7.0",
-  "description": "Connector to No Man's Sky: save data (location, inventories with item names and icons, ships, bases), galaxy and system maps, economies and trade routes, and - live from the running game - planets, resources and gas.",
+  "version": "0.8.0",
+  "description": "Connector to No Man's Sky: save data, galaxy and system maps, economies and trade routes, a route planner, and - live from the running game - planets, resources and gas, with item names and icons.",
   "author": {
     "name": "Reto Kummer alias Reat Kay",
     "url": "https://github.com/trontronicent"
@@ -37,7 +37,7 @@
     }
   ],
   "app": {
-    "min_version": "3.5.0",
+    "min_version": "3.6.0",
     "plugin_api": 2
   },
   "contributes": {
