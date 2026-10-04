@@ -20,6 +20,8 @@ credits appear in the 40k Assistant's manual under *Plugin Help* (app 3.4.0+).
   are in - name (and the uploaded name), type, weather, three resources, plant
   resource, the gas an atmosphere harvester collects, flora, fauna, sentinels -
   and which planet you are on
+- **Galaxy map:** every known system on a map you can pan and zoom, and the
+  nearest planet with each resource
 - **Visited systems and planets:** every system you visited (from the save,
   with uploaded names) and every planet the plugin has seen, with its resources.
   Click a system for its **map**: the star with the system's facts and its

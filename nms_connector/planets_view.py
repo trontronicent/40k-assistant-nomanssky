@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from . import galaxy
 from .summary import address_portal, galaxy_name, unpack_address
 
 # GcPlanetInfo.SentinelsPerDifficulty is indexed by the ground combat timer setting.
@@ -34,6 +35,9 @@ PURPLE_SYSTEMS = range(0x3E8, 0x42A)
 PLANET_COLUMNS = ["Planet", "Type", "Weather", "Resource 1", "Resource 2", "Resource 3", "Plants", "Gas", "Flora",
                   "Fauna", "Sentinels"]
 OPEN_SYSTEM = "open_system"
+GALAXY_MAP_ID = "galaxy-map"
+NEAREST_ID = "nearest-resources"
+POINT_COLORS = {"resources": "#5fbf6a", "save": "#8fa3b8", "bases": "#7ad7ff"}
 SYSTEM_MAP_ID = "system-map"
 CURRENT_MAP_ID = "current-map"
 
@@ -147,12 +151,14 @@ def _planet_row(texts: Texts, planet: dict, visit: dict | None, sentinel_index: 
 class Context:
     """Everything the system and planet sections are built from."""
 
-    def __init__(self, live, history, visits: dict, gamedata, combat_timer: str | None, bases=None):
+    def __init__(self, live, history, visits: dict, gamedata, combat_timer: str | None, bases=None, origin=None):
         self.live, self.history, self.visits = live, history, visits
         self.texts = Texts(gamedata)
         self.sentinel_index = COMBAT_TIMERS.get(combat_timer or "Normal", 2)
         self.recorded = history.systems()
         self.bases = bases or []
+        # Where distances are measured from: the system you are in, else where you were at the last save.
+        self.origin = live.current_system if getattr(live, "current_system", None) is not None else origin
 
     def keys(self) -> set[int]:
         return set(self.visits) | set(self.recorded)
@@ -365,6 +371,81 @@ def visited_planets_section(ctx: Context) -> dict:
                      "every system you visit from now on appears here."}
 
 
+def _galaxy_point(key: int, ctx: Context) -> dict:
+    visit = ctx.visits.get(key) or {}
+    planets = ctx.recorded.get(key, [])
+    addr = unpack_address(key) or {}
+    bases = [b["name"] for b in ctx.bases if b.get("system") == key]
+    x, y, z = galaxy.map_position(key)
+    dist = galaxy.distance_ly(ctx.origin, key) if ctx.origin is not None else None
+    point = {"key": system_key_text(key), "label": _system_label(key, visit), "sublabel": address_portal(addr),
+             "x": round(x, 3), "y": round(y, 3), "z": round(z, 3),
+             "items": [
+                 {"label": "Portal address", "value": address_portal(addr)},
+                 {"label": "Region (voxel X, Y, Z)", "value": ", ".join(str(v) for v in galaxy.region(key))},
+                 {"label": "Distance from you", "value": galaxy.distance_text(dist, key == ctx.origin) if ctx.origin is not None else "unknown"},
+                 {"label": "Planets with resources", "value": len(planets) or None},
+                 {"label": "Named by", "value": visit.get("named_by")},
+                 {"label": "Your bases here", "value": ", ".join(bases) or None},
+                 {"label": "Last seen / discovered", "value": _last_seen(key, ctx) or None},
+             ]}
+    if key == ctx.live.current_system:
+        point["marker"] = "current"
+    elif key == ctx.origin:
+        point["marker"] = "target"
+    elif bases:
+        point["color"] = POINT_COLORS["bases"]
+    else:
+        point["color"] = POINT_COLORS["resources"] if planets else POINT_COLORS["save"]
+    if bases:
+        point["size"] = 1.3
+    return point
+
+
+def galaxy_sections(ctx: Context, selected: int | None) -> list[dict]:
+    """The galaxy map of every known system (in the galaxy you are in) and the nearest planet per resource."""
+    keys = sorted(ctx.keys())
+    if not keys:
+        return [{"type": "text", "text": "No systems known yet: they come from your save and from the game while it runs."}]
+    here = galaxy.galaxy_of(ctx.origin) if ctx.origin is not None else max(
+        {galaxy.galaxy_of(k) for k in keys}, key=lambda g: sum(1 for k in keys if galaxy.galaxy_of(k) == g))
+    shown = [k for k in keys if galaxy.galaxy_of(k) == here]
+    elsewhere = len(keys) - len(shown)
+    gname = galaxy_name(here)
+    out = [{
+        "type": "starmap", "id": GALAXY_MAP_ID, "title": f"Galaxy map: {gname} ({len(shown)} systems)",
+        "points": [_galaxy_point(k, ctx) for k in shown], "action": OPEN_SYSTEM, "action_label": "Open system map",
+        "selected_key": system_key_text(selected) if selected in shown else None,
+        "center": {"label": "Galaxy centre", "x": 0, "y": 0, "z": 0}, "bounds": galaxy.GALAXY_BOUNDS,
+        "legend": [{"label": "You are here", "color": "#ffd27a"},
+                   {"label": "Planets with resources", "color": POINT_COLORS["resources"]},
+                   {"label": "Known from the save only", "color": POINT_COLORS["save"]},
+                   {"label": "Your bases", "color": POINT_COLORS["bases"]}],
+        "empty": "No systems in this galaxy yet.",
+    }]
+    notes = ["Systems of one region sit on a small circle around the region's point; the save holds no finer "
+             "position. Distances are measured between regions (~400 ly per step) and are approximate."]
+    if elsewhere:
+        notes.append(f"{elsewhere} known system(s) lie in other galaxies and are not on this map.")
+    out.append({"type": "text", "text": " ".join(notes)})
+
+    nearest = galaxy.nearest_by_resource({k: ctx.recorded[k] for k in ctx.recorded}, ctx.origin, planet_gas)
+    rows, keys_out = [], []
+    for e in sorted(nearest, key=lambda e: (e["distance"] is None, e["system"] != ctx.origin, e["distance"] or 0,
+                                            ctx.texts.name(e["resource"]) or "")):
+        visit = ctx.visits.get(e["system"])
+        rows.append([ctx.texts.item(e["resource"]), _planet_name(e["planet"], visit), _system_label(e["system"], visit),
+                     galaxy.distance_text(e["distance"], e["system"] == ctx.origin) if ctx.origin is not None else "unknown",
+                     e["count"]])
+        keys_out.append(system_key_text(e["system"]))
+    out.append({"type": "table", "id": NEAREST_ID, "title": "Nearest planet with each resource",
+                "columns": ["Resource", "Nearest planet", "System", "Distance from you", "Planets there"],
+                "rows": rows, "row_action": OPEN_SYSTEM, "row_keys": keys_out,
+                "row_hint": "Among the planets whose resources were read. Click a row to open that system's map.",
+                "empty": "No planet resources read yet: they are read from the game while you play."})
+    return out
+
+
 def systems_tabs(ctx: Context, selected: int | None) -> dict:
     """The Systems tab's sub-tabs: current system, visited systems (with the map), visited planets."""
     planets = visited_planets_section(ctx)
@@ -373,6 +454,7 @@ def systems_tabs(ctx: Context, selected: int | None) -> dict:
         {"id": "visited", "label": "Visited systems", "badge": len(ctx.keys()),
          "sections": visited_systems_sections(ctx, selected)},
         {"id": "planets", "label": "Planets", "badge": len(planets["rows"]), "sections": [planets]},
+        {"id": "galaxy", "label": "Galaxy", "sections": galaxy_sections(ctx, selected)},
     ]}
 
 

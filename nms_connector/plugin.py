@@ -107,6 +107,7 @@ class NmsConnector:
         self.live = LiveMemory(self.history)
         self.visits: dict[int, dict] = {}
         self.anchor: bytes | None = None
+        self.save_system: int | None = None
         self.combat_timer: str | None = None
         self._live_checked = 0.0
         self.selected_system: int | None = None   # clicked in the visited-systems table
@@ -257,6 +258,8 @@ class NmsConnector:
         ps = (readable.get("BaseContext") or {}).get("PlayerStateData") or {}
         try:
             self.anchor = memory.ua_bytes(ps["GameStartAddress1"]) + memory.ua_bytes(ps["GameStartAddress2"])
+            # Where you were at the last save: the galaxy map measures from here while no live position is known.
+            self.save_system = memory.system_key(memory.pack_address(ps["UniverseAddress"]))
         except (KeyError, TypeError):
             self.anchor = None
         timers = (((ps.get("DifficultyState") or {}).get("Settings") or {}).get("GroundCombatTimers") or {})
@@ -457,7 +460,7 @@ class NmsConnector:
 
         snap = self.snapshot
         ctx = planets_view.Context(self.live, self.history, self.visits, self.gamedata, self.combat_timer,
-                                   snap["bases"] if snap else [])
+                                   snap["bases"] if snap else [], origin=self.save_system)
         sections.append({"type": "tabs", "id": "main", "tabs": [
             {"id": "overview", "label": "Overview", "sections": self._overview(snap, ctx)},
             {"id": "systems", "label": "Systems", "badge": len(ctx.keys()) or None,

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0 — 2026-10-04
+
+- **Galaxy map** (*Systems → Galaxy*): every known system of your galaxy on a map
+  you can drag, zoom and look at from above or the side; click a system for its
+  details and open its system map. Your system, your bases and systems with
+  recorded resources are coloured.
+- **Nearest planet with each resource:** for every resource read so far, the
+  closest planet offering it (your own system first, then by distance).
+- Needs the 40k Assistant 3.5.0 (starmap views).
+
 ## 0.5.0 — 2026-10-04
 
 - **Help and credits in the app's manual:** the plugin's help (`HELP.md`) and its

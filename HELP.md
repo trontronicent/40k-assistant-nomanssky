@@ -18,7 +18,7 @@ Open it from **Plugins → No Man's Sky** in the header. The buttons at the top:
 The tabs:
 
 - **Overview** - units, nanites, quicksilver, health, where you were at the last save, where you are now, your fleet and companions.
-- **Systems** - *Current system* (live from the game, with a map), *Visited systems* (every system from your save; click one to see its map) and *Planets* (every planet whose resources were read).
+- **Systems** - *Current system* (live from the game, with a map), *Visited systems* (every system from your save; click one to see its map), *Planets* (every planet whose resources were read) and *Galaxy* (the galaxy map and the nearest planet with each resource).
 - **Inventory** - exosuit, starship and freighter, each item with its icon and its name in English and in the game's language.
 - **Ships & bases** - your ships and bases with portal addresses.
 - **Saves & source** - how often the game saves, the recent save writes, where the data comes from and the last memory scans.
@@ -47,6 +47,23 @@ Atlas or purple-star system) and its planets, coloured by biome and sized by
 class. Click a planet for its resources, gas, weather, flora, fauna, sentinels
 and your discoveries there. Planets known only from your save appear as *not
 scanned yet*.
+
+## The galaxy map
+
+*Systems → Galaxy* shows every system you know in the galaxy you are in. Drag
+to move, use the mouse wheel or the zoom buttons, look **from above** or **from
+the side**; **Fit** shows all your systems, **Whole map** the whole galaxy with
+its centre. Click a system for its details, **Open system map** (or a
+double-click) opens its star and planets.
+
+Below the map, **Nearest planet with each resource** names, for every resource
+the plugin has read, the closest planet offering it: your own system first,
+then by distance. Click a row to open that system.
+
+Distances are measured between regions (about 400 light years per step) and
+are approximate: the game does not reveal where exactly a system lies in its
+region, so the systems of one region are drawn on a small circle around it.
+A route planner (for jumps longer than your hyperdrive allows) is planned.
 
 ## Good to know
 
