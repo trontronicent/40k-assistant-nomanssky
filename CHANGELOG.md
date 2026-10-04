@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- **Decision timers**: each settlement gets a timer for its next decision, ending at
+  the latest moment it can come (2 h after the last); with a bell you are
+  notified then.
 - **Frigates**: *Ships & bases* lists your frigates with class icon, grade,
   race, combat/exploration/industry/trade values, traits by their in-game names
   (from the game's trait table), expedition record, home system and state (out

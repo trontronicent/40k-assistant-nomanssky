@@ -33,7 +33,8 @@ At the top of the *Overview* tab: when the building under construction in each o
 your **settlements** is finished, and when your **frigate expeditions** return
 (with the time of the next expedition event). The save stores when they started;
 how long they take comes from the game's own files (a factory, for example, takes
-1 h 33 min). New ones appear after the game's next save: the game does not save
+1 h 33 min). Each settlement also gets a timer for its **next decision** at the latest moment the overseer
+can ask (the game picks the moment within a window of 15 minutes to 2 hours). New ones appear after the game's next save: the game does not save
 on a timer, but when you leave your ship, warp or use a save point (*Saves &
 source* shows how often it did). **Rescan** does not help before that - it only
 reads the newest save again.

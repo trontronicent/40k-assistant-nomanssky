@@ -185,8 +185,9 @@ def visible(items: list[dict], now: float) -> list[dict]:
 EMPTY = ("No settlement construction or frigate expedition is running. New ones appear after the game's next "
          "save - leave your ship, warp or use a save point to save now ('Rescan' alone does not: it reads the "
          "newest save).")
-INTRO = ("From your save: when settlement constructions and frigate expeditions finish (durations from the game's "
-         "files). Press a bell to be notified when one ends - on this computer and on your phone.")
+INTRO = ("From your save: when settlement constructions and frigate expeditions finish and when your settlements' "
+         "next decision comes at the latest (durations from the game's files). Press a bell to be notified when one "
+         "ends - on this computer and on your phone.")
 
 
 def timers_section(items: list[dict], section_types, now: float) -> dict:

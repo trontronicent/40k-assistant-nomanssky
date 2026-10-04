@@ -270,3 +270,14 @@ def test_stats_and_perks_carry_the_settlement_screens_icons():
     assert perks[0][0]["icon"] == "settlement_negative_maintenance.png"      # fault line: maintenance worse
     assert perks[1][0]["icon"] == "settlement_positive_happiness.png"
     assert settlements.stat_icon_id("Upkeep", "negative") == "SETTLEMENT_NEGATIVE_MAINTENANCE"
+
+
+def test_the_next_decision_is_a_timer_at_its_latest_moment():
+    """The decision timer ends at the last decision + JudgementWaitTimeMax (2 h) - the latest the overseer asks;
+    the detail gives the whole window. A decision already waiting has no timer. Keys follow TIMER_KEY_RE."""
+    state = dict(kay_city(), UniqueId="5e3651aaeadbce06")
+    timer, = settlements.decision_timers(settlements.settlements_from_save(save(state)), tables())
+    assert timer["key"] == "decision.5e3651aaeadbce06" and timer["ends_at"] == LAST_JUDGEMENT + 7200
+    assert timer["label"] == "Kay City: next decision (at the latest)" and f"between {settlements.clock(LAST_JUDGEMENT + 900)} and" in timer["detail"]
+    waiting = dict(state, PendingJudgementType={"SettlementJudgementType": "StrangerVisit"})
+    assert settlements.decision_timers(settlements.settlements_from_save(save(waiting)), tables()) == []

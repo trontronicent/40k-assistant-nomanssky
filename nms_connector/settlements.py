@@ -316,6 +316,7 @@ def settlements_from_save(readable: dict) -> list[dict]:
         ua = s.get("UniverseAddress")
         out.append({
             "name": s.get("Name") or "Settlement",
+            "uid": str(s.get("UniqueId") or s.get("Name") or "settlement").lower(),
             "seed": seed,
             "system": (ua & ~(0xF << 52)) if isinstance(ua, int) else None,     # memory.system_key
             "race": _enum(s.get("Race"), "AlienRace"),
@@ -327,6 +328,22 @@ def settlements_from_save(readable: dict) -> list[dict]:
             "last_judgement": int(s.get("LastJudgementTime") or 0),
             "building": None if building in (None, "None") else BUILDING_NAMES.get(building, building),
         })
+    return out
+
+
+def decision_timers(items: list[dict], tables: dict) -> list[dict]:
+    """A timer per settlement without a waiting decision: the next one comes at the latest JudgementWaitTimeMax
+    after the last (the game draws the actual wait between the two limits, so it can come earlier)."""
+    wait_min, wait_max = tables["judgement_wait"]
+    out = []
+    for s in items:
+        if not s["last_judgement"] or (s["pending"] and s["pending"] != "None"):
+            continue
+        out.append({"key": f"decision.{s['uid']}"[:80].replace(" ", "-"),
+                    "label": f"{s['name']}: next decision (at the latest)",
+                    "started_at": s["last_judgement"], "ends_at": s["last_judgement"] + wait_max,
+                    "detail": f"The overseer asks between {clock(s['last_judgement'] + wait_min)} and "
+                              f"{clock(s['last_judgement'] + wait_max)}; the game draws the moment."})
     return out
 
 

@@ -388,8 +388,10 @@ class NmsConnector:
             return
         self.snapshot = await self.ctx.run_blocking(summarize, readable)
         self.visits = await self.ctx.run_blocking(visits_from_save, readable)
-        self.timers = timers.timers_from_save(readable, self.timer_tables or timers.FALLBACK)
         self.settlements = settlements.settlements_from_save(readable)
+        self.timers = sorted(timers.timers_from_save(readable, self.timer_tables or timers.FALLBACK)
+                             + settlements.decision_timers(self.settlements, self.settlement_tables or settlements.FALLBACK),
+                             key=lambda t: t["ends_at"])
         self.ships = ships.ships_from_save(readable)
         self.freighter = ships.freighter_from_save(readable)
         self.equipment = equipment.equipment_from_save(readable)
