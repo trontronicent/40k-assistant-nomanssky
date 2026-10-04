@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0 — 2026-10-04
+
+- **Economy per system:** economy, wealth, conflict and dominant race, read from
+  the game's galaxy map data (found through the seeds of the system's planets)
+  while you are there; kept in the planet history.
+- **Trade goods:** the game's trading table says what each economy sells cheaply
+  and what it pays well for; system maps list the five trade goods of each, the
+  visited-systems table shows economy and conflict.
+- **Systems → Trade:** the economies of your systems and trade routes - for every
+  kind of goods, the nearest system to buy it and the nearest to sell it.
+
 ## 0.6.0 — 2026-10-04
 
 - **Galaxy map** (*Systems → Galaxy*): every known system of your galaxy on a map

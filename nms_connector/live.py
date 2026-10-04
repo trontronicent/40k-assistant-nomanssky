@@ -33,11 +33,13 @@ FOLLOW_UP_S = 45
 
 
 class LiveMemory:
-    def __init__(self, history: PlanetHistory, opener=None, pid_finder=None, scanner=None):
+    def __init__(self, history: PlanetHistory, opener=None, pid_finder=None, scanner=None, star_finder=None):
         self.history = history
         self._open = opener or memory.ProcessReader
         self._find_pid = pid_finder or memory.find_game_pid
         self._scan = scanner or memory.scan
+        self._find_stars = star_finder or memory.find_star_attributes
+        self.last_economy_systems = 0
         self.reader = None
         self.status = "idle"          # unsupported | not-running | error | ok
         self.error: str | None = None
@@ -135,6 +137,7 @@ class LiveMemory:
             self.last_scan_seconds, self.last_scan_bytes = result.seconds, result.bytes_read
             self.last_scan_planets = len(result.planets)
             changed = self.history.record(result.planets, self.last_scan_iso, self.current_system)
+            changed += self._read_economies(result.planets)
             self.history.save()   # always: the scan log is part of the file
             self.status, self.error = "ok", None
             return changed
@@ -157,6 +160,21 @@ class LiveMemory:
             self._addresses[address] = ua
         if moved and self.player_state not in moved:
             self.player_state = moved[0]
+
+    def _read_economies(self, planets: list[dict]) -> int:
+        """Economy, wealth, conflict and race of the systems in this scan that have none recorded yet.
+
+        Found through the planets' seeds in the galaxy map's star records (memory.find_star_attributes): one
+        more pass over memory, only when a new system turned up. The planets of the history count too, so a
+        system read before keeps matching all its known planets.
+        """
+        missing = {p["system"] for p in planets if p.get("seed")} - set(self.history.economies)
+        if not missing:
+            return 0
+        known = {key: plist for key, plist in self.history.systems().items() if key in missing}
+        found = self._find_stars(self.reader, known)
+        self.last_economy_systems = len(found)
+        return self.history.record_economies(found, self.last_scan_iso)
 
     def _system_from_slots(self) -> int | None:
         """The majority system of the remembered planet slots as they are now (None when none is a planet)."""

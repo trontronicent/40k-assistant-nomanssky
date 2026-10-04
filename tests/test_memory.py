@@ -363,7 +363,7 @@ def test_tables_show_the_current_system_and_every_visited_system(tmp_path):
     ctx = planets_view.Context(LiveIn98(), history, visits_from_save(save_with_visits()), FakeGameData(), "Normal",
                                bases=[{"name": "Home", "system": SYSTEM_98}])
     tabs = planets_view.systems_tabs(ctx, None)
-    assert [t["id"] for t in tabs["tabs"]] == ["current", "visited", "planets", "galaxy"]
+    assert [t["id"] for t in tabs["tabs"]] == ["current", "visited", "planets", "galaxy", "trade"]
     current_map, current = tabs["tabs"][0]["sections"]
     assert current_map["type"] == "orbit" and current_map["id"] == "current-map"
     assert current["title"] == "Planets of Delta Sol (live from the game)" and "Gas" in current["columns"]
@@ -442,7 +442,7 @@ def test_tables_explain_when_the_game_is_not_running(tmp_path):
         status, error, current_system, current = "not-running", None, None, None
     ctx = planets_view.Context(Live(), PlanetHistory(tmp_path / "h.json"), visits_from_save(save_with_visits()),
                                FakeGameData(), None)
-    current, visited, planets, _galaxy = planets_view.systems_tabs(ctx, None)["tabs"]
+    current, visited, planets, _galaxy, _trade = planets_view.systems_tabs(ctx, None)["tabs"]
     assert current["sections"][0]["type"] == "notice" and "Start No Man's Sky" in current["sections"][0]["text"]
     assert planets_view.where_you_are(ctx) is None
     # Without a current system the map shows the clicked system, else the newest one.

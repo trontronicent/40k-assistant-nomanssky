@@ -18,7 +18,7 @@ Open it from **Plugins → No Man's Sky** in the header. The buttons at the top:
 The tabs:
 
 - **Overview** - units, nanites, quicksilver, health, where you were at the last save, where you are now, your fleet and companions.
-- **Systems** - *Current system* (live from the game, with a map), *Visited systems* (every system from your save; click one to see its map), *Planets* (every planet whose resources were read) and *Galaxy* (the galaxy map and the nearest planet with each resource).
+- **Systems** - *Current system* (live from the game, with a map), *Visited systems* (every system from your save; click one to see its map), *Planets* (every planet whose resources were read), *Galaxy* (the galaxy map and the nearest planet with each resource) and *Trade* (economies and trade routes).
 - **Inventory** - exosuit, starship and freighter, each item with its icon and its name in English and in the game's language.
 - **Ships & bases** - your ships and bases with portal addresses.
 - **Saves & source** - how often the game saves, the recent save writes, where the data comes from and the last memory scans.
@@ -64,6 +64,25 @@ Distances are measured between regions (about 400 light years per step) and
 are approximate: the game does not reveal where exactly a system lies in its
 region, so the systems of one region are drawn on a small circle around it.
 A route planner (for jumps longer than your hyperdrive allows) is planned.
+
+## Economy and trade
+
+Every system has an economy (Mining, Technology, Trading, Manufacturing,
+Advanced Materials, Scientific or Power Generation), a wealth level, a
+conflict level and a dominant race. The plugin reads them from the game's
+galaxy map data while you are in a system with the game running, and keeps
+them. Systems you visited before this version show theirs after your next
+visit.
+
+Each economy sells one kind of trade goods cheaply and pays well for another;
+the plugin reads this from the game's trading table. You see it:
+
+- on the star of every **system map** (*Cheap to buy here* and *Sells well here*, with the five trade goods of each kind),
+- in the *Economy* and *Conflict* columns of **Visited systems**,
+- in **Systems → Trade**: the economies of your systems, and **trade routes** - for every kind of goods, the nearest of your systems to buy it cheaply and the nearest to sell it well. Where none of your systems fits, the table says which economy to look for.
+
+Prices also move with what you buy and sell, and wealthier systems trade the
+higher tiers.
 
 ## Good to know
 

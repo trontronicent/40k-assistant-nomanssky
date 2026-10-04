@@ -16,7 +16,7 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from . import memory, planets_view, saves
+from . import memory, planets_view, saves, trade
 from .game_install import GameInstall, find_game
 from .gamedata import GameData
 from .history import PlanetHistory, visits_from_save
@@ -219,8 +219,10 @@ class NmsConnector:
         if (changed or not self._planet_icons_ready) and self.install and self.gamedata.ready:
             self._planet_icons_ready = True
             planets = list(self.history.planets.values())
-            await self.ctx.run_blocking(self.gamedata.resolve_texts, self.install, planets_view.info_keys(planets))
-            await self.ctx.run_blocking(self.gamedata.ensure_icons, self.install, planets_view.resource_ids(planets))
+            keys = planets_view.info_keys(planets) | set(trade.ECONOMY_KEYS.values()) | set(trade.CONFLICT_KEYS.values())
+            await self.ctx.run_blocking(self.gamedata.resolve_texts, self.install, keys)
+            goods = [g for c in trade.CATEGORIES for g in trade.goods(c)]
+            await self.ctx.run_blocking(self.gamedata.ensure_icons, self.install, planets_view.resource_ids(planets) + goods)
 
     async def _tick(self) -> None:
         await self._ensure_mapping()

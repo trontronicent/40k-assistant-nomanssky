@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from . import galaxy
+from . import galaxy, trade
 from .summary import address_portal, galaxy_name, unpack_address
 
 # GcPlanetInfo.SentinelsPerDifficulty is indexed by the ground combat timer setting.
@@ -159,6 +159,55 @@ class Context:
         self.bases = bases or []
         # Where distances are measured from: the system you are in, else where you were at the last save.
         self.origin = live.current_system if getattr(live, "current_system", None) is not None else origin
+        self.economies = getattr(history, "economies", {}) or {}
+        self.trading = getattr(gamedata, "trading", None) or trade.FALLBACK
+        self.trading_source = getattr(gamedata, "trading_source", "built-in")
+
+    # --- economy texts (the game's names, English and game language)
+
+    def economy_name(self, economy: str | None) -> str | None:
+        if not economy:
+            return None
+        key = trade.ECONOMY_KEYS.get(economy)
+        entry = self.texts.gamedata.text(key) if key else None
+        return self.texts.both(entry["en"], entry["local"]) if entry else trade.ECONOMY_FALLBACK_NAMES.get(economy, economy)
+
+    def conflict_name(self, conflict: str | None) -> str | None:
+        if not conflict:
+            return None
+        key = trade.CONFLICT_KEYS.get(conflict)
+        entry = self.texts.gamedata.text(key) if key else None
+        return self.texts.both(entry["en"], entry["local"]) if entry else conflict
+
+    def economy_summary(self, key: int) -> str | None:
+        """'Trading (Average)' for a system with a recorded economy, else None."""
+        e = self.economies.get(key)
+        if not e:
+            return None
+        return f"{self.economy_name(e.get('economy'))} ({e.get('wealth')})"
+
+    def goods_text(self, category: str | None) -> str | None:
+        if not category:
+            return None
+        names = [self.texts.name(g) for g in trade.goods(category)]
+        return f"{trade.CATEGORY_NAMES.get(category, category)}: " + ", ".join(n for n in names if n)
+
+    def economy_items(self, key: int) -> list[dict]:
+        """Economy, wealth, conflict, race and the trade goods to buy and sell there (for a details panel)."""
+        e = self.economies.get(key)
+        if not e:
+            return [{"label": "Economy", "value": "not read yet - visit the system while the game runs"}]
+        t = self.trading.get(e.get("economy"), {})
+        lo, hi = (t.get("sells_at") or (None, None))
+        blo, bhi = (t.get("buys_at") or (None, None))
+        return [
+            {"label": "Economy", "value": self.economy_name(e.get("economy"))},
+            {"label": "Wealth", "value": e.get("wealth")},
+            {"label": "Conflict", "value": self.conflict_name(e.get("conflict"))},
+            {"label": "Dominant race", "value": e.get("race")},
+            {"label": f"Cheap to buy here (x{lo}-{hi})" if lo else "Cheap to buy here", "value": self.goods_text(t.get("sells"))},
+            {"label": f"Sells well here (x{blo}-{bhi})" if blo else "Sells well here", "value": self.goods_text(t.get("needs"))},
+        ]
 
     def keys(self) -> set[int]:
         return set(self.visits) | set(self.recorded)
@@ -227,7 +276,7 @@ def _star(key: int, visit: dict, planets: list[dict], ctx: Context) -> dict:
         {"label": "Discovered", "value": visit.get("discovered_at")},
         {"label": "Resources last read", "value": last},
         {"label": "Your bases here", "value": ", ".join(bases) or "none"},
-    ]
+    ] + ctx.economy_items(key)
     if special:
         items.insert(4, {"label": "Special", "value": special})
     if key == ctx.live.current_system:
@@ -337,7 +386,8 @@ def visited_systems_sections(ctx: Context, selected: int | None) -> list[dict]:
         named = sum(1 for p in (visit.get("planets") or {}).values() if p.get("name"))
         row = [_system_label(key, visit), address_portal(addr), galaxy_name(addr.get("RealityIndex")),
                len(planets) or None, named or None, visit.get("named_by"), _last_seen(key, ctx) or None,
-               "yes" if key == ctx.live.current_system else ""]
+               "yes" if key == ctx.live.current_system else "",
+               ctx.economy_summary(key), ctx.conflict_name((ctx.economies.get(key) or {}).get("conflict"))]
         entries.append((row, key))
     # Current system first, then systems with recorded resources, each newest first (sorts are stable).
     entries.sort(key=lambda e: e[0][6] or "", reverse=True)
@@ -348,7 +398,7 @@ def visited_systems_sections(ctx: Context, selected: int | None) -> list[dict]:
         out.append(system_map(shown, ctx, SYSTEM_MAP_ID, "System map"))
     out.append({"type": "table", "title": f"Visited systems ({len(entries)})",
                 "columns": ["System", "Portal address", "Galaxy", "Planets with resources", "Named planets",
-                            "Named by", "Last seen / discovered", "Here"],
+                            "Named by", "Last seen / discovered", "Here", "Economy", "Conflict"],
                 "rows": [row for row, _ in entries], "row_action": OPEN_SYSTEM,
                 "row_keys": [system_key_text(key) for _, key in entries],
                 "selected_key": system_key_text(shown) if shown is not None else None,
@@ -384,6 +434,7 @@ def _galaxy_point(key: int, ctx: Context) -> dict:
                  {"label": "Portal address", "value": address_portal(addr)},
                  {"label": "Region (voxel X, Y, Z)", "value": ", ".join(str(v) for v in galaxy.region(key))},
                  {"label": "Distance from you", "value": galaxy.distance_text(dist, key == ctx.origin) if ctx.origin is not None else "unknown"},
+                 {"label": "Economy", "value": ctx.economy_summary(key) or "not read yet"},
                  {"label": "Planets with resources", "value": len(planets) or None},
                  {"label": "Named by", "value": visit.get("named_by")},
                  {"label": "Your bases here", "value": ", ".join(bases) or None},
@@ -446,6 +497,62 @@ def galaxy_sections(ctx: Context, selected: int | None) -> list[dict]:
     return out
 
 
+def trade_sections(ctx: Context) -> list[dict]:
+    """The Trade tab: the economies of your systems and, per kind of trade goods, where to buy and where to sell."""
+    known = sorted(ctx.economies, key=lambda k: (k != ctx.origin, galaxy.distance_ly(ctx.origin, k) if ctx.origin is not None
+                                                  and galaxy.distance_ly(ctx.origin, k) is not None else 1e12, k))
+    rows, keys = [], []
+    for key in known:
+        e = ctx.economies[key]
+        t = ctx.trading.get(e.get("economy"), {})
+        dist = galaxy.distance_ly(ctx.origin, key) if ctx.origin is not None else None
+        rows.append([_system_label(key, ctx.visits.get(key)), ctx.economy_name(e.get("economy")), e.get("wealth"),
+                     ctx.conflict_name(e.get("conflict")), e.get("race"),
+                     trade.CATEGORY_NAMES.get(t.get("sells"), t.get("sells")),
+                     trade.CATEGORY_NAMES.get(t.get("needs"), t.get("needs")),
+                     galaxy.distance_text(dist, key == ctx.origin) if ctx.origin is not None else "unknown"])
+        keys.append(system_key_text(key))
+    out = [{"type": "table", "id": "economies", "title": f"Economies of your systems ({len(rows)})",
+            "columns": ["System", "Economy", "Wealth", "Conflict", "Race", "Cheap to buy here", "Sells well here",
+                        "Distance from you"],
+            "rows": rows, "row_action": OPEN_SYSTEM, "row_keys": keys,
+            "row_hint": "Click a system to open its map; its star lists the trade goods to buy and sell there.",
+            "empty": "No economy read yet: it is read from the game for every system you visit while it runs."}]
+
+    route_rows, route_keys = [], []
+    for r in trade.routes(ctx.economies, ctx.trading, ctx.origin):
+        def place(key):
+            if key is None:
+                return None
+            return f"{_system_label(key, ctx.visits.get(key))} ({ctx.economy_name(ctx.economies[key].get('economy'))})"
+        sellers = [e for e, t in ctx.trading.items() if t.get("sells") == r["category"]]
+        buyers = [e for e, t in ctx.trading.items() if t.get("needs") == r["category"]]
+        route_rows.append([
+            trade.CATEGORY_NAMES.get(r["category"], r["category"]),
+            ", ".join(n for n in (ctx.texts.name(g) for g in trade.goods(r["category"])) if n),
+            place(r["buy"]) or f"not found yet - look for: {', '.join(ctx.economy_name(e) for e in sellers)}",
+            place(r["sell"]) or f"not found yet - look for: {', '.join(ctx.economy_name(e) for e in buyers)}",
+            galaxy.distance_text(r["between"], r["buy"] == r["sell"]) if r["between"] is not None else None,
+            galaxy.distance_text(r["buy_distance"], r["buy"] == ctx.origin) if r["buy_distance"] is not None else None,
+        ])
+        route_keys.append(system_key_text(r["buy"]) if r["buy"] is not None else None)
+    out.append({"type": "table", "id": "trade-routes", "title": "Trade routes between your systems",
+                "columns": ["Goods", "Trade goods (tier 1-5)", "Buy cheap at", "Sell well at", "Between them",
+                            "From you to the seller"],
+                "rows": route_rows, "row_action": OPEN_SYSTEM, "row_keys": route_keys,
+                "row_hint": "Buy where the economy sells the goods, sell where it needs them. Click a row to open the "
+                            "system to buy in."})
+    sample = ctx.trading.get("Mining", {})
+    out.append({"type": "text", "text":
+                f"Each economy sells one kind of trade goods cheaply (stations ask x{sample.get('sells_at', ('?', '?'))[0]}-"
+                f"{sample.get('sells_at', ('?', '?'))[1]} of the value) and pays well for another "
+                f"(x{sample.get('buys_at', ('?', '?'))[0]}-{sample.get('buys_at', ('?', '?'))[1]}); the table comes from "
+                f"the {ctx.trading_source}. A system's economy is read from the game's galaxy map data while you are "
+                "there with the game running; systems visited before show theirs after your next visit. Prices also "
+                "move with what you buy and sell, and wealthier systems trade the higher tiers."})
+    return out
+
+
 def systems_tabs(ctx: Context, selected: int | None) -> dict:
     """The Systems tab's sub-tabs: current system, visited systems (with the map), visited planets."""
     planets = visited_planets_section(ctx)
@@ -455,6 +562,7 @@ def systems_tabs(ctx: Context, selected: int | None) -> dict:
          "sections": visited_systems_sections(ctx, selected)},
         {"id": "planets", "label": "Planets", "badge": len(planets["rows"]), "sections": [planets]},
         {"id": "galaxy", "label": "Galaxy", "sections": galaxy_sections(ctx, selected)},
+        {"id": "trade", "label": "Trade", "badge": len(ctx.economies) or None, "sections": trade_sections(ctx)},
     ]}
 
 

@@ -352,3 +352,78 @@ def find_game_pid() -> int | None:
         if (proc.info.get("name") or "").lower() == GAME_EXE:
             return proc.pid
     return None
+
+
+# --------------------------------------------------------------------------- star attributes (economy)
+
+# GcGalaxyStarAttributesData (libMBIN 7.04): the galaxy map's record of a star system. It holds no address;
+# it is found through PlanetSeeds[index], which must hold the GenerationData.Seed of every known planet of the
+# system at that planet's index - a 64-bit match per planet, so a false hit is practically impossible.
+STAR_SIZE = 0x6AC
+STAR_PLANET_SEEDS = 0x400          # GcSeed[16], 0x10 each
+STAR_TRADING = 0x680               # GcPlanetTradingData {TradingClass, WealthClass}
+STAR_TAIL = 0x688                  # Anomaly, ConflictData, NumberOfPlanets, NumberOfPrimePlanets, NumberOfSpacePois, Race, Type
+TRADING_CLASSES = ["Mining", "HighTech", "Trading", "Manufacturing", "Fusion", "Scientific", "PowerGeneration"]
+WEALTH_CLASSES = ["Poor", "Average", "Wealthy", "Pirate"]
+CONFLICT_LEVELS = ["Low", "Default", "High", "Pirate"]
+RACES = ["Gek", "Vy'keen", "Korvax", "Robots", "Atlas", "Diplomats", "Exotics", "None", "Autophage"]
+STAR_TYPES = ["Yellow", "Green", "Blue", "Red", "Purple"]
+
+
+def parse_star_attributes(blob: bytes) -> dict | None:
+    """Economy, wealth, conflict, race and star type of a star record, or None when the values are not one."""
+    if len(blob) < STAR_SIZE:
+        return None
+    trading, wealth = struct.unpack_from("<2i", blob, STAR_TRADING)
+    _anomaly, conflict, planets, _prime, _pois, race, star = struct.unpack_from("<7i", blob, STAR_TAIL)
+    if not (0 <= trading < len(TRADING_CLASSES) and 0 <= wealth < len(WEALTH_CLASSES) and 0 <= conflict < len(CONFLICT_LEVELS)
+            and 1 <= planets <= 16 and 0 <= race < len(RACES) and 0 <= star < len(STAR_TYPES)):
+        return None
+    return {"economy": TRADING_CLASSES[trading], "wealth": WEALTH_CLASSES[wealth], "conflict": CONFLICT_LEVELS[conflict],
+            "race": RACES[race], "star": STAR_TYPES[star], "planets": planets,
+            "abandoned": bool(blob[0x6A4]), "pirate": bool(blob[0x6A7])}
+
+
+def _star_matches(blob: bytes, planets: list[dict]) -> bool:
+    for planet in planets:
+        index, seed = planet.get("index"), planet.get("seed")
+        if not seed or not isinstance(index, int) or not 0 <= index < 16:
+            continue
+        if struct.unpack_from("<Q", blob, STAR_PLANET_SEEDS + index * 0x10)[0] != int(seed, 16):
+            return False
+    return True
+
+
+def find_star_attributes(reader, planets_by_system: dict[int, list[dict]]) -> dict[int, dict]:
+    """{system key: star attributes} for the given systems, found through their planets' seeds (one memory pass).
+
+    Every known planet of a system (with a seed) must sit at its index in the record's PlanetSeeds.
+    """
+    needles: dict[bytes, tuple[int, int]] = {}
+    for system, planets in planets_by_system.items():
+        for planet in planets:
+            if planet.get("seed") and isinstance(planet.get("index"), int):
+                needles[struct.pack("<Q", int(planet["seed"], 16))] = (system, planet["index"])
+    found: dict[int, dict] = {}
+    if not needles:
+        return found
+    for base, size in reader.regions():
+        for offset in range(0, size, CHUNK):
+            buf = reader.read(base + offset, min(CHUNK, size - offset))
+            if not buf:
+                continue
+            for needle, (system, index) in needles.items():
+                if system in found:
+                    continue
+                at = buf.find(needle)
+                while at >= 0:
+                    start = base + offset + at - STAR_PLANET_SEEDS - index * 0x10
+                    blob = reader.read(start, STAR_SIZE)
+                    attrs = parse_star_attributes(blob) if blob else None
+                    if attrs and _star_matches(blob, planets_by_system[system]):
+                        found[system] = attrs
+                        break
+                    at = buf.find(needle, at + 1)
+            if len(found) == len(planets_by_system):
+                return found
+    return found

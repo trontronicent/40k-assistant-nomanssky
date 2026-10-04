@@ -95,4 +95,5 @@ def test_galaxy_tab_maps_every_system_and_lists_the_nearest_resources(tmp_path):
     assert nearest["row_action"] == planets_view.OPEN_SYSTEM and nearest["rows"][0][3] == "this system"
     assert set(nearest["row_keys"]) == {f"{SYSTEM_98:x}"}
     tabs = planets_view.systems_tabs(ctx, None)["tabs"]
-    assert tabs[-1]["id"] == "galaxy" and tabs[-1]["sections"][0]["id"] == planets_view.GALAXY_MAP_ID
+    galaxy_tab = next(t for t in tabs if t["id"] == "galaxy")
+    assert galaxy_tab["sections"][0]["id"] == planets_view.GALAXY_MAP_ID

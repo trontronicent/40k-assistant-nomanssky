@@ -119,6 +119,7 @@ class PlanetHistory:
         self.path = Path(path)
         self.planets: dict[str, dict] = {}
         self.scans: list[dict] = []
+        self.economies: dict[int, dict] = {}       # system key -> star attributes (economy, wealth, conflict, race)
         self.load()
 
     def load(self) -> None:
@@ -137,6 +138,7 @@ class PlanetHistory:
             elif raw.get("version") == HISTORY_VERSION:
                 self.planets = {k: v for k, v in raw["planets"].items() if isinstance(v, dict) and isinstance(v.get("ua"), int)}
                 self.scans = [x for x in raw.get("scans") or [] if isinstance(x, dict)][-self.MAX_SCANS:]
+                self.economies = {int(k, 16): v for k, v in (raw.get("economies") or {}).items() if isinstance(v, dict)}
             else:
                 continue
             return
@@ -144,7 +146,8 @@ class PlanetHistory:
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"version": HISTORY_VERSION, "planets": self.planets, "scans": self.scans},
+        tmp.write_text(json.dumps({"version": HISTORY_VERSION, "planets": self.planets, "scans": self.scans,
+                                   "economies": {f"{k:x}": v for k, v in self.economies.items()}},
                                   ensure_ascii=False), encoding="utf-8")
         if self.path.exists():
             self.path.replace(self.path.with_suffix(".json.bak"))
@@ -210,6 +213,17 @@ class PlanetHistory:
                            "changed": changed, "moved": moved, "renamed": renamed,
                            "systems": {f"{k:x}": names for k, names in seen.items()}})
         del self.scans[:-self.MAX_SCANS]
+        return changed
+
+    def record_economies(self, found: dict[int, dict], now: str) -> int:
+        """Store star attributes read from memory; returns how many systems are new or changed."""
+        changed = 0
+        for key, attrs in found.items():
+            entry = {**attrs, "read_at": now}
+            old = self.economies.get(key)
+            if old is None or {k: v for k, v in old.items() if k != "read_at"} != attrs:
+                changed += 1
+            self.economies[key] = entry
         return changed
 
     def systems(self) -> dict[int, list[dict]]:

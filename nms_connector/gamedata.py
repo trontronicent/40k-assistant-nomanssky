@@ -19,7 +19,7 @@ import shutil
 import time
 from pathlib import Path
 
-from . import mbin
+from . import mbin, trade
 from .game_install import GameInstall, language_label
 from .hgpak import PakError, PakSet, ZstdUnavailable
 
@@ -100,6 +100,8 @@ class GameData:
         # The host serves this folder at GET /plugins/<id>/assets/<name> (ctx.assets_dir, app 3.1.0+).
         self.assets_dir = Path(assets_dir) if assets_dir else Path(data_dir) / "assets"
         self.items: dict[str, dict] = {}
+        self.trading: dict = dict(trade.FALLBACK)      # economy -> needs/sells/price factors (game file or fallback)
+        self.trading_source = "built-in"
         self.build_id: str | None = None
         self.language = "english"
         self.built_at: str | None = None
@@ -129,11 +131,17 @@ class GameData:
     def load(self, install: GameInstall, force: bool = False) -> None:
         """Use the cache when it fits this build and language, else build it from the game files."""
         if not force and self._load_cache(install):
+            if self.trading_source == "built-in":
+                self._add_trading(install)       # a cache from before 0.7.0 has no trading table
             return
         started = time.perf_counter()
         try:
             with PakSet(install.pcbanks, PAK_HINTS) as paks:
                 items = build_items(paks, install.language)
+                try:
+                    trading = trade.parse_trading_table(paks.read(trade.TABLE_FILE))
+                except KeyError:
+                    trading = None
         except ZstdUnavailable as exc:
             self.error = f"{exc}. It is part of the 40k Assistant from version 3.1.0 (run its setup)."
             return
@@ -141,6 +149,7 @@ class GameData:
             self.error = f"{type(exc).__name__}: {exc}"
             return
         self.items, self.build_id, self.language = items, install.build_id, install.language
+        self.trading, self.trading_source = (trading, "game files") if trading else (dict(trade.FALLBACK), "built-in")
         self.build_seconds = round(time.perf_counter() - started, 2)
         self.built_at = time.strftime("%Y-%m-%dT%H:%M:%S")
         self.error = None
@@ -148,6 +157,18 @@ class GameData:
         # convert the icons again too (a game update can change them under the same name).
         shutil.rmtree(self.assets_dir, ignore_errors=True)
         self._write_cache()
+
+    def _add_trading(self, install: GameInstall) -> None:
+        """Read the trading table into a cached item database that lacks it (one small file, no rebuild)."""
+        try:
+            with PakSet(install.pcbanks, PAK_HINTS) as paks:
+                trading = trade.parse_trading_table(paks.read(trade.TABLE_FILE))
+        except (KeyError, OSError, PakError, ZstdUnavailable) as exc:
+            self.icon_error = f"trading table: {type(exc).__name__}: {exc}"
+            return
+        if trading:
+            self.trading, self.trading_source = trading, "game files"
+            self._write_cache()
 
     def _load_cache(self, install: GameInstall) -> bool:
         try:
@@ -158,6 +179,8 @@ class GameData:
                 or cached.get("language") != install.language or not isinstance(cached.get("items"), dict)):
             return False
         self.items = cached["items"]
+        if isinstance(cached.get("trading"), dict) and cached["trading"]:
+            self.trading, self.trading_source = cached["trading"], cached.get("trading_source", "game files")
         self.build_id, self.language = install.build_id, install.language
         self.built_at, self.build_seconds = cached.get("built_at"), cached.get("build_seconds")
         self.error = None
@@ -168,7 +191,8 @@ class GameData:
         tmp = self.cache_file.with_suffix(".tmp")
         tmp.write_text(json.dumps({"format": CACHE_FORMAT, "build_id": self.build_id, "language": self.language,
                                    "built_at": self.built_at, "build_seconds": self.build_seconds,
-                                   "items": self.items}, ensure_ascii=False), encoding="utf-8")
+                                   "items": self.items, "trading": self.trading, "trading_source": self.trading_source},
+                                  ensure_ascii=False), encoding="utf-8")
         tmp.replace(self.cache_file)
 
     # ------------------------------------------------------------------ other texts
