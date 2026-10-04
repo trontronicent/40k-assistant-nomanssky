@@ -147,3 +147,23 @@ def test_the_jump_range_starts_with_the_primary_ships_estimate(tmp_path):
     assert field["value"] == 900
     field = next(f for f in planets_view.route_sections(ctx, None)[1]["fields"] if f["id"] == "range")
     assert field["value"] == planets_view.DEFAULT_RANGE_LY
+
+
+def test_stops_and_targets_follow_the_star_colours_your_ship_reaches(tmp_path):
+    """A red, green, blue or purple star needs its hyperdrive upgrade: stops whose recorded star your primary
+    ship cannot reach are left out (unknown stars count as yellow), and a route to such a target warns."""
+    history = PlanetHistory(tmp_path / "h.json")
+    red, green = 0x110002925E80, 0x120002925E80
+    history.economies = {red: {"star": "Red"}, green: {"star": "Green"}}
+    ctx = planets_view.Context(Live(), history, {red: {"name": "Rot", "planets": {}}, green: {"name": "Gruen", "planets": {}}},
+                               Texts(), None)
+    assert planets_view.reachable_stars(["red"]) == {"Yellow", "Red"}
+    nodes = planets_view.route_nodes(ctx, planets_view.reachable_stars(["red"]))
+    assert red in nodes and green not in nodes
+    assert set(planets_view.route_nodes(ctx)) >= {red, green}
+    result = {"ok": True, "legs": [{"from": red, "to": green, "distance": 0, "jumps": 1, "waypoints": []}], "jumps": 1,
+              "unknown_jumps": 0, "distance": 0, "direct_distance": 0, "direct_jumps": 1, "range": 300,
+              "star_colours": ["Red", "Yellow"]}
+    out = planets_view.route_sections(ctx, {"request": {}, "result": result})
+    warning = next(s for s in out if s["type"] == "notice" and "green star" in s["text"])
+    assert "cannot reach it yet" in warning["text"]

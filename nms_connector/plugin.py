@@ -198,7 +198,11 @@ class NmsConnector:
                 target = memory.system_key(target)
                 ctx = planets_view.Context(self.live, self.history, self.visits, self.gamedata, self.combat_timer,
                                            (self.snapshot or {}).get("bases") or [], origin=self.save_system)
-                result = route.plan_route(planets_view.route_nodes(ctx), origin, target, range_ly)
+                estimate = ships.primary_range(self.ships, self.ship_tables or ships.FALLBACK)
+                colours = planets_view.reachable_stars(estimate["colours"]) if estimate else None
+                result = route.plan_route(planets_view.route_nodes(ctx, colours), origin, target, range_ly)
+                if colours is not None:
+                    result["star_colours"] = sorted(colours)
         self.route_state = {"request": request, "result": result}
         self._save_route()
         if not result.get("ok"):

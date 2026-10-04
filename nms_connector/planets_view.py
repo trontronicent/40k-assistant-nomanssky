@@ -39,7 +39,8 @@ PLANET_COLUMNS = ["Planet", "Type", "Weather", "Resource 1", "Resource 2", "Reso
 OPEN_SYSTEM = "open_system"
 GALAXY_MAP_ID = "galaxy-map"
 GALAXY_COLORS = "galaxy_colors"          # action: how the galaxy map colours its systems
-COLOR_MODES = {"kind": "What you know there", "economy": "Economy", "conflict": "Conflict level"}
+COLOR_MODES = {"kind": "What you know there", "economy": "Economy", "conflict": "Conflict level", "star": "Star colour"}
+STAR_COLORS = {"Yellow": "#ffd966", "Red": "#ff6b5a", "Green": "#6bdc6b", "Blue": "#6fa8ff", "Purple": "#c06bff"}
 ECONOMY_COLORS = {"Mining": "#c9a26b", "HighTech": "#7ad7ff", "Trading": "#ffd27a", "Manufacturing": "#e08a5a",
                   "Fusion": "#b48cff", "Scientific": "#5fbf6a", "PowerGeneration": "#ff7aa8"}
 CONFLICT_COLORS = {"Low": "#5fbf6a", "Default": "#e0c35a", "High": "#ff7a5a", "Pirate": "#c06bff"}
@@ -579,6 +580,8 @@ def _galaxy_point(key: int, ctx: Context, color_by: str = "kind") -> dict:
         point["color"] = ECONOMY_COLORS.get(economy.get("economy"), UNKNOWN_COLOR)
     elif color_by == "conflict":
         point["color"] = CONFLICT_COLORS.get(economy.get("conflict"), UNKNOWN_COLOR)
+    elif color_by == "star":
+        point["color"] = STAR_COLORS.get(economy.get("star"), UNKNOWN_COLOR)
     elif bases:
         point["color"] = POINT_COLORS["bases"]
     elif only_seen:
@@ -600,6 +603,9 @@ def _galaxy_legend(color_by: str, ctx: Context) -> list[dict]:
     if color_by == "conflict":
         return you + [{"label": ctx.conflict_name(c) or c, "color": col} for c, col in CONFLICT_COLORS.items()] + [
             {"label": "Conflict not read yet", "color": UNKNOWN_COLOR}]
+    if color_by == "star":
+        return you + [{"label": f"{c} star", "color": col} for c, col in STAR_COLORS.items()] + [
+            {"label": "Star not read yet", "color": UNKNOWN_COLOR}]
     return you + [{"label": "Planets with resources", "color": POINT_COLORS["resources"]},
                   {"label": "Known from the save only", "color": POINT_COLORS["save"]},
                   {"label": "Your bases", "color": POINT_COLORS["bases"]},
@@ -639,7 +645,8 @@ def galaxy_sections(ctx: Context, selected: int | None, color_by: str = "kind",
         "type": "form", "id": "galaxy-colors", "title": "Galaxy map", "action": GALAXY_COLORS, "submit_label": "Show",
         "fields": [{"id": "color_by", "label": "Colour systems by", "type": "select", "value": color_by,
                     "options": [{"value": k, "label": v} for k, v in COLOR_MODES.items()],
-                    "hint": "Economy and conflict are known for the systems you visited while the game ran."}]}, {
+                    "hint": "Economy, conflict and star colour are known for the systems you visited while the "
+                            "game ran."}]}, {
         "type": "starmap", "id": GALAXY_MAP_ID, "title": f"Galaxy map: {gname} ({len(shown)} systems)",
         "points": [_galaxy_point(k, ctx, color_by) for k in shown], "action": OPEN_SYSTEM,
         "action_label": "Open system map",
@@ -727,10 +734,20 @@ def trade_sections(ctx: Context) -> list[dict]:
     return out
 
 
-def route_nodes(ctx: Context) -> list[int]:
+def route_nodes(ctx: Context, star_colours: set[str] | None = None) -> list[int]:
     """Every system the route planner may use as a stop: visited, discovered, recorded, with a known economy, or
-    seen on the game's galaxy map (the name cache holds the exact address of the systems around you)."""
-    return sorted(ctx.keys() | set(ctx.economies) | set(ctx.system_names))
+    seen on the game's galaxy map (the name cache holds the exact address of the systems around you).
+    With `star_colours` (the colours your hyperdrive reaches, "Yellow" always), systems whose recorded star has
+    another colour are left out: a red, green, blue or purple star needs its hyperdrive upgrade."""
+    keys = ctx.keys() | set(ctx.economies) | set(ctx.system_names)
+    if star_colours is not None:
+        keys = {k for k in keys if (ctx.economies.get(k) or {}).get("star", "Yellow") in star_colours}
+    return sorted(keys)
+
+
+def reachable_stars(colours) -> set[str]:
+    """Star colours a ship reaches: yellow always, plus those its hyperdrive upgrades open (ships.STAR_COLOURS)."""
+    return {"Yellow"} | {str(c).capitalize() for c in colours or []}
 
 
 def _region_text(region: tuple[int, int, int]) -> str:
@@ -799,6 +816,12 @@ def route_sections(ctx: Context, state: dict | None, ship_range: dict | None = N
         {"label": "Jump range used", "value": f"{result['range']:,.0f} ly"},
         {"label": "Economy at the target", "value": ctx.economy_summary(target) or "not read yet"},
     ]})
+    star = (ctx.economies.get(target) or {}).get("star")
+    allowed = result.get("star_colours")
+    if star and allowed and star not in allowed:
+        out.append({"type": "notice", "level": "warn", "text":
+                    f"{label(target)} has a {star.lower()} star: your primary ship's hyperdrive cannot reach it yet "
+                    f"(it needs the {star.lower()} star upgrade). Stops on the way only use stars you can reach."})
     rows = []
     for i, leg in enumerate(legs, 1):
         if leg["jumps"] == 1:

@@ -123,7 +123,7 @@ planner starts with the lower warp range of your primary ship.
 *Systems → Galaxy* shows every system you know in the galaxy you are in -
 including the systems around you that the game's own galaxy map showed (small
 grey points, *not visited*). **Colour systems by** what you know there, their
-**economy** or their **conflict level**, and press **Show**. A route planned
+**economy**, their **conflict level** or their **star colour**, and press **Show**. A route planned
 in *Route* is drawn as a dashed red line. Drag
 to move, use the mouse wheel or the zoom buttons, look **from above** or **from
 the side**; **Fit** shows all your systems, **Whole map** the whole galaxy with
@@ -170,7 +170,9 @@ by its portal address** (12 glyphs as hex digits) - and your ship's **jump
 range** in light years, and press **Plan route**.
 
 The jump range starts with your primary ship's estimated warp range (the lower
-value, see *Ships*); change it when you know better.
+value, see *Ships*); change it when you know better. Stops at red, green, blue
+or purple stars are only used when your primary ship has the hyperdrive upgrade
+for that colour, and a target your ship cannot reach yet is pointed out.
 
 A jump costs one warp cell however far it goes within your range, so the route
 has the **fewest jumps**. Your known systems - including those the game's galaxy

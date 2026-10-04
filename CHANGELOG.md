@@ -10,7 +10,9 @@
   planner's jump range starts with the primary ship's estimate.
 - **Galaxy map**: shows the systems around you that the game's galaxy map knows
   (small grey points), can colour systems by economy or conflict level, and
-  draws the planned route. Those systems are also stops for the route planner.
+  draws the planned route; it can also colour systems by star colour. Those
+  systems are also stops for the route planner, which skips stops at star
+  colours your primary ship cannot reach yet and warns when the target is one.
 - **Texts and icons**: planet hints (*Ancient Bones*, *Salvageable Scrap*, *Vile
   Brood Detected*) were shown as keys (`UI_BONES_HINT`); the current mission is
   shown with the game's description instead of its id; items in the storage

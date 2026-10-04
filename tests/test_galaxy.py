@@ -134,3 +134,13 @@ def test_the_map_colours_by_economy_or_conflict_and_draws_the_planned_route(tmp_
     assert {p["key"]: p for p in conflict["points"]}[f"{SYSTEM_115:x}"]["color"] == planets_view.CONFLICT_COLORS["High"]
     assert conflict["lines"] == []
     assert planets_view.galaxy_sections(ctx, None, "bogus")[0]["fields"][0]["value"] == "kind"
+
+
+def test_the_map_can_colour_systems_by_star_colour(tmp_path):
+    """Star colour decides whether your hyperdrive reaches a system: the map can show it (grey = not read)."""
+    history = PlanetHistory(tmp_path / "h.json")
+    history.economies = {SYSTEM_115: {"economy": "HighTech", "star": "Red"}}
+    ctx = planets_view.Context(Live(), history, {SYSTEM_115: {"name": "Zelskoy", "planets": {}}}, Texts(), None)
+    starmap = planets_view.galaxy_sections(ctx, None, "star")[1]
+    assert {p["key"]: p for p in starmap["points"]}[f"{SYSTEM_115:x}"]["color"] == planets_view.STAR_COLORS["Red"]
+    assert any(e["label"] == "Red star" for e in starmap["legend"])
