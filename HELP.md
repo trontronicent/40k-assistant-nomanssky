@@ -24,6 +24,7 @@ The tabs:
 - **Systems** - *Current system* (live from the game, with a map), *Visited systems* (every system from your save; click one to see its map), *Planets* (every planet whose resources were read), *Galaxy* (the galaxy map and the nearest planet with each resource) and *Trade* (economies and trade routes) and *Route* (the route planner).
 - **Inventory** - exosuit, starship, freighter and **storage containers** (0-9, numbered as in the game), each item with its icon, its name in English and in the game's language, and its **category**. Hover an item's name for its description; **trade goods** also tell which economies pay well for them, the nearest such system you know (or that you have not found one yet) and where they are cheap to buy. Planet resources have the same tooltip.
 - **Ships & bases** - your ships and bases with portal addresses.
+- **Settlements** - the economy of each settlement you run: see *Settlements* below.
 - **Saves & source** - how often the game saves, the recent save writes, where the data comes from and the last memory scans.
 
 ## Timers
@@ -32,8 +33,10 @@ At the top of the *Overview* tab: when the building under construction in each o
 your **settlements** is finished, and when your **frigate expeditions** return
 (with the time of the next expedition event). The save stores when they started;
 how long they take comes from the game's own files (a factory, for example, takes
-1 h 33 min). New ones appear after the game's next save - about once a minute
-while you play.
+1 h 33 min). New ones appear after the game's next save: the game does not save
+on a timer, but when you leave your ship, warp or use a save point (*Saves &
+source* shows how often it did). **Rescan** does not help before that - it only
+reads the newest save again.
 
 Press a timer's **bell** to be notified when it ends, or **Notify for all
 timers**. Turn on notifications for each device with **Turn on notifications on
@@ -41,6 +44,25 @@ this device** below the timers (on a phone: open the app through the Vox-Link QR
 phone link first) and try **Test**. Notifications arrive even when the page is
 closed. With a 40k Assistant older than 3.8.0 the timers show as a table of end
 times, without countdown and bells.
+
+## Settlements
+
+One block per settlement you run, from the save:
+
+- **Population**, race, the construction in progress, and the **next decision**:
+  the game waits between 15 minutes and 2 hours after a decision before it asks
+  the next one (both limits from the game's files), so the tab shows that window,
+  or that a decision is waiting for you.
+- **Stats** - productivity, happiness, maintenance, debt, sentinel alert, bug
+  attacks and the others: the value the save stores and where it sits between
+  the lowest and highest value the game allows. The bars on the settlement's
+  screen also count your buildings and perks, so they can look different.
+- **Production** - what the settlement makes, how much was ready at your last
+  visit and how much it holds at most.
+- **Perks** - each with its name (English and your game's language), whether it
+  is positive or negative, which stats it makes better or worse, and whether it
+  came with the settlement or from a decision. Perks from decisions get their
+  name from the game at random, so the tab shows what they do instead.
 
 ## Live data
 

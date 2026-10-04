@@ -16,7 +16,7 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from . import galaxy, memory, planets_view, route, saves, timers, trade
+from . import galaxy, memory, planets_view, route, saves, settlements, timers, trade
 from .game_install import GameInstall, find_game
 from .gamedata import GameData
 from .history import PlanetHistory, visits_from_save
@@ -97,6 +97,8 @@ class NmsConnector:
         self.timers: list[dict] = []              # settlement constructions, expeditions (timers.py)
         self.timer_tables: dict | None = None     # durations from the game's files (timers.load_tables)
         self._timer_tables_for = None
+        self.settlements: list[dict] = []         # your settlements' economy (settlements.py)
+        self.settlement_tables: dict | None = None
         self.snapshot_file: str | None = None
         self.decoded_at: str | None = None
         self.decode_seconds: float | None = None
@@ -262,6 +264,10 @@ class NmsConnector:
             self._timer_tables_for = build
             if self.timer_tables.get("error"):
                 self.ctx.logger.warning("[NMS] Timer durations: built-in values (%s)", self.timer_tables["error"])
+            self.settlement_tables = await self.ctx.run_blocking(settlements.load_tables, self.install)
+            if self.settlement_tables.get("error"):
+                self.ctx.logger.warning("[NMS] Settlement tables: built-in values (%s)", self.settlement_tables["error"])
+            await self._ensure_settlement_texts()
         if self.install is None or (self.gamedata.matches(self.install) and not force):
             return
         if not force and self.gamedata.error and now - self._game_failed < GAME_RETRY_S:
@@ -275,6 +281,14 @@ class NmsConnector:
             self.ctx.logger.info("[NMS] Item database: %d items, %s (build %s, %s s)", len(self.gamedata.items),
                                  self.gamedata.language_label, self.gamedata.build_id, self.gamedata.build_seconds)
             await self._ensure_icons()
+
+    async def _ensure_settlement_texts(self) -> None:
+        """Perk names and product icons of the Settlements tab (cached by GameData after the first time)."""
+        if not (self.settlements and self.settlement_tables and self.install and self.gamedata.ready):
+            return
+        keys = settlements.text_keys(self.settlements, self.settlement_tables)
+        await self.ctx.run_blocking(self.gamedata.resolve_texts, self.install, keys)
+        await self.ctx.run_blocking(self.gamedata.ensure_icons, self.install, settlements.item_ids(self.settlements))
 
     async def _ensure_icons(self) -> None:
         if self.snapshot and self.install and self.gamedata.ready:
@@ -339,6 +353,7 @@ class NmsConnector:
         self.snapshot = await self.ctx.run_blocking(summarize, readable)
         self.visits = await self.ctx.run_blocking(visits_from_save, readable)
         self.timers = timers.timers_from_save(readable, self.timer_tables or timers.FALLBACK)
+        self.settlements = settlements.settlements_from_save(readable)
         ps = (readable.get("BaseContext") or {}).get("PlayerStateData") or {}
         try:
             self.anchor = memory.ua_bytes(ps["GameStartAddress1"]) + memory.ua_bytes(ps["GameStartAddress2"])
@@ -356,6 +371,7 @@ class NmsConnector:
         self.decode_seconds = round(time.perf_counter() - started, 2)
         self.decoded_at = datetime.now().isoformat(timespec="seconds")
         await self._ensure_icons()
+        await self._ensure_settlement_texts()
 
     # ------------------------------------------------------------------ UI
 
@@ -584,6 +600,9 @@ class NmsConnector:
              "sections": [planets_view.systems_tabs(ctx, self.selected_system, self.route_state)]},
             {"id": "inventory", "label": "Inventory", "sections": self._inventories(snap, ctx)},
             {"id": "fleet", "label": "Ships & bases", "sections": self._fleet(snap)},
+            {"id": "settlements", "label": "Settlements", "badge": len(self.settlements) or None,
+             "sections": settlements.settlement_sections(self.settlements, self.settlement_tables or settlements.FALLBACK,
+                                                         ctx.texts, time.time())},
             {"id": "saves", "label": "Saves & source", "sections": self._saves(snap, ctx)},
         ]})
         return {

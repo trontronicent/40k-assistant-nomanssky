@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Settlements tab**: the economy of each settlement you run - population,
+  the stored stats (productivity, happiness, maintenance, debt, sentinel alert,
+  bug attacks, ...) with the game's own range for each, production (what is
+  ready, how much it holds), perks with their names, kind and which stats they
+  make better or worse, and the window in which the next decision comes (the
+  game waits 15 min to 2 h). Ranges, the wait and the perk table come from the
+  game's files.
+- The timers no longer claim the game saves about once a minute: it saves when
+  you leave your ship, warp or use a save point, and a new construction shows
+  after that save.
 - **Timers**: the *Overview* tab shows when the building under construction in
   each of your settlements is finished (e.g. *Kay City: Factory built* at 13:21)
   and when frigate expeditions return, with the next expedition event. Start

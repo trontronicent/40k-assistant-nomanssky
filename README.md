@@ -20,6 +20,10 @@ credits appear in the 40k Assistant's manual under *Plugin Help* (app 3.4.0+).
   `gcfleetglobals` tables); with app 3.8.0+ a live countdown with browser
   notifications (the app sends them), otherwise a table
 - **Ships, bases, frigates, expeditions, companions, current mission id**
+- **Settlements:** population, the stored stats (productivity, happiness,
+  maintenance, debt, alert, bug attacks, ...) on the game's own scale
+  (`gcsettlementglobals`), production, perks with their names and effects
+  (`settlementperkstable`), and the window for the next decision
 - **Current system (live):** while the game runs, the planets of the system you
   are in - name (and the uploaded name), type, weather, three resources, plant
   resource, the gas an atmosphere harvester collects, flora, fauna, sentinels -
@@ -36,7 +40,7 @@ credits appear in the 40k Assistant's manual under *Plugin Help* (app 3.4.0+).
   planets by biome and size; click a planet for its details
 - Everything is grouped into tabs: *Overview*, *Systems* (*Current system*,
   *Visited systems*, *Planets*), *Inventory* (*Exosuit*, *Starship*,
-  *Freighter*, *Storage*), *Ships & bases*, *Saves & source*
+  *Freighter*, *Storage*), *Ships & bases*, *Settlements*, *Saves & source*
 - **Item categories and tooltips:** category column, the game's description on
   hover, and for trade goods where they sell and whether you know such a system
 - **How often the game saves:** every save write the connector sees, with the

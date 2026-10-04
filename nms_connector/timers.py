@@ -183,7 +183,8 @@ def visible(items: list[dict], now: float) -> list[dict]:
 
 
 EMPTY = ("No settlement construction or frigate expedition is running. New ones appear after the game's next "
-         "save (it saves about once a minute while you play).")
+         "save - leave your ship, warp or use a save point to save now ('Rescan' alone does not: it reads the "
+         "newest save).")
 INTRO = ("From your save: when settlement constructions and frigate expeditions finish (durations from the game's "
          "files). Press a bell to be notified when one ends - on this computer and on your phone.")
 
