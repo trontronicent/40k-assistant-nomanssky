@@ -20,11 +20,27 @@ Open it from **Plugins → No Man's Sky** in the header. The buttons at the top:
 
 The tabs:
 
-- **Overview** - units, nanites, quicksilver, health, where you were at the last save, where you are now, your fleet and companions.
+- **Overview** - **timers** (when your settlement buildings are finished and your frigate expeditions return), units, nanites, quicksilver, health, where you were at the last save, where you are now, your fleet and companions.
 - **Systems** - *Current system* (live from the game, with a map), *Visited systems* (every system from your save; click one to see its map), *Planets* (every planet whose resources were read), *Galaxy* (the galaxy map and the nearest planet with each resource) and *Trade* (economies and trade routes) and *Route* (the route planner).
 - **Inventory** - exosuit, starship, freighter and **storage containers** (0-9, numbered as in the game), each item with its icon, its name in English and in the game's language, and its **category**. Hover an item's name for its description; **trade goods** also tell which economies pay well for them, the nearest such system you know (or that you have not found one yet) and where they are cheap to buy. Planet resources have the same tooltip.
 - **Ships & bases** - your ships and bases with portal addresses.
 - **Saves & source** - how often the game saves, the recent save writes, where the data comes from and the last memory scans.
+
+## Timers
+
+At the top of the *Overview* tab: when the building under construction in each of
+your **settlements** is finished, and when your **frigate expeditions** return
+(with the time of the next expedition event). The save stores when they started;
+how long they take comes from the game's own files (a factory, for example, takes
+1 h 33 min). New ones appear after the game's next save - about once a minute
+while you play.
+
+Press a timer's **bell** to be notified when it ends, or **Notify for all
+timers**. Turn on notifications for each device with **Turn on notifications on
+this device** below the timers (on a phone: open the app through the Vox-Link QR
+phone link first) and try **Test**. Notifications arrive even when the page is
+closed. With a 40k Assistant older than 3.8.0 the timers show as a table of end
+times, without countdown and bells.
 
 ## Live data
 

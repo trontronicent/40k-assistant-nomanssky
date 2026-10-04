@@ -15,6 +15,10 @@ credits appear in the 40k Assistant's manual under *Plugin Help* (app 3.4.0+).
 - **Inventories:** exosuit, primary starship, freighter, with each item's name in
   English and in the game's language (e.g. *Sodium* / *Natrium*), its official
   icon and its id (`CATALYST1`)
+- **Timers:** when settlement constructions finish and frigate expeditions return
+  (start time from the save, duration from the game's `gcsettlementglobals` /
+  `gcfleetglobals` tables); with app 3.8.0+ a live countdown with browser
+  notifications (the app sends them), otherwise a table
 - **Ships, bases, frigates, expeditions, companions, current mission id**
 - **Current system (live):** while the game runs, the planets of the system you
   are in - name (and the uploaded name), type, weather, three resources, plant

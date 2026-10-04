@@ -16,7 +16,7 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from . import galaxy, memory, planets_view, route, saves, trade
+from . import galaxy, memory, planets_view, route, saves, timers, trade
 from .game_install import GameInstall, find_game
 from .gamedata import GameData
 from .history import PlanetHistory, visits_from_save
@@ -94,6 +94,9 @@ class NmsConnector:
         self._last_mapping_attempt = 0.0
         self.save_dir: Path | None = None
         self.snapshot: dict | None = None
+        self.timers: list[dict] = []              # settlement constructions, expeditions (timers.py)
+        self.timer_tables: dict | None = None     # durations from the game's files (timers.load_tables)
+        self._timer_tables_for = None
         self.snapshot_file: str | None = None
         self.decoded_at: str | None = None
         self.decode_seconds: float | None = None
@@ -253,6 +256,12 @@ class NmsConnector:
             return
         self._game_checked = now
         self.install = await self.ctx.run_blocking(find_game)
+        build = getattr(self.install, "build_id", None)
+        if self.timer_tables is None or build != self._timer_tables_for:
+            self.timer_tables = await self.ctx.run_blocking(timers.load_tables, self.install)
+            self._timer_tables_for = build
+            if self.timer_tables.get("error"):
+                self.ctx.logger.warning("[NMS] Timer durations: built-in values (%s)", self.timer_tables["error"])
         if self.install is None or (self.gamedata.matches(self.install) and not force):
             return
         if not force and self.gamedata.error and now - self._game_failed < GAME_RETRY_S:
@@ -329,6 +338,7 @@ class NmsConnector:
             return
         self.snapshot = await self.ctx.run_blocking(summarize, readable)
         self.visits = await self.ctx.run_blocking(visits_from_save, readable)
+        self.timers = timers.timers_from_save(readable, self.timer_tables or timers.FALLBACK)
         ps = (readable.get("BaseContext") or {}).get("PlayerStateData") or {}
         try:
             self.anchor = memory.ua_bytes(ps["GameStartAddress1"]) + memory.ua_bytes(ps["GameStartAddress2"])
@@ -339,8 +349,8 @@ class NmsConnector:
                                   "at": datetime.fromtimestamp(save_file.mtime).isoformat(timespec="seconds")}
         except (KeyError, TypeError):
             self.anchor = None
-        timers = (((ps.get("DifficultyState") or {}).get("Settings") or {}).get("GroundCombatTimers") or {})
-        self.combat_timer = timers.get("CombatTimerDifficultyOption")
+        combat = (((ps.get("DifficultyState") or {}).get("Settings") or {}).get("GroundCombatTimers") or {})
+        self.combat_timer = combat.get("CombatTimerDifficultyOption")
         self.snapshot_file = save_file.path.name
         self.unknown_keys = len(unknown)
         self.decode_seconds = round(time.perf_counter() - started, 2)
@@ -437,6 +447,7 @@ class NmsConnector:
                                                 "once the connector has read a save file."})
             return out + ([where] if where else [])
         loc = snap["location"]
+        out.append(timers.timers_section(self.timers, getattr(self.ctx, "section_types", ()), time.time()))
         out.append({"type": "stats", "title": "Status", "items": [
             {"label": "Units", "value": _fmt_int(snap["units"])},
             {"label": "Nanites", "value": _fmt_int(snap["nanites"])},

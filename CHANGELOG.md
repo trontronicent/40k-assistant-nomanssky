@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Timers**: the *Overview* tab shows when the building under construction in
+  each of your settlements is finished (e.g. *Kay City: Factory built* at 13:21)
+  and when frigate expeditions return, with the next expedition event. Start
+  times come from the save, durations from the game's own files. With the 40k
+  Assistant 3.8.0 they count down live and a bell per timer sends a browser
+  notification when it ends - also to your phone; older apps show a table.
 - **Scans stay fast while you play**: 1-2 seconds instead of 5-13. Finding your
   position in memory (the save's start addresses) took up to 9 seconds per scan
   on its own; it is now searched like the other records. The scan runs on four
