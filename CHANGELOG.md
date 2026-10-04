@@ -29,6 +29,14 @@
   main file is damaged); 0.3.0 histories are migrated.
 - When the game holds several copies of the player state, the plugin follows
   the copy that changes when you travel.
+- **Where you are, also without a save:** the game keeps the player state readable only around saves
+  and loads (after a game restart it was not found at all). The plugin now tells the current system
+  from the planets the game has loaded, notices a warp by re-reading the planet slots (8 bytes per
+  planet, no full scan) and no longer trusts a player-state copy whose memory was reused. The planet
+  you are on shows as *unknown* until the next save.
+- **Renamed planets are not duplicated:** planets carry their generation seed; the same planet
+  under a new name (renamed, or an uploaded name arrived) takes over its entry and keeps its first
+  sighting and old name.
 - *Saves & source* lists the last 50 memory scans: where you were, how many
   planets were read (by system), what was new, and what was re-filed.
 - Needs the 40k Assistant 3.3.0 (tabs, clickable rows and maps in plugin views).

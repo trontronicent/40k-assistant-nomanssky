@@ -55,11 +55,14 @@ flying, events) would need a game mod and is a possible later addition.
   is opened with *query* and *read* rights only (no write, no injection; the
   game has no anti-cheat). Planets are found by their data (`GcPlanetData`
   records in MBINCompiler's layout, validated by name, index and the planet's
-  packed address), the current position via the save's fixed start addresses
-  in the player state. A scan reads ~5 GB in ~10 s, so it runs when the game
-  starts, when you arrive in another system (and once more 45 s later, when
-  the other planets have been generated), and every 5 minutes; in between
-  only your current address is re-read. Windows only.
+  packed address). Your exact position comes from the player state (found via
+  the save's fixed start addresses), which the game keeps readable only around
+  saves and loads; otherwise the current system is judged from the planets the
+  game has loaded, and the planet you are on shows as unknown. A scan reads
+  ~5 GB in ~10 s, so it runs when the game starts, when you arrive in another
+  system (and once more 45 s later, when the other planets have been
+  generated), and every 5 minutes; in between only your address (or the
+  addresses in the loaded planet slots) is re-read. Windows only.
 - Planet resources are not in the save (the game generates them from the
   seed), so systems you visited before installing 0.3.0 show names and
   discovery counts, but resources only once you return.

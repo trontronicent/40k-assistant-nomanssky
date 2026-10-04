@@ -181,11 +181,20 @@ def where_you_are(ctx: Context) -> dict | None:
     addr = unpack_address(key) or {}
     index = ctx.current_planet_index()
     here = next((p for p in ctx.recorded.get(key, []) if p.get("index") == index), None) if index is not None else None
+    exact = getattr(ctx.live, "current_source", "player") == "player"
+    if here:
+        planet = _planet_name(here, visit)
+    elif not exact:
+        planet = "unknown (your exact position cannot be read right now)"
+    else:
+        planet = "in space" if index is None else f"planet {index + 1}"
     return {"type": "kv", "title": "Where you are now", "items": [
         {"label": "System", "value": _system_label(key, visit)},
         {"label": "Portal address", "value": address_portal(addr)},
         {"label": "Galaxy", "value": galaxy_name(addr.get("RealityIndex"))},
-        {"label": "Planet", "value": _planet_name(here, visit) if here else ("in space" if index is None else f"planet {index + 1}")},
+        {"label": "Planet", "value": planet},
+        {"label": "Found by", "value": "your position in the game's memory" if exact else
+         "the planets the game holds in memory (the exact position is only readable around saves and loads)"},
     ]}
 
 

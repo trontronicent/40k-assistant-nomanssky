@@ -8,6 +8,15 @@ A full scan costs ~6-13 s of reading, so it runs only when needed:
   planets of a system over the first seconds after arrival;
 - otherwise every RESCAN_S.
 
+Where you are comes from the player state when it can be read. The game holds
+GcPlayerStateData in that layout only around saves and loads, so usually it
+cannot (seen 2026-10-04 after a game restart; a copy found earlier was gone
+minutes later). Then the current system is judged from the planet records
+(``memory.current_system_from_planets``) and a system change is noticed by
+re-reading the PlanetUA of the remembered planet slots every tick - 8 bytes per
+planet instead of a 5 GB scan. ``current_source`` says which way it was found;
+the planet you are on is only known from the player state.
+
 Blocking throughout; the plugin calls tick() through ctx.run_blocking.
 """
 
@@ -37,6 +46,8 @@ class LiveMemory:
         self._addresses: dict[int, dict | None] = {}
         self.current: dict | None = None        # current universe address (save layout)
         self.current_system: int | None = None  # packed system key
+        self.current_source: str | None = None  # "player" (exact position) | "planets" (judged from memory)
+        self.slots: list[int] = []              # planet records of the last scan (warp detection)
         self.last_scan_at: float | None = None
         self.last_scan_iso: str | None = None
         self.last_scan_seconds: float | None = None
@@ -52,6 +63,7 @@ class LiveMemory:
             self.reader = None
         self.player_state = None
         self.player_states, self._addresses = [], {}
+        self.slots = []
 
     def tick(self, anchor: bytes | None, substances: set[str] | None, now: float) -> int:
         """One step; returns how many planet records were new or changed."""
@@ -66,6 +78,7 @@ class LiveMemory:
         if pid is None:
             self.close()
             self.status, self.error, self.current, self.current_system = "not-running", None, None, None
+            self.current_source = None
             return 0
         try:
             if self.reader is None or getattr(self.reader, "pid", None) != pid:
@@ -78,14 +91,22 @@ class LiveMemory:
                 due = True
             if self.player_state is not None:
                 self._follow_moving_copy()
-                ua = memory.read_current_address(self.reader, self.player_state)
+                # The copy is only trusted while the save's start addresses are still in front of it: once the
+                # game reuses that memory, the address field holds whatever bytes landed there.
+                intact = not anchor or self.reader.read(self.player_state, len(anchor)) == anchor
+                ua = memory.read_current_address(self.reader, self.player_state) if intact else None
                 if ua is None:
-                    self.player_state, due = None, True
+                    self.player_state, self.current, due = None, None, True
                 else:
                     self._set_current(ua)
                     if self.current_system != self._scanned_system:
                         due = True
                         self._follow_up_at = now + FOLLOW_UP_S
+            elif self.slots:
+                judged = self._system_from_slots()
+                if judged is not None and judged != self._scanned_system:
+                    due = True
+                    self._follow_up_at = now + FOLLOW_UP_S
             if self._follow_up_at is not None and now >= self._follow_up_at:
                 due, self._follow_up_at = True, None
             if not due:
@@ -102,6 +123,11 @@ class LiveMemory:
             self._addresses = {a: memory.read_current_address(self.reader, a) for a in self.player_states}
             if ua is not None:
                 self._set_current(ua)
+            else:
+                self.current = None
+                self.current_system = result.majority_system()
+                self.current_source = "planets" if self.current_system is not None else None
+            self.slots = list(result.slots)
             self._scanned_system = self.current_system
             self._scanned_with_anchor = anchor
             self.last_scan_at = now
@@ -132,6 +158,12 @@ class LiveMemory:
         if moved and self.player_state not in moved:
             self.player_state = moved[0]
 
+    def _system_from_slots(self) -> int | None:
+        """The majority system of the remembered planet slots as they are now (None when none is a planet)."""
+        systems = [memory.planet_system_at(self.reader, address) for address in self.slots]
+        return memory.current_system_from_planets([{"system": s} for s in systems if s is not None])
+
     def _set_current(self, ua: dict) -> None:
         self.current = ua
         self.current_system = memory.system_key(memory.pack_address(ua))
+        self.current_source = "player"

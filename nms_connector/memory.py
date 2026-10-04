@@ -27,7 +27,8 @@ from __future__ import annotations
 import re
 import struct
 import sys
-from dataclasses import dataclass
+from collections import Counter
+from dataclasses import dataclass, field
 
 try:
     import numpy as np
@@ -51,6 +52,7 @@ P_INFO = 0x3548              # GcPlanetInfo: 0x80-byte strings
 P_NAME = 0x3A4E
 P_PLANET_UA = 0x3338 + 0x30  # BuildingData.PlanetUA
 P_GENERATION = 0x3180        # GcPlanetGenerationIntermediateData
+P_SEED = P_GENERATION + 0xA0  # GenerationData.Seed: GcSeed {u64 seed, bool UseSeedValue} - fixed per planet
 INFO_FIELDS = {"sentinels": [0x000, 0x080, 0x100, 0x180], "fauna": 0x200, "flora": 0x280, "description": 0x300,
                "type": 0x380, "resources": 0x400, "weather": 0x480}
 INFO_EXTREME_WEATHER = 0x504
@@ -139,6 +141,7 @@ def parse_planet(blob: bytes, read=None, substances: set[str] | None = None) -> 
     if not info["type"] or not info["weather"]:
         return None
     biome, subtype, _class, size = struct.unpack_from("<4i", blob, P_GENERATION + 0x138)
+    seed = struct.unpack_from("<Q", blob, P_SEED)[0]
     extra: list[str] = []
     pointer, count = struct.unpack_from("<QI", blob, P_EXTRA_HINTS)
     if read is not None and 0 < count <= 16 and pointer:
@@ -150,6 +153,7 @@ def parse_planet(blob: bytes, read=None, substances: set[str] | None = None) -> 
                     extra.append(hint.decode())
     return {
         "ua": ua, "system": system_key(ua), "index": index, "name": name,
+        "seed": f"{seed:016x}" if seed else None,     # the planet's identity; its name can change
         "common": ids[0], "uncommon": ids[1], "rare": ids[2], "extra": extra,
         "biome": BIOMES[biome] if 0 <= biome < len(BIOMES) else None,
         "biome_subtype": subtype, "size": SIZES[size] if 0 <= size < len(SIZES) else None,
@@ -174,9 +178,14 @@ def candidate_rows(buf: bytes):
 @dataclass
 class ScanResult:
     planets: list[dict]
-    player_states: list[int]     # every copy of GcPlayerStateData found by the anchor (usually one or two)
+    player_states: list[int]     # every copy of GcPlayerStateData found by the anchor (often none - see below)
     bytes_read: int
     seconds: float
+    slots: list[int] = field(default_factory=list)   # where each planet record lives (re-read cheaply per tick)
+
+    def majority_system(self) -> int | None:
+        """The system most planet records belong to: the one you are in (see current_system_from_planets)."""
+        return current_system_from_planets(self.planets)
 
     def best_player_state(self, reader) -> tuple[int | None, dict | None]:
         """The player-state copy to follow: prefer one whose current system has planets in this scan."""
@@ -252,12 +261,41 @@ class ProcessReader:
         return buf.raw[:done.value]
 
 
+def current_system_from_planets(planets) -> int | None:
+    """The system you are in, judged from the planet records in memory.
+
+    The game keeps the planets of the current system generated; a slot reused after a warp may still hold a
+    planet of the previous system, so the system with the most records wins (ties: the lowest key, so the
+    answer is stable). Right after a warp, before the new planets are generated, this can still name the
+    previous system - the follow-up scan corrects it. Used when the player state cannot be read: the game
+    holds GcPlayerStateData in this layout only around saves and loads (seen 2026-10-04 after a restart).
+    """
+    counts = Counter(p["system"] for p in planets)
+    if not counts:
+        return None
+    best = max(counts.values())
+    return min(k for k, n in counts.items() if n == best)
+
+
+def planet_system_at(reader, address: int) -> int | None:
+    """The system of the planet record at `address` (its PlanetUA), or None when that is no planet any more."""
+    raw = reader.read(address + P_PLANET_UA, 8)
+    if not raw or len(raw) != 8:
+        return None
+    ua = struct.unpack("<Q", raw)[0]
+    planet = (ua >> 52) & 0xF
+    if ua >> 56 or not 1 <= planet <= 15:
+        return None
+    return system_key(ua)
+
+
 def scan(reader, substances: set[str] | None, anchor: bytes | None, clock=None) -> ScanResult:
     """Find every planet record (and, with the save's GameStartAddress anchor, the player state)."""
     import time
     clock = clock or time.perf_counter
     started = clock()
     planets: dict[tuple[int, str], dict] = {}
+    slots: dict[tuple[int, str], int] = {}
     player_states: list[int] = []
     total = 0
     for base, size in reader.regions():
@@ -293,8 +331,9 @@ def scan(reader, substances: set[str] | None, anchor: bytes | None, clock=None) 
                 if planet:
                     # By address and name: a reused slot can carry another planet's address (history.planet_id).
                     planets[(planet["ua"], planet["name"])] = planet
+                    slots[(planet["ua"], planet["name"])] = base + offset + start
     return ScanResult(sorted(planets.values(), key=lambda p: (p["system"], p["index"])), player_states, total,
-                      round(clock() - started, 2))
+                      round(clock() - started, 2), sorted(slots.values()))
 
 
 def read_current_address(reader, player_state: int) -> dict | None:

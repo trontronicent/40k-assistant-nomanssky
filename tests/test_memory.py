@@ -7,6 +7,7 @@ the game's memory.
 
 import json
 import struct
+import zlib
 
 import pytest
 
@@ -28,7 +29,7 @@ def fs(value: str, size: int) -> bytes:
 
 
 def planet_blob(name="Yaksh Primus", index=0, system=SYSTEM_98, ids=("YELLOW2", "TOXIC1", "CATALYST1"),
-                weather="WEATHER_TOXIC_CLEAR3", hints_ptr=0, hints=0, biome=1, size=1) -> bytearray:
+                weather="WEATHER_TOXIC_CLEAR3", hints_ptr=0, hints=0, biome=1, size=1, seed=None) -> bytearray:
     """A GcPlanetData record (libMBIN layout) with the fields the reader uses."""
     b = bytearray(memory.PLANET_SIZE)
     common, uncommon, rare = ids
@@ -39,6 +40,8 @@ def planet_blob(name="Yaksh Primus", index=0, system=SYSTEM_98, ids=("YELLOW2", 
     struct.pack_into("<i", b, memory.P_INDEX, index)
     struct.pack_into("<Q", b, memory.P_PLANET_UA, system | (index + 1) << 52)
     struct.pack_into("<4i", b, memory.P_GENERATION + 0x138, biome, 0, 0, size)
+    # Each planet has its own generation seed; by default derived from the name so different planets differ.
+    struct.pack_into("<Q?", b, memory.P_SEED, seed if seed is not None else (zlib.crc32(name.encode()) | 1) << 8, True)
     info = memory.P_INFO
     for i, key in enumerate(["SENTINEL_RARE4", "SENTINEL_RARE4", "SENTINEL_DEFAULT5", "SENTINEL_DEFAULT9"]):
         b[info + i * 0x80:info + i * 0x80 + 0x80] = fs(key, 0x80)
@@ -371,7 +374,7 @@ def test_tables_show_the_current_system_and_every_visited_system(tmp_path):
     assert row[10] == "Require Obedience (Erwarten Gehorsam)"
     where = {i["label"]: i["value"] for i in planets_view.where_you_are(ctx)["items"]}
     assert where == {"System": "Delta Sol", "Portal address": "006202925E80", "Galaxy": "Euclid",
-                     "Planet": "Corrodia (Yaksh Primus)"}
+                     "Planet": "Corrodia (Yaksh Primus)", "Found by": "your position in the game's memory"}
     system_map, systems = tabs["tabs"][1]["sections"]
     assert tabs["tabs"][1]["badge"] == 2
     assert systems["title"] == "Visited systems (2)" and systems["rows"][0][0] == "Delta Sol" and systems["rows"][0][7] == "yes"
@@ -447,3 +450,131 @@ def test_tables_explain_when_the_game_is_not_running(tmp_path):
     clicked = planets_view.systems_tabs(ctx, SYSTEM_115)["tabs"][1]["sections"]
     assert clicked[0]["title"] == "System map: System 007302925E80" and clicked[1]["selected_key"] == f"{SYSTEM_115:x}"
     assert "every system you visit" in planets["sections"][0]["empty"]
+
+
+# --------------------------------------------------------------------------- position without the player state
+
+
+def test_current_system_is_judged_from_the_planets_in_memory():
+    """The system with the most planet records is the one you are in (a reused slot of the previous system
+    loses the vote); ties go to the lowest key so the answer does not flicker; no planets -> unknown."""
+    planets = [{"system": SYSTEM_98}] * 5 + [{"system": SYSTEM_115}]
+    assert memory.current_system_from_planets(planets) == SYSTEM_98
+    assert memory.current_system_from_planets([{"system": SYSTEM_115}, {"system": SYSTEM_98}]) == SYSTEM_98
+    assert memory.current_system_from_planets([]) is None
+
+
+def test_scan_reports_where_each_planet_record_lives_and_its_seed():
+    """A scan returns the address of every planet record, so a warp can be noticed by re-reading 8 bytes per
+    planet; each record carries its generation seed (the planet's identity), and planet_system_at reads a
+    slot's system back - None once the slot holds no planet."""
+    region = bytearray(0x10000)
+    region[0x1000:0x1000 + memory.PLANET_SIZE] = planet_blob(seed=0xABCDEF)
+    reader = FakeReader({0x100000: region})
+    result = memory.scan(reader, SUBSTANCES, None)
+    assert result.slots == [0x101000] and result.planets[0]["seed"] == "0000000000abcdef"
+    assert memory.planet_system_at(reader, 0x101000) == SYSTEM_98
+    region[0x1000:0x1000 + memory.PLANET_SIZE] = bytes(memory.PLANET_SIZE)
+    assert memory.planet_system_at(reader, 0x101000) is None
+
+
+def test_live_memory_without_a_player_state_uses_the_planets_and_watches_their_slots(tmp_path):
+    """No player state (the usual case after a game restart): the current system comes from the planet
+    records ('planets'), and when the remembered slots switch to another system - a warp - a scan runs at
+    once and again after the follow-up delay, without waiting for the 5-minute rescan."""
+    region = bytearray(0x10000)
+    region[0x1000:0x1000 + memory.PLANET_SIZE] = planet_blob()
+    reader = FakeReader({0x100000: region})
+    calls = {"n": 0}
+
+    def counting_scan(r, s, a):
+        calls["n"] += 1
+        return memory.scan(r, s, a)
+
+    live = LiveMemory(PlanetHistory(tmp_path / "h.json"), opener=lambda p: reader, pid_finder=lambda: 4242,
+                      scanner=counting_scan)
+    live.tick(b"anchor-not-in-memory", SUBSTANCES, 0)
+    assert calls["n"] == 1 and live.current_system == SYSTEM_98 and live.current_source == "planets"
+    assert live.current is None and live.slots == [0x101000]
+    live.tick(b"anchor-not-in-memory", SUBSTANCES, 10)
+    assert calls["n"] == 1
+    region[0x1000:0x1000 + memory.PLANET_SIZE] = planet_blob("Itwi A1", 5, system=SYSTEM_115,
+                                                              ids=("YELLOW2", "DUSTY1", "CATALYST1"))
+    live.tick(b"anchor-not-in-memory", SUBSTANCES, 20)
+    assert calls["n"] == 2 and live.current_system == SYSTEM_115
+    live.tick(b"anchor-not-in-memory", SUBSTANCES, 20 + live_mod.FOLLOW_UP_S)
+    assert calls["n"] == 3
+
+
+def test_a_player_state_copy_whose_memory_was_reused_is_dropped(tmp_path):
+    """The player state is trusted only while the save's start addresses still sit in front of it: once the
+    game overwrites that memory, its address field is not read as your position (it would be garbage that
+    can look valid); the plugin falls back to judging from the planets."""
+    state, anchor = player_state_region(current=(1, 98))
+    planets = bytearray(0x10000)
+    planets[0x1000:0x1000 + memory.PLANET_SIZE] = planet_blob("Itwi A1", 5, system=SYSTEM_115,
+                                                               ids=("YELLOW2", "DUSTY1", "CATALYST1"))
+    reader = FakeReader({0x600000: state, 0x100000: planets})
+    live = LiveMemory(PlanetHistory(tmp_path / "h.json"), opener=lambda p: reader, pid_finder=lambda: 4242,
+                      scanner=lambda r, s, a: memory.scan(r, s, a))
+    live.tick(anchor, SUBSTANCES, 0)
+    assert live.current_source == "player" and live.current_system == SYSTEM_98
+    state[0x40:0x40 + len(anchor)] = bytes(len(anchor))        # the game reused that memory
+    live.tick(anchor, SUBSTANCES, 5)
+    assert live.player_state is None and live.current_source == "planets" and live.current_system == SYSTEM_115
+
+
+# --------------------------------------------------------------------------- renamed planets
+
+
+def test_a_renamed_planet_replaces_its_old_entry(tmp_path):
+    """The same planet (same address and seed) read under a new name - renamed in the game or an uploaded
+    name arriving - takes over its entry: one planet, first_seen kept, the old name remembered; not a
+    duplicate that stays forever."""
+    history = PlanetHistory(tmp_path / "h.json")
+    first = memory.parse_planet(bytes(planet_blob("Neu: Cutumus", 2, seed=0x77)))
+    history.record([first], "2026-10-04T08:00:00", SYSTEM_98)
+    again = memory.parse_planet(bytes(planet_blob("Cutumus", 2, seed=0x77)))
+    history.record([again], "2026-10-04T09:00:00", SYSTEM_98)
+    planets = history.systems()[SYSTEM_98]
+    assert [p["name"] for p in planets] == ["Cutumus"]
+    assert planets[0]["first_seen"] == "2026-10-04T08:00:00" and planets[0]["previous_names"] == ["Neu: Cutumus"]
+    assert history.scans[-1]["renamed"] == 1 and history.scans[-1]["new"] == 0
+
+
+def test_a_different_planet_with_the_same_resources_is_not_taken_for_a_rename(tmp_path):
+    """A reused slot can hold another planet with the same address, index, biome and resources; a different
+    seed keeps the two apart, so the earlier system's planet is not lost."""
+    history = PlanetHistory(tmp_path / "h.json")
+    history.record([memory.parse_planet(bytes(planet_blob("A-one", 0, seed=1)))], "t1", SYSTEM_98)
+    stale = memory.parse_planet(bytes(planet_blob("B-one", 0, seed=2)))      # carries system 98's address
+    history.record([stale], "t2", SYSTEM_115)
+    names = sorted(p["name"] for planets in history.systems().values() for p in planets)
+    assert names == ["A-one", "B-one"]
+
+
+def test_an_old_record_without_a_seed_is_renamed_only_in_its_own_system(tmp_path):
+    """Records from before 0.4.0 have no seed: a new name at the same address counts as a rename only when
+    that address names the system you are in and the planet looks the same - never for a reused slot."""
+    old = memory.parse_planet(bytes(planet_blob("Neu: X", 1)))
+    old["seed"] = None
+    renamed = memory.parse_planet(bytes(planet_blob("X", 1)))
+    history = PlanetHistory(tmp_path / "h.json")
+    history.record([dict(old)], "t1", SYSTEM_98)
+    history.record([dict(renamed)], "t2", SYSTEM_115)           # elsewhere: could be a reused slot
+    names = sorted(p["name"] for planets in history.systems().values() for p in planets)
+    assert names == ["Neu: X", "X"]
+    history2 = PlanetHistory(tmp_path / "h2.json")
+    history2.record([dict(old)], "t1", SYSTEM_98)
+    history2.record([dict(renamed)], "t2", SYSTEM_98)
+    assert [p["name"] for p in history2.systems()[SYSTEM_98]] == ["X"]
+
+
+def test_where_you_are_says_when_the_planet_is_unknown(tmp_path):
+    """Judged from the planets, the system is shown but the planet is 'unknown', not 'in space', and the
+    page says how the position was found."""
+    class Live:
+        status, error, current, current_system, current_source = "ok", None, None, SYSTEM_98, "planets"
+    ctx = planets_view.Context(Live(), PlanetHistory(tmp_path / "h.json"), {}, FakeGameData(), None)
+    where = {i["label"]: i["value"] for i in planets_view.where_you_are(ctx)["items"]}
+    assert where["Planet"].startswith("unknown") and where["Found by"].startswith("the planets")

@@ -70,6 +70,26 @@ def visits_from_save(save: dict) -> dict[int, dict]:
     return systems
 
 
+# Records from before 0.4.0 carry no seed; for them a rename is judged from what the planet is made of.
+SAME_PLANET_FIELDS = ("index", "biome", "common", "uncommon", "rare")
+
+
+def is_renamed(old: dict, planet: dict, current_system: int | None) -> bool:
+    """True when `planet` is the recorded `old` planet under a new name (renamed in the game, or an
+    uploaded name arrived).
+
+    The generation seed decides: it is fixed per planet. A different planet in a reused slot can share the
+    address, index, biome and all three resources (same star colour, same biome), so for an old record
+    without a seed those fields only count when the record's address names the system you are in - a
+    reused slot carries the *previous* system's address.
+    """
+    if old.get("ua") != planet.get("ua") or old.get("name") == planet.get("name"):
+        return False
+    if old.get("seed") and planet.get("seed"):
+        return old["seed"] == planet["seed"]
+    return current_system is not None and planet.get("system") == current_system         and all(old.get(f) == planet.get(f) for f in SAME_PLANET_FIELDS)
+
+
 def planet_id(planet: dict) -> str:
     """Identity of a recorded planet: the address its record carried plus its name.
 
@@ -132,7 +152,7 @@ class PlanetHistory:
 
     def record(self, planets: list[dict], now: str, current_system: int | None = None) -> int:
         """Merge planets read from memory; returns how many are new or changed. Logs the scan."""
-        changed = new = moved = 0
+        changed = new = moved = renamed = 0
         names_at = {}                                   # address -> names already recorded there
         for stored in self.planets.values():
             names_at.setdefault(stored["ua"], set()).add(stored.get("name"))
@@ -141,6 +161,17 @@ class PlanetHistory:
         for planet in planets:
             stored = {k: v for k, v in planet.items()}
             known = self.planets.get(planet_id(planet))
+            previous_name = None
+            if known is None:
+                # Renamed in the game (or an uploaded name arrived): the same planet under a new name. Its old
+                # entry is taken over - same filing, same first_seen - instead of staying behind as a duplicate.
+                old_key = next((k for k, v in self.planets.items() if is_renamed(v, planet, current_system)), None)
+                if old_key is not None:
+                    known = self.planets.pop(old_key)
+                    previous_name = known.get("name")
+                    names_at.get(planet["ua"], set()).discard(previous_name)
+                    by_place.pop((known.get("system"), known.get("index"), previous_name), None)
+                    renamed += 1
             system = planet["system"]
             if known is not None:
                 system = known.get("system", system)    # seen before: stays where it was filed
@@ -150,6 +181,11 @@ class PlanetHistory:
             stored["system"] = system
             key = by_place.get((system, planet.get("index"), planet.get("name"))) or planet_id(planet)
             old = self.planets.get(key)
+            if old is None and previous_name is not None:
+                old = known
+                stored["previous_names"] = list(dict.fromkeys((known.get("previous_names") or []) + [previous_name]))
+            elif old is not None and old.get("previous_names"):
+                stored["previous_names"] = old["previous_names"]
             # Confirmed: read while you were in its system. Unconfirmed copies of the same planet filed
             # elsewhere (an earlier stale address with nothing to contradict it) are then dropped.
             stored["confirmed"] = (old or {}).get("confirmed", False) or system == current_system
@@ -158,7 +194,7 @@ class PlanetHistory:
                               and v.get("name") == planet.get("name") and v.get("index") == planet.get("index")
                               and v.get("system") != system]:
                     del self.planets[other]
-            if old is None:
+            if old is None and previous_name is None:
                 new += 1
                 moved += system != planet["system"]
             stored["first_seen"] = old.get("first_seen", now) if old else now
@@ -171,7 +207,7 @@ class PlanetHistory:
             by_place[(system, planet.get("index"), planet.get("name"))] = key
             seen.setdefault(system, []).append(planet.get("name"))
         self.scans.append({"at": now, "system": current_system, "planets": len(planets), "new": new,
-                           "changed": changed, "moved": moved,
+                           "changed": changed, "moved": moved, "renamed": renamed,
                            "systems": {f"{k:x}": names for k, names in seen.items()}})
         del self.scans[:-self.MAX_SCANS]
         return changed
