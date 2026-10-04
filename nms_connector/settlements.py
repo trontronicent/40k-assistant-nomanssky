@@ -415,7 +415,8 @@ def settlement_sections(items: list[dict], tables: dict, texts, now: float, live
             desc = desc if desc != perk["description"] else None
             label = texts.key(perk["name"]) or perk_id(raw)
             if "%" in label:     # procedural ("%PROD_ADJ% %PROD%"): the game builds the name from the perk's seed
-                label = f"{desc or perk_id(raw)} (named in the game)"
+                plain = desc if desc and "%" not in desc else {"job": "A job", "blessing": "A blessing"}.get(kind, "A perk")
+                label = f"{plain} (named in the game)"     # job descriptions hold placeholders too ("%JOB_STAT%")
                 desc = None
             origin = "founding" if perk["starter"] else "a decision" if perk["procedural"] else "an event"
             perk_rows.append([{"text": label, "hint": desc} if desc else label, kind, effect, origin])

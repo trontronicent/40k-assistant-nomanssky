@@ -116,6 +116,15 @@ def storage(ps: dict) -> list[dict]:
     return out
 
 
+def mission_text_keys(mission_id: str | None) -> list[str]:
+    """Where the game keeps a mission's text, most specific first: ACT1_STEP10 -> UI_CORE_ACT1_STEP10_DESC
+    ("Apollo has asked me to upgrade my equipment ...", language/nms_update3, checked 2026-10-04)."""
+    if not mission_id:
+        return []
+    m = str(mission_id).lstrip("^").upper()
+    return [f"UI_CORE_{m}_DESC", f"UI_{m}_DESC", f"{m}_DESC", f"UI_CORE_{m}_OBJ1", f"UI_{m}_TITLE"]
+
+
 def ship_class(filename) -> str:
     parts = str(filename or "").upper().split("/")
     for part in parts:

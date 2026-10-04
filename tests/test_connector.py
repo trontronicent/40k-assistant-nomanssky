@@ -291,3 +291,25 @@ def test_manifest_fits_the_registry_rules():
     manifest = json.loads((Path(__file__).resolve().parent.parent / "strategicum-plugin.json").read_text(encoding="utf-8"))
     assert 0 < len(manifest["description"]) <= 300
     assert re.fullmatch(r"\d+\.\d+\.\d+", manifest["version"])
+
+
+def test_icons_are_prepared_for_the_storage_containers_too():
+    """Seen 2026-10-04: every item in the storage containers had its name but no icon - their rows were not
+    among the items whose icons are converted. Now they are, once each."""
+    from nms_connector.plugin import _snapshot_item_ids
+    snap = {"exosuit": [["FUEL1", 1, 1]], "exosuit_cargo": [], "freighter": {"inventory": []}, "ships": [],
+            "storage": [{"rows": [["CAVE2", 5, 250], ["FUEL1", 2, 250]]}, {"rows": []}]}
+    assert _snapshot_item_ids(snap) == ["FUEL1", "CAVE2"]
+
+
+def test_the_current_mission_is_shown_as_the_games_text(tmp_path):
+    """The Overview showed the mission id (ACT1_STEP10). The game keeps the mission's text under
+    UI_CORE_<id>_DESC: that is shown (shortened, with the id), the id alone when no text is known."""
+    from nms_connector.summary import mission_text_keys
+    assert mission_text_keys("ACT1_STEP10")[0] == "UI_CORE_ACT1_STEP10_DESC" and mission_text_keys(None) == []
+    plugin = create_plugin(FakeCtx(tmp_path))
+    long = "Apollo has asked me to upgrade my equipment by obtaining blueprints from a multitool technology trader. " * 3
+    plugin.gamedata.text = lambda key: {"en": long, "local": long} if key == "UI_CORE_ACT1_STEP10_DESC" else None
+    text = plugin._mission_text("ACT1_STEP10")
+    assert text.startswith("Apollo has asked me") and text.endswith("... (ACT1_STEP10)") and len(text) < 240
+    assert plugin._mission_text("UNKNOWN_STEP") == "UNKNOWN_STEP" and plugin._mission_text(None) == "none"

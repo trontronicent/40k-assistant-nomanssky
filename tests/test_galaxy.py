@@ -84,7 +84,8 @@ def test_galaxy_tab_maps_every_system_and_lists_the_nearest_resources(tmp_path):
     other_galaxy = key(10, 0, 10, 3, galaxy_index=1)
     visits = {SYSTEM_115: {"name": "Kayanis Majoris VIII", "planets": {}}, other_galaxy: {"name": None, "planets": {}}}
     ctx = planets_view.Context(Live(), history, visits, Texts(), None, bases=[{"name": "Home", "system": SYSTEM_115}])
-    starmap, note, nearest = planets_view.galaxy_sections(ctx, SYSTEM_115)
+    form, starmap, note, nearest = planets_view.galaxy_sections(ctx, SYSTEM_115)
+    assert form["action"] == planets_view.GALAXY_COLORS and form["fields"][0]["value"] == "kind"
     assert starmap["type"] == "starmap" and starmap["action"] == planets_view.OPEN_SYSTEM
     by_key = {p["key"]: p for p in starmap["points"]}
     assert set(by_key) == {f"{SYSTEM_98:x}", f"{SYSTEM_115:x}"} and starmap["selected_key"] == f"{SYSTEM_115:x}"
@@ -96,4 +97,40 @@ def test_galaxy_tab_maps_every_system_and_lists_the_nearest_resources(tmp_path):
     assert set(nearest["row_keys"]) == {f"{SYSTEM_98:x}"}
     tabs = planets_view.systems_tabs(ctx, None)["tabs"]
     galaxy_tab = next(t for t in tabs if t["id"] == "galaxy")
-    assert galaxy_tab["sections"][0]["id"] == planets_view.GALAXY_MAP_ID
+    assert galaxy_tab["sections"][1]["id"] == planets_view.GALAXY_MAP_ID
+
+
+SYSTEM_7A = 0x7A0002925E80          # Arskyvi: only in the game's galaxy-map name cache (seen 2026-10-04)
+
+
+def test_systems_from_the_galaxy_map_cache_are_drawn_and_used_as_route_stops(tmp_path):
+    """The game's galaxy map keeps the exact address of the systems around you (memory.system_names_in): they
+    appear on the map as small grey points marked as not visited, and the route planner may stop there."""
+    history = PlanetHistory(tmp_path / "h.json")
+    history.record_system_names({SYSTEM_7A: "Arskyvi"})
+    ctx = planets_view.Context(Live(), history, {SYSTEM_98: {"name": "Delta Sol", "planets": {}}}, Texts(), None)
+    starmap = planets_view.galaxy_sections(ctx, None)[1]
+    point = next(p for p in starmap["points"] if p["key"] == f"{SYSTEM_7A:x}")
+    assert point["label"] == "Arskyvi" and point["color"] == planets_view.UNKNOWN_COLOR and point["size"] == 0.6
+    assert point["items"][0] == {"label": "Known from", "value": "the game's galaxy map around you (not visited)"}
+    assert SYSTEM_7A in planets_view.route_nodes(ctx)
+
+
+def test_the_map_colours_by_economy_or_conflict_and_draws_the_planned_route(tmp_path):
+    """Colouring by economy or conflict uses the recorded star attributes (grey where none was read); a planned
+    route (Route tab) is drawn as a dashed line through its stops and the regions to aim for."""
+    history = PlanetHistory(tmp_path / "h.json")
+    history.economies = {SYSTEM_115: {"economy": "HighTech", "wealth": "Wealthy", "conflict": "High"}}
+    ctx = planets_view.Context(Live(), history, {SYSTEM_98: {"name": "Delta Sol", "planets": {}},
+                                                 SYSTEM_115: {"name": "Zelskoy", "planets": {}}}, Texts(), None)
+    route_state = {"result": {"ok": True, "legs": [{"from": SYSTEM_98, "to": SYSTEM_115, "waypoints": [(-384, 2, -1754)]}]}}
+    form, starmap = planets_view.galaxy_sections(ctx, None, "economy", route_state)[:2]
+    by_key = {p["key"]: p for p in starmap["points"]}
+    assert by_key[f"{SYSTEM_115:x}"]["color"] == planets_view.ECONOMY_COLORS["HighTech"]
+    assert form["fields"][0]["value"] == "economy" and any(e["label"] == "Economy not read yet" for e in starmap["legend"])
+    line = starmap["lines"][0]
+    assert line["dashed"] and len(line["points"]) == 3 and line["points"][1] == [-384, 2, -1754]
+    conflict = planets_view.galaxy_sections(ctx, None, "conflict")[1]
+    assert {p["key"]: p for p in conflict["points"]}[f"{SYSTEM_115:x}"]["color"] == planets_view.CONFLICT_COLORS["High"]
+    assert conflict["lines"] == []
+    assert planets_view.galaxy_sections(ctx, None, "bogus")[0]["fields"][0]["value"] == "kind"

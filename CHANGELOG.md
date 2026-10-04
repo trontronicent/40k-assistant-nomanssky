@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **Ships**: *Ships & bases* lists every ship with type, class, its own bonuses,
+  slots (and damaged ones), an **estimated warp range** (hyperdrive 100 ly plus
+  upgrades - e.g. an S-class upgrade 220-265 ly - and the ship's hyperdrive bonus,
+  from the game's technology tables) and the star colours it can reach; the
+  primary ship's technology with charge and what each part adds. The route
+  planner's jump range starts with the primary ship's estimate.
+- **Galaxy map**: shows the systems around you that the game's galaxy map knows
+  (small grey points), can colour systems by economy or conflict level, and
+  draws the planned route. Those systems are also stops for the route planner.
+- **Texts and icons**: planet hints (*Ancient Bones*, *Salvageable Scrap*, *Vile
+  Brood Detected*) were shown as keys (`UI_BONES_HINT`); the current mission is
+  shown with the game's description instead of its id; items in the storage
+  containers had no icons.
 - **Settlements tab**: the economy of each settlement you run - population,
   the stored stats (productivity, happiness, maintenance, debt, sentinel alert,
   bug attacks, ...) with the game's own range for each, production (what is

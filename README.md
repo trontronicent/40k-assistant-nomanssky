@@ -19,7 +19,12 @@ credits appear in the 40k Assistant's manual under *Plugin Help* (app 3.4.0+).
   (start time from the save, duration from the game's `gcsettlementglobals` /
   `gcfleetglobals` tables); with app 3.8.0+ a live countdown with browser
   notifications (the app sends them), otherwise a table
-- **Ships, bases, frigates, expeditions, companions, current mission id**
+- **Ships:** type, class, base stats, slots (and damaged ones), the primary ship's
+  technology, an **estimated warp range** (hyperdrive technology from
+  `nms_reality_gctechnologytable` / `gcproceduraltechnologytable`) and the star
+  colours each ship reaches; the route planner starts from it
+- **Bases, frigates, expeditions, companions, the current mission** (with the
+  game's description)
 - **Settlements:** population, the stored stats (productivity, happiness,
   maintenance, debt, alert, bug attacks, ...) on the game's own scale
   (`gcsettlementglobals`), production, perks with their names and effects

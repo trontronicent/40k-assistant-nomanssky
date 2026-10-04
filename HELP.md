@@ -23,7 +23,7 @@ The tabs:
 - **Overview** - **timers** (when your settlement buildings are finished and your frigate expeditions return), units, nanites, quicksilver, health, where you were at the last save, where you are now, your fleet and companions.
 - **Systems** - *Current system* (live from the game, with a map), *Visited systems* (every system from your save; click one to see its map), *Planets* (every planet whose resources were read), *Galaxy* (the galaxy map and the nearest planet with each resource) and *Trade* (economies and trade routes) and *Route* (the route planner).
 - **Inventory** - exosuit, starship, freighter and **storage containers** (0-9, numbered as in the game), each item with its icon, its name in English and in the game's language, and its **category**. Hover an item's name for its description; **trade goods** also tell which economies pay well for them, the nearest such system you know (or that you have not found one yet) and where they are cheap to buy. Planet resources have the same tooltip.
-- **Ships & bases** - your ships and bases with portal addresses.
+- **Ships & bases** - your ships (type, class, estimated **warp range**, the star colours they can reach, base stats, slots) and the primary ship's technology; your bases with portal addresses. See *Ships* below.
 - **Settlements** - the economy of each settlement you run: see *Settlements* below.
 - **Saves & source** - how often the game saves, the recent save writes, where the data comes from and the last memory scans.
 
@@ -100,9 +100,31 @@ class. Click a planet for its resources, gas, weather, flora, fauna, sentinels
 and your discoveries there. Planets known only from your save appear as *not
 scanned yet*.
 
+## Ships
+
+*Ships & bases* lists your ships with type, class, the ship's own bonuses
+(damage, shield, hyperdrive, maneuverability), the slots (general / cargo /
+technology, and how many are still damaged) and:
+
+- **Warp range (estimate)** - the game does not store it, it adds up the
+  hyperdrive technology: the hyperdrive itself (100 ly), hyperdrive upgrades
+  (an S-class upgrade adds 220-265 ly: the game picks the exact value from the
+  upgrade's seed, so only the range is known) and the ship's own hyperdrive
+  bonus. Hover the value to see what it is made of. Adjacent and supercharged
+  slots can add more.
+- **Star colours it can reach** - red, green, blue and purple stars need the
+  matching hyperdrive upgrades (Cadmium, Emeril, Indium drive and the Atlas one).
+
+Below, the primary ship's technology: charge, and what each part adds. The route
+planner starts with the lower warp range of your primary ship.
+
 ## The galaxy map
 
-*Systems → Galaxy* shows every system you know in the galaxy you are in. Drag
+*Systems → Galaxy* shows every system you know in the galaxy you are in -
+including the systems around you that the game's own galaxy map showed (small
+grey points, *not visited*). **Colour systems by** what you know there, their
+**economy** or their **conflict level**, and press **Show**. A route planned
+in *Route* is drawn as a dashed red line. Drag
 to move, use the mouse wheel or the zoom buttons, look **from above** or **from
 the side**; **Fit** shows all your systems, **Whole map** the whole galaxy with
 its centre. Click a system for its details, **Open system map** (or a
@@ -147,8 +169,12 @@ higher tiers.
 by its portal address** (12 glyphs as hex digits) - and your ship's **jump
 range** in light years, and press **Plan route**.
 
+The jump range starts with your primary ship's estimated warp range (the lower
+value, see *Ships*); change it when you know better.
+
 A jump costs one warp cell however far it goes within your range, so the route
-has the **fewest jumps**. Your known systems are used as stops where they cost
+has the **fewest jumps**. Your known systems - including those the game's galaxy
+map showed around you - are used as stops where they cost
 no extra jump; where none is close enough, a leg crosses unknown space in
 several jumps and names the region to aim for on each one - on the galaxy map,
 pick a star near that region. The route is listed leg by leg and drawn on a
@@ -161,5 +187,6 @@ margin on the range.
 ## Good to know
 
 - Items whose name the game makes up from a seed (salvaged and biological finds such as `PROC_LOOT`) keep their id.
+- The current mission (Overview) is shown with the game's own description of it.
 - The gas per biome is community knowledge, not read from the game.
 - Your save data (base and ship names, inventories) is shown to anyone who can open your app.

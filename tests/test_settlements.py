@@ -137,6 +137,17 @@ def test_the_tab_shows_the_decision_window_stats_production_and_perks():
                         "Maintenance worse (medium)", "founding"]
     assert perks[1][0] == "Improves citizen happiness (named in the game)" and perks[1][3] == "a decision"
     assert perks[2][0] == "UNKNOWN_PERK"
+    job = dict(FakeTexts.NAMES, UI_JOB="%JOB_ADJ% %JOB%", UI_JOB_DESC="%JOB_STAT% increased")
+    texts = FakeTexts()
+    texts.NAMES = job
+    tables_with_job = tables()
+    tables_with_job["perks"]["PROC_JOB"] = {"name": "UI_JOB", "description": "UI_JOB_DESC", "negative": False, "job": True,
+                                            "blessing": False, "procedural": True, "starter": False,
+                                            "changes": [("Production", "better (varies)")]}
+    state = dict(kay_city(), Perks=["^PROC_JOB#33770"])
+    rows = next(s for s in settlements.settlement_sections(settlements.settlements_from_save(save(state)), tables_with_job,
+                                                           texts, LAST_JUDGEMENT) if s.get("title") == "Kay City: perks")["rows"]
+    assert rows[0][0] == "A job (named in the game)"     # no "%JOB_STAT%" placeholder shown
 
 
 def test_the_decision_line_follows_the_clock_and_a_waiting_decision():

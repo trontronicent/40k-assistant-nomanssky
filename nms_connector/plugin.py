@@ -16,12 +16,12 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from . import galaxy, memory, planets_view, route, saves, settlements, timers, trade
+from . import galaxy, memory, planets_view, route, saves, settlements, ships, timers, trade
 from .game_install import GameInstall, find_game
 from .gamedata import GameData
 from .history import PlanetHistory, visits_from_save
 from .live import LiveMemory
-from .summary import summarize
+from .summary import mission_text_keys, summarize
 from .watcher import SaveWatcher
 
 POLL_S = 5
@@ -78,6 +78,9 @@ def _snapshot_item_ids(snap: dict) -> list[str]:
     rows = snap["exosuit"] + snap["exosuit_cargo"] + snap["freighter"]["inventory"]
     for ship in snap["ships"]:
         rows = rows + ship["inventory"]
+    # The storage containers too: without them their items (shown since 0.9.0) had names but no icons.
+    for chest in snap.get("storage") or []:
+        rows = rows + chest["rows"]
     return list(dict.fromkeys(row[0] for row in rows))
 
 
@@ -99,7 +102,10 @@ class NmsConnector:
         self._timer_tables_for = None
         self.settlements: list[dict] = []         # your settlements' economy (settlements.py)
         self.settlement_tables: dict | None = None
-        self.settlement_live = settlements.LiveSettlements(self.data_dir / "settlement_screen.json")   # the settlement screen's values (game memory)
+        self.settlement_live = settlements.LiveSettlements(self.data_dir / "settlement_screen.json")
+        self.ships: list[dict] = []               # your starships (ships.py)
+        self.galaxy_colors = "kind"               # how the galaxy map colours systems (planets_view.COLOR_MODES)
+        self.ship_tables: dict | None = None      # warp-range bonuses from the game's technology tables   # the settlement screen's values (game memory)
         self.snapshot_file: str | None = None
         self.decoded_at: str | None = None
         self.decode_seconds: float | None = None
@@ -265,6 +271,9 @@ class NmsConnector:
             self._timer_tables_for = build
             if self.timer_tables.get("error"):
                 self.ctx.logger.warning("[NMS] Timer durations: built-in values (%s)", self.timer_tables["error"])
+            self.ship_tables = await self.ctx.run_blocking(ships.load_tables, self.install)
+            if self.ship_tables.get("error"):
+                self.ctx.logger.warning("[NMS] Warp range values: built-in (%s)", self.ship_tables["error"])
             self.settlement_tables = await self.ctx.run_blocking(settlements.load_tables, self.install)
             if self.settlement_tables.get("error"):
                 self.ctx.logger.warning("[NMS] Settlement tables: built-in values (%s)", self.settlement_tables["error"])
@@ -284,16 +293,19 @@ class NmsConnector:
             await self._ensure_icons()
 
     async def _ensure_settlement_texts(self) -> None:
-        """Perk names and product icons of the Settlements tab (cached by GameData after the first time)."""
-        if not (self.settlements and self.settlement_tables and self.install and self.gamedata.ready):
+        """Perk names and product icons of the Settlements tab and the current mission's text (cached by GameData
+        after the first time)."""
+        if not ((self.settlements or self.snapshot) and self.settlement_tables and self.install and self.gamedata.ready):
             return
         keys = settlements.text_keys(self.settlements, self.settlement_tables)
+        keys |= set(mission_text_keys((self.snapshot or {}).get("current_mission")))
         await self.ctx.run_blocking(self.gamedata.resolve_texts, self.install, keys)
         await self.ctx.run_blocking(self.gamedata.ensure_icons, self.install, settlements.item_ids(self.settlements))
 
     async def _ensure_icons(self) -> None:
         if self.snapshot and self.install and self.gamedata.ready:
-            await self.ctx.run_blocking(self.gamedata.ensure_icons, self.install, _snapshot_item_ids(self.snapshot))
+            tech = [t["id"] for s in self.ships for t in s["technology"]]
+            await self.ctx.run_blocking(self.gamedata.ensure_icons, self.install, _snapshot_item_ids(self.snapshot) + tech)
 
     def _substances(self) -> set[str] | None:
         """Substance ids (the planet scan validates resources against them), when the item database is ready."""
@@ -364,6 +376,7 @@ class NmsConnector:
         self.visits = await self.ctx.run_blocking(visits_from_save, readable)
         self.timers = timers.timers_from_save(readable, self.timer_tables or timers.FALLBACK)
         self.settlements = settlements.settlements_from_save(readable)
+        self.ships = ships.ships_from_save(readable)
         ps = (readable.get("BaseContext") or {}).get("PlayerStateData") or {}
         try:
             self.anchor = memory.ua_bytes(ps["GameStartAddress1"]) + memory.ua_bytes(ps["GameStartAddress2"])
@@ -394,6 +407,12 @@ class NmsConnector:
                 return {"ok": False, "message": "Unknown system."}
             self.selected_system = key
             return {"ok": True, "focus": planets_view.SYSTEM_MAP_ID}
+        if action_id == planets_view.GALAXY_COLORS:
+            mode = str((params or {}).get("color_by") or "")
+            if mode not in planets_view.COLOR_MODES:
+                return {"ok": False, "message": "Unknown colouring."}
+            self.galaxy_colors = mode
+            return {"ok": True, "focus": planets_view.GALAXY_MAP_ID}
         if action_id == "rescan":
             self.snapshot = None
             self._force.set()
@@ -499,10 +518,21 @@ class NmsConnector:
             {"label": "Frigate expeditions", "value": snap["expeditions"]},
             {"label": "Companions (pets)", "value": snap["pets"]},
             {"label": "Freighter", "value": snap["freighter"]["name"] or "(unnamed)"},
-            {"label": "Current mission id", "value": snap["current_mission"] or "none"},
+            {"label": "Current mission", "value": self._mission_text(snap["current_mission"])},
             {"label": "Difficulty", "value": snap["difficulty"]},
         ]})
         return out
+
+    def _mission_text(self, mission_id: str | None) -> str:
+        """The current mission as the game describes it, with its id; the id alone when no text is known."""
+        if not mission_id:
+            return "none"
+        for key in mission_text_keys(mission_id):
+            entry = self.gamedata.text(key)
+            if entry:
+                text = entry["en"] if len(entry["en"]) <= 220 else entry["en"][:217].rsplit(" ", 1)[0] + "..."
+                return f"{text} ({mission_id})"
+        return mission_id
 
     def _inventories(self, snap: dict | None, ctx) -> list[dict]:
         if not snap:
@@ -524,12 +554,10 @@ class NmsConnector:
         tabs.append(self._storage_tab(snap, ctx, columns))
         return [{"type": "tabs", "id": "inventory-tabs", "tabs": tabs}]
 
-    def _fleet(self, snap: dict | None) -> list[dict]:
+    def _fleet(self, snap: dict | None, ctx) -> list[dict]:
         if not snap:
             return [{"type": "text", "text": "Ships and bases appear once a save has been read."}]
-        return [
-            {"type": "table", "title": "Ships", "columns": ["Name", "Class", "Primary"],
-             "rows": [[s["name"], s["class"], "yes" if s["primary"] else ""] for s in snap["ships"]]},
+        return ships.ship_sections(self.ships, self.ship_tables or ships.FALLBACK, ctx.texts) + [
             {"type": "table", "title": "Bases", "columns": ["Name", "Type", "Galaxy", "Portal address", "Parts"],
              "rows": [[b["name"], b["type"], b["galaxy"], b["portal"], b["objects"]] for b in snap["bases"]]},
         ]
@@ -607,9 +635,11 @@ class NmsConnector:
         sections.append({"type": "tabs", "id": "main", "tabs": [
             {"id": "overview", "label": "Overview", "sections": self._overview(snap, ctx)},
             {"id": "systems", "label": "Systems", "badge": len(ctx.keys()) or None,
-             "sections": [planets_view.systems_tabs(ctx, self.selected_system, self.route_state)]},
+             "sections": [planets_view.systems_tabs(ctx, self.selected_system, self.route_state,
+                                                    ships.primary_range(self.ships, self.ship_tables or ships.FALLBACK),
+                                                    self.galaxy_colors)]},
             {"id": "inventory", "label": "Inventory", "sections": self._inventories(snap, ctx)},
-            {"id": "fleet", "label": "Ships & bases", "sections": self._fleet(snap)},
+            {"id": "fleet", "label": "Ships & bases", "sections": self._fleet(snap, ctx)},
             {"id": "settlements", "label": "Settlements", "badge": len(self.settlements) or None,
              "sections": settlements.settlement_sections(self.settlements, self.settlement_tables or settlements.FALLBACK,
                                                          ctx.texts, time.time(), self.settlement_live.values)},

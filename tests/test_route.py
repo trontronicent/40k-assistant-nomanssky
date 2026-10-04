@@ -132,3 +132,18 @@ def test_the_route_follows_you_and_says_when_you_arrived(tmp_path, monkeypatch):
     notice = planets_view.route_sections(ctx, plugin.route_state)[-1]
     assert notice["level"] == "info" and notice["text"].startswith("You have arrived")
     assert plugin._follow_route() is False
+
+
+def test_the_jump_range_starts_with_the_primary_ships_estimate(tmp_path):
+    """Without an earlier request the range field holds the primary ship's lower warp-range estimate (rounded
+    down to 10 ly) and says where it comes from; a range the user entered before wins; without a ship the old
+    default stays."""
+    ctx = planets_view.Context(Live(), PlanetHistory(tmp_path / "h.json"), {}, Texts(), None)
+    estimate = {"low": 327, "high": 365, "ship": "Bang"}
+    field = next(f for f in planets_view.route_sections(ctx, None, estimate)[1]["fields"] if f["id"] == "range")
+    assert field["value"] == 320 and "Bang reaches about 327-365 ly" in field["hint"]
+    field = next(f for f in planets_view.route_sections(ctx, {"request": {"range": 900}}, estimate)[1]["fields"]
+                 if f["id"] == "range")
+    assert field["value"] == 900
+    field = next(f for f in planets_view.route_sections(ctx, None)[1]["fields"] if f["id"] == "range")
+    assert field["value"] == planets_view.DEFAULT_RANGE_LY

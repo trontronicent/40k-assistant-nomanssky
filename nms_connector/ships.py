@@ -1,0 +1,242 @@
+"""Your starships from the save: type, class, base stats, technology and an estimate of the warp range.
+
+The save keeps per ship (``ShipOwnership``) its model (``Resource.Filename`` -> type), ``Inventory`` with
+``Class`` (C/B/A/S), ``BaseStatValues`` (the ship's own bonuses in percent: ``^SHIP_DAMAGE``, ``^SHIP_SHIELD``,
+``^SHIP_HYPERDRIVE``, ``^SHIP_AGILE``) and the installed technology (slots of type Technology in ``Inventory``
+and ``Inventory_TechOnly``; ``Amount`` = charge, -1 for technology that needs none).
+
+**Warp range** is not stored: the game adds up the ``Ship_Hyperdrive_JumpDistance`` bonuses of the installed
+technology (``nms_reality_gctechnologytable``: HYPERDRIVE 100 ly, the Sentinel/exotic drives 600 ly) and of the
+procedural upgrades (``nms_reality_gcproceduraltechnologytable``: UP_HYP4 220-265 ly - the exact value is drawn
+from the upgrade's seed, ``^UP_HYP4#66014``, so only its range is known). The ship's own hyperdrive bonus is
+applied on top. Adjacency and supercharged slots can add more, so the result is shown as an estimate (a lower
+and an upper bound). Read 2026-10-04 from build 25625620: HDRIVEBOOST1-4 add no range - they open red, green,
+blue and purple star systems.
+
+Offsets: libMBIN 7.04 GcTechnology (ID 0x108, StatBonuses 0x158; GcStatsBonus {Bonus f32, Level i32, Stat u32},
+0xC bytes) and GcProceduralTechnologyData (ID 0x40, StatLevels 0x50; {Stat u32, ValueMax f32, ValueMin f32, ...},
+0x14 bytes); GcStatsTypes Ship_Hyperdrive_JumpDistance = 149. Checked by the table itself: HYPERDRIVE must give
+100 ly, otherwise the measured FALLBACK is used.
+"""
+
+from __future__ import annotations
+
+import struct
+
+from . import mbin
+from .summary import ship_class
+
+TECH_FILE = "metadata/reality/tables/nms_reality_gctechnologytable.mbin"
+PROC_FILE = "metadata/reality/tables/nms_reality_gcproceduraltechnologytable.mbin"
+TABLE_PAK = "NMSARC.Precache.pak"
+JUMP_DISTANCE = 149              # GcStatsTypes.Ship_Hyperdrive_JumpDistance (libMBIN 7.04)
+TECH_ID_AT, TECH_BONUSES_AT, BONUS_SIZE = 0x108, 0x158, 0xC
+PROC_ID_AT, PROC_LEVELS_AT, LEVEL_SIZE = 0x40, 0x50, 0x14
+
+STAR_COLOURS = {"HDRIVEBOOST1": "red", "HDRIVEBOOST2": "green", "HDRIVEBOOST3": "blue", "HDRIVEBOOST4": "purple"}
+BASE_STATS = {"^SHIP_DAMAGE": "damage", "^SHIP_SHIELD": "shield", "^SHIP_HYPERDRIVE": "hyperdrive", "^SHIP_AGILE": "agility"}
+
+# Measured from the game's files on 2026-10-04 (build 25625620): used when they cannot be read.
+FALLBACK = {
+    "fixed": {"HYPERDRIVE": 100.0, "WARP_ALIEN": 100.0, "HYPERDRIVE_SPEC": 600.0, "HYPERDRIVE_ROBO": 600.0},
+    "procedural": {"UP_HYP0": (10.0, 25.0), "UP_HYP1": (50.0, 100.0), "UP_HYP2": (115.0, 165.0),
+                   "UP_HYP3": (165.0, 220.0), "UP_HYP4": (220.0, 265.0), "UP_HYPX": (50.0, 320.0),
+                   "CV_HYP2": (115.0, 165.0), "CV_HYP3": (165.0, 220.0), "UA_HYP1": (50.0, 100.0),
+                   "UA_HYP2": (115.0, 165.0), "UA_HYP3": (165.0, 220.0), "UA_HYP4": (220.0, 265.0)},
+    "source": "built-in (measured 2026-10-04)",
+}
+
+
+def _list(data: bytes, pos: int) -> tuple[int, int]:
+    """(absolute start, count) of the list whose 16-byte header is at `pos`."""
+    offset, count = struct.unpack_from("<QI", data, pos)
+    return pos + offset, count
+
+
+def parse_tables(tech: bytes, proc: bytes) -> dict | None:
+    """{fixed: {tech id: ly}, procedural: {id: (min, max)}} of the jump-distance bonuses; None when the layout
+    is not the expected one (HYPERDRIVE must give 100 ly)."""
+    fixed: dict[str, float] = {}
+    procedural: dict[str, tuple[float, float]] = {}
+    try:
+        start, count = mbin.root_list(tech)
+        size = mbin.record_size(tech, start, count)
+        for k in range(count):
+            p = start + k * size
+            tech_id = mbin.fixed_str(tech, p + TECH_ID_AT, 0x10)
+            if not tech_id:
+                continue
+            at, n = _list(tech, p + TECH_BONUSES_AT)
+            for j in range(min(n, 32)):
+                bonus, _level, stat = struct.unpack_from("<fiI", tech, at + j * BONUS_SIZE)
+                if stat == JUMP_DISTANCE and bonus > 0:
+                    fixed[tech_id] = round(bonus, 2)
+        start, count = mbin.root_list(proc)
+        size = mbin.record_size(proc, start, count)
+        for k in range(count):
+            p = start + k * size
+            proc_id = mbin.fixed_str(proc, p + PROC_ID_AT, 0x10)
+            if not proc_id:
+                continue
+            at, n = _list(proc, p + PROC_LEVELS_AT)
+            for j in range(min(n, 16)):
+                stat, vmax, vmin = struct.unpack_from("<Iff", proc, at + j * LEVEL_SIZE)
+                if stat == JUMP_DISTANCE and 0 < vmin <= vmax:
+                    procedural[proc_id] = (round(vmin, 2), round(vmax, 2))
+    except (struct.error, mbin.MbinError, IndexError):
+        return None
+    if fixed.get("HYPERDRIVE") != 100.0 or not procedural:
+        return None
+    return {"fixed": fixed, "procedural": procedural, "source": "game files"}
+
+
+def load_tables(install) -> dict:
+    """The warp-range tables of the installed game, else FALLBACK (``source`` says which, ``error`` why)."""
+    from .hgpak import PakError, PakSet, ZstdUnavailable
+    if install is None:
+        return dict(FALLBACK, error="game installation not found")
+    try:
+        with PakSet(install.pcbanks, {TECH_FILE: TABLE_PAK, PROC_FILE: TABLE_PAK}) as paks:
+            tables = parse_tables(paks.read(TECH_FILE), paks.read(PROC_FILE))
+    except (KeyError, OSError, PakError, ZstdUnavailable) as exc:
+        return dict(FALLBACK, error=f"{type(exc).__name__}: {exc}")
+    return tables or dict(FALLBACK, error="the game's technology tables changed layout (a game update?)")
+
+
+def tech_id(raw: str | None) -> str:
+    """'^UP_HYP4#66014' -> 'UP_HYP4' (the table id; the number seeds a procedural upgrade's values)."""
+    return str(raw or "").lstrip("^").split("#", 1)[0]
+
+
+def _technology(ship: dict) -> list[dict]:
+    out = []
+    for key in ("Inventory_TechOnly", "Inventory"):
+        for slot in ((ship.get(key) or {}).get("Slots") or []):
+            if ((slot.get("Type") or {}).get("InventoryType")) != "Technology" or not slot.get("Id"):
+                continue
+            out.append({"id": str(slot["Id"]).lstrip("^"), "charge": slot.get("Amount"), "max": slot.get("MaxAmount")})
+    return out
+
+
+DAMAGED_PREFIX = "SHIPSLOT_DMG"   # a damaged slot shows as this technology until it is repaired
+
+
+def damaged_slots(ship: dict) -> int:
+    return sum(1 for t in ship["technology"] if t["id"].startswith(DAMAGED_PREFIX))
+
+
+def _slots(inventory: dict | None) -> int:
+    return len((inventory or {}).get("ValidSlotIndices") or [])
+
+
+def ships_from_save(readable: dict) -> list[dict]:
+    """Your ships (unused slots of ShipOwnership left out), the primary one first."""
+    ps = ((readable or {}).get("BaseContext") or {}).get("PlayerStateData") or {}
+    out = []
+    for i, ship in enumerate(ps.get("ShipOwnership") or []):
+        filename = ((ship or {}).get("Resource") or {}).get("Filename") or ""
+        if not filename:
+            continue
+        inv = ship.get("Inventory") or {}
+        stats = {BASE_STATS[s["BaseStatID"]]: round(float(s.get("Value") or 0), 1)
+                 for s in inv.get("BaseStatValues") or [] if s.get("BaseStatID") in BASE_STATS}
+        out.append({"index": i, "name": ship.get("Name") or "", "type": ship_class(filename),
+                    "class": ((inv.get("Class") or {}).get("InventoryClass")) or "?", "primary": i == ps.get("PrimaryShip"),
+                    "stats": stats, "technology": _technology(ship),
+                    "slots": _slots(inv), "cargo_slots": _slots(ship.get("Inventory_Cargo")),
+                    "tech_slots": _slots(ship.get("Inventory_TechOnly"))})
+    out.sort(key=lambda s: (not s["primary"], s["index"]))
+    return out
+
+
+def warp_range(ship: dict, tables: dict) -> dict:
+    """{low, high, parts: [(tech id, low, high)], bonus, colours}: the warp range in light years estimated from
+    the installed technology and the ship's own hyperdrive bonus; low = high = 0 without a hyperdrive."""
+    parts = []
+    for tech in ship["technology"]:
+        tid = tech_id(tech["id"])
+        if tid in tables["fixed"]:
+            parts.append((tid, tables["fixed"][tid], tables["fixed"][tid]))
+        elif tid in tables["procedural"]:
+            parts.append((tid, *tables["procedural"][tid]))
+    bonus = ship["stats"].get("hyperdrive", 0.0)
+    factor = 1 + bonus / 100
+    low = sum(p[1] for p in parts) * factor if any(p[0] in tables["fixed"] for p in parts) else 0.0
+    high = sum(p[2] for p in parts) * factor if low else 0.0
+    colours = [STAR_COLOURS[t] for t in STAR_COLOURS if any(tech_id(x["id"]) == t for x in ship["technology"])]
+    return {"low": round(low), "high": round(high), "parts": parts, "bonus": bonus, "colours": colours}
+
+
+def range_text(estimate: dict) -> str:
+    if not estimate["low"]:
+        return "no hyperdrive"
+    if estimate["low"] == estimate["high"]:
+        return f"~{estimate['low']:,} ly"
+    return f"~{estimate['low']:,}-{estimate['high']:,} ly"
+
+
+def ship_label(ship: dict) -> str:
+    return ship["name"] or f"(unnamed {ship['type']})"
+
+
+def primary_range(items: list[dict], tables: dict) -> dict | None:
+    """The primary ship's warp-range estimate with its name, or None."""
+    primary = next((s for s in items if s["primary"]), None)
+    if primary is None:
+        return None
+    return dict(warp_range(primary, tables), ship=ship_label(primary))
+
+
+def _pct(value: float | None) -> str | None:
+    return None if value is None else f"+{value:.1f} %"
+
+
+def ship_sections(items: list[dict], tables: dict, texts) -> list[dict]:
+    """The ships table (type, class, warp range, star colours, base stats, slots) and the primary ship's
+    technology."""
+    if not items:
+        return [{"type": "text", "text": "No ships in this save."}]
+    rows = []
+    for s in items:
+        est = warp_range(s, tables)
+        parts = "\n".join(f"{texts.name(p[0]) or p[0]}: " + (f"{p[1]:.0f} ly" if p[1] == p[2] else f"{p[1]:.0f}-{p[2]:.0f} ly")
+                          for p in est["parts"])
+        hint = (f"{parts}\nShip's own hyperdrive bonus: +{est['bonus']:.1f} %\nAdjacent and supercharged slots can add "
+                "more; procedural upgrades get their exact value from a seed the game keeps to itself.") if est["parts"] else None
+        rows.append([ship_label(s) + (" (primary)" if s["primary"] else ""), s["type"], s["class"],
+                     {"text": range_text(est), "hint": hint} if hint else range_text(est),
+                     ", ".join(est["colours"]) or "yellow only",
+                     _pct(s["stats"].get("damage")), _pct(s["stats"].get("shield")), _pct(s["stats"].get("hyperdrive")),
+                     _pct(s["stats"].get("agility")),
+                     f"{s['slots']} / {s['cargo_slots']} / {s['tech_slots']}"
+                     + (f" ({damaged_slots(s)} damaged)" if damaged_slots(s) else "")])
+    out = [{"type": "table", "id": "ships", "title": f"Ships ({len(items)})",
+            "columns": ["Ship", "Type", "Class", "Warp range (estimate)", "Star colours it can reach", "Damage",
+                        "Shield", "Hyperdrive", "Maneuverability", "Slots (general / cargo / tech)"],
+            "rows": rows}]
+    primary = next((s for s in items if s["primary"]), None)
+    if primary:
+        tech_rows = []
+        for t in primary["technology"]:
+            tid = tech_id(t["id"])
+            if tid.startswith(DAMAGED_PREFIX):
+                continue
+            charge = None if t["charge"] is None or t["charge"] < 0 else f"{t['charge']} / {t['max']}"
+            adds = None
+            if tid in tables["fixed"]:
+                adds = f"{tables['fixed'][tid]:.0f} ly warp range"
+            elif tid in tables["procedural"]:
+                low, high = tables["procedural"][tid]
+                adds = f"{low:.0f}-{high:.0f} ly warp range"
+            elif tid in STAR_COLOURS:
+                adds = f"opens {STAR_COLOURS[tid]} star systems"
+            tech_rows.append([texts.item(t["id"]) if hasattr(texts, "item") else t["id"], charge, adds])
+        out.append({"type": "table", "id": "primary-ship-tech", "title": f"Technology of {ship_label(primary)}",
+                    "columns": ["Technology", "Charge", "Adds"], "rows": tech_rows, "empty": "No technology installed."})
+    note = ("Warp range is an estimate from the installed hyperdrive technology (values from the game's "
+            "technology tables): the game draws each procedural upgrade's exact value from its seed, and adjacent "
+            "or supercharged slots add more. The route planner starts with the lower value.")
+    if tables.get("error"):
+        note += f" Technology values: built-in ({tables['error']})."
+    out.append({"type": "text", "text": note})
+    return out

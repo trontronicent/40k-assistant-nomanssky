@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from . import galaxy, route, trade
 from .summary import address_portal, galaxy_name, unpack_address
 
@@ -36,6 +38,12 @@ PLANET_COLUMNS = ["Planet", "Type", "Weather", "Resource 1", "Resource 2", "Reso
                   "Fauna", "Sentinels"]
 OPEN_SYSTEM = "open_system"
 GALAXY_MAP_ID = "galaxy-map"
+GALAXY_COLORS = "galaxy_colors"          # action: how the galaxy map colours its systems
+COLOR_MODES = {"kind": "What you know there", "economy": "Economy", "conflict": "Conflict level"}
+ECONOMY_COLORS = {"Mining": "#c9a26b", "HighTech": "#7ad7ff", "Trading": "#ffd27a", "Manufacturing": "#e08a5a",
+                  "Fusion": "#b48cff", "Scientific": "#5fbf6a", "PowerGeneration": "#ff7aa8"}
+CONFLICT_COLORS = {"Low": "#5fbf6a", "Default": "#e0c35a", "High": "#ff7a5a", "Pirate": "#c06bff"}
+UNKNOWN_COLOR = "#5b6672"
 NEAREST_ID = "nearest-resources"
 PLAN_ROUTE = "plan_route"
 ROUTE_FORM_ID = "route-form"
@@ -55,13 +63,19 @@ def planet_gas(planet: dict) -> str | None:
     return GAS_BY_BIOME.get(planet.get("biome") or "")
 
 
+HINT_KEY_RE = re.compile(r"^UI_[A-Z0-9_]+$")
+
+
 def info_keys(planets) -> set[str]:
-    """Every localisation key in the planets' summaries (to resolve them in one pass)."""
+    """Every localisation key in the planets' summaries (to resolve them in one pass), and the planet hints
+    among their extra resources ("UI_BONES_HINT", "UI_SCRAP_HINT", "UI_BUGS_HINT": buried bones, salvage, ... -
+    text keys, not items; shown raw until 2026-10-04)."""
     keys: set[str] = set()
     for p in planets:
         info = p.get("info") or {}
         for key, value in info.items():
             keys.update(v for v in (value if isinstance(value, list) else [value]) if v)
+        keys.update(e for e in p.get("extra") or [] if isinstance(e, str) and HINT_KEY_RE.match(e))
     return keys
 
 
@@ -118,9 +132,13 @@ class Texts:
                          desc["local"].replace("%PLANETCLASS%", kind["local"]))
 
     def name(self, item_id: str | None) -> str | None:
+        """An item's name - or, for a text key among item ids (planet hints such as UI_BONES_HINT), its text."""
         if not item_id:
             return None
         entry = self.gamedata.lookup(item_id) or {}
+        if not entry.get("en"):
+            entry = self.gamedata.text(item_id) or {}
+            entry = {"en": entry.get("en"), "local": entry.get("local")}
         return self.both(entry.get("en"), entry.get("local")) or item_id
 
     def category(self, item_id: str | None) -> str | None:
@@ -160,7 +178,8 @@ class Texts:
         return cell if len(cell) > 1 else label
 
     def items(self, ids) -> str | None:
-        names = [(self.gamedata.lookup(i) or {}).get("en") or i for i in ids or []]
+        names = [(self.gamedata.lookup(i) or {}).get("en") or (self.gamedata.text(i) or {}).get("en") or i
+                 for i in ids or []]
         return ", ".join(names) or None
 
 
@@ -529,7 +548,7 @@ def visited_planets_section(ctx: Context) -> dict:
                      "every system you visit from now on appears here."}
 
 
-def _galaxy_point(key: int, ctx: Context) -> dict:
+def _galaxy_point(key: int, ctx: Context, color_by: str = "kind") -> dict:
     visit = ctx.visit(key) or {}
     planets = ctx.recorded.get(key, [])
     addr = unpack_address(key) or {}
@@ -548,22 +567,63 @@ def _galaxy_point(key: int, ctx: Context) -> dict:
                  {"label": "Your bases here", "value": ", ".join(bases) or None},
                  {"label": "Last seen / discovered", "value": _last_seen(key, ctx) or None},
              ]}
+    only_seen = key not in ctx.keys() and key not in ctx.economies
+    if only_seen:
+        point["items"].insert(0, {"label": "Known from", "value": "the game's galaxy map around you (not visited)"})
+    economy = ctx.economies.get(key) or {}
     if key == ctx.live.current_system:
         point["marker"] = "current"
     elif key == ctx.origin:
         point["marker"] = "target"
+    elif color_by == "economy":
+        point["color"] = ECONOMY_COLORS.get(economy.get("economy"), UNKNOWN_COLOR)
+    elif color_by == "conflict":
+        point["color"] = CONFLICT_COLORS.get(economy.get("conflict"), UNKNOWN_COLOR)
     elif bases:
         point["color"] = POINT_COLORS["bases"]
+    elif only_seen:
+        point["color"] = UNKNOWN_COLOR
     else:
         point["color"] = POINT_COLORS["resources"] if planets else POINT_COLORS["save"]
     if bases:
         point["size"] = 1.3
+    elif only_seen:
+        point["size"] = 0.6
     return point
 
 
-def galaxy_sections(ctx: Context, selected: int | None) -> list[dict]:
-    """The galaxy map of every known system (in the galaxy you are in) and the nearest planet per resource."""
-    keys = sorted(ctx.keys())
+def _galaxy_legend(color_by: str, ctx: Context) -> list[dict]:
+    you = [{"label": "You are here", "color": "#ffd27a"}]
+    if color_by == "economy":
+        return you + [{"label": ctx.economy_name(e) or e, "color": c} for e, c in ECONOMY_COLORS.items()] + [
+            {"label": "Economy not read yet", "color": UNKNOWN_COLOR}]
+    if color_by == "conflict":
+        return you + [{"label": ctx.conflict_name(c) or c, "color": col} for c, col in CONFLICT_COLORS.items()] + [
+            {"label": "Conflict not read yet", "color": UNKNOWN_COLOR}]
+    return you + [{"label": "Planets with resources", "color": POINT_COLORS["resources"]},
+                  {"label": "Known from the save only", "color": POINT_COLORS["save"]},
+                  {"label": "Your bases", "color": POINT_COLORS["bases"]},
+                  {"label": "Seen on the game's galaxy map", "color": UNKNOWN_COLOR}]
+
+
+def _route_line(route_state: dict | None) -> list[dict]:
+    """The planned route (Route tab) as a dashed line for the galaxy map, when there is one."""
+    result = (route_state or {}).get("result") or {}
+    if not result.get("ok") or not result.get("legs"):
+        return []
+    line = [list(galaxy.map_position(result["legs"][0]["from"]))]
+    for leg in result["legs"]:
+        line += [list(w) for w in leg["waypoints"]] + [list(galaxy.map_position(leg["to"]))]
+    return [{"points": line, "label": "Your planned route", "dashed": True, "color": "#ff7a7a"}]
+
+
+def galaxy_sections(ctx: Context, selected: int | None, color_by: str = "kind",
+                    route_state: dict | None = None) -> list[dict]:
+    """The galaxy map of every known system (in the galaxy you are in) - including the systems the game's galaxy
+    map showed around you - coloured by `color_by` (COLOR_MODES), with the planned route; and the nearest planet
+    per resource."""
+    color_by = color_by if color_by in COLOR_MODES else "kind"
+    keys = sorted(ctx.keys() | set(ctx.system_names) | set(ctx.economies))
     if not keys:
         return [{"type": "text", "text": "No systems known yet: they come from your save and from the game while it runs."}]
     here = galaxy.galaxy_of(ctx.origin) if ctx.origin is not None else max(
@@ -571,15 +631,21 @@ def galaxy_sections(ctx: Context, selected: int | None) -> list[dict]:
     shown = [k for k in keys if galaxy.galaxy_of(k) == here]
     elsewhere = len(keys) - len(shown)
     gname = galaxy_name(here)
+    lines = _route_line(route_state)
+    legend = _galaxy_legend(color_by, ctx)
+    if lines:
+        legend.append({"label": "Your planned route (Route tab)", "color": "#ff7a7a"})
     out = [{
+        "type": "form", "id": "galaxy-colors", "title": "Galaxy map", "action": GALAXY_COLORS, "submit_label": "Show",
+        "fields": [{"id": "color_by", "label": "Colour systems by", "type": "select", "value": color_by,
+                    "options": [{"value": k, "label": v} for k, v in COLOR_MODES.items()],
+                    "hint": "Economy and conflict are known for the systems you visited while the game ran."}]}, {
         "type": "starmap", "id": GALAXY_MAP_ID, "title": f"Galaxy map: {gname} ({len(shown)} systems)",
-        "points": [_galaxy_point(k, ctx) for k in shown], "action": OPEN_SYSTEM, "action_label": "Open system map",
+        "points": [_galaxy_point(k, ctx, color_by) for k in shown], "action": OPEN_SYSTEM,
+        "action_label": "Open system map",
         "selected_key": system_key_text(selected) if selected in shown else None,
         "center": {"label": "Galaxy centre", "x": 0, "y": 0, "z": 0}, "bounds": galaxy.GALAXY_BOUNDS,
-        "legend": [{"label": "You are here", "color": "#ffd27a"},
-                   {"label": "Planets with resources", "color": POINT_COLORS["resources"]},
-                   {"label": "Known from the save only", "color": POINT_COLORS["save"]},
-                   {"label": "Your bases", "color": POINT_COLORS["bases"]}],
+        "legend": legend[:12], "lines": lines,
         "empty": "No systems in this galaxy yet.",
     }]
     notes = ["Systems of one region sit on a small circle around the region's point; the save holds no finer "
@@ -662,8 +728,9 @@ def trade_sections(ctx: Context) -> list[dict]:
 
 
 def route_nodes(ctx: Context) -> list[int]:
-    """Every system the route planner may use as a stop: visited, discovered, recorded or with a known economy."""
-    return sorted(ctx.keys() | set(ctx.economies))
+    """Every system the route planner may use as a stop: visited, discovered, recorded, with a known economy, or
+    seen on the game's galaxy map (the name cache holds the exact address of the systems around you)."""
+    return sorted(ctx.keys() | set(ctx.economies) | set(ctx.system_names))
 
 
 def _region_text(region: tuple[int, int, int]) -> str:
@@ -671,8 +738,9 @@ def _region_text(region: tuple[int, int, int]) -> str:
     return f"region {x}, {y}, {z}"
 
 
-def route_sections(ctx: Context, state: dict | None) -> list[dict]:
-    """The Route tab: the form (target, portal address, jump range) and the last planned route."""
+def route_sections(ctx: Context, state: dict | None, ship_range: dict | None = None) -> list[dict]:
+    """The Route tab: the form (target, portal address, jump range) and the last planned route. ``ship_range``
+    (ships.primary_range) gives the range field its default: the primary ship's lower estimate."""
     state = state or {}
     request = state.get("request") or {}
     out: list[dict] = [{"type": "notice", "level": "warn", "text": ROUTE_WIP_NOTE}]
@@ -680,6 +748,15 @@ def route_sections(ctx: Context, state: dict | None) -> list[dict]:
         out.append({"type": "notice", "level": "info", "text":
                     "Where you are is not known yet (no save read and no live data), so routes cannot start anywhere."})
     here = galaxy.galaxy_of(ctx.origin) if ctx.origin is not None else None
+    if ship_range and ship_range.get("low"):
+        default_range = max(50, int(ship_range["low"]) // 10 * 10)
+        span = (f"{ship_range['low']:,}" if ship_range["low"] == ship_range["high"]
+                else f"{ship_range['low']:,}-{ship_range['high']:,}")
+        range_hint = (f"Your primary ship {ship_range['ship']} reaches about {span} ly (estimated from its hyperdrive "
+                      "technology; see Ships & bases). Leave some margin: distances are approximate.")
+    else:
+        default_range = DEFAULT_RANGE_LY
+        range_hint = "Your hyperdrive's range (see the ship's hyperdrive in the game). Leave some margin: distances are approximate."
     options = sorted(((_system_label(k, ctx.visit(k)), k) for k in route_nodes(ctx)
                       if here is None or galaxy.galaxy_of(k) == here), key=lambda o: o[0].lower())
     out.append({
@@ -694,9 +771,9 @@ def route_sections(ctx: Context, state: dict | None) -> list[dict]:
              "value": request.get("target"), "hint": "One of the systems you know (visited, discovered or read)."},
             {"id": "portal", "label": "or portal address", "type": "text", "max_length": 14, "placeholder": "e.g. 006202925E80",
              "value": request.get("portal") or "", "hint": "12 portal glyphs as hex digits; when set it is used instead of the list."},
-            {"id": "range", "label": "Jump range (light years)", "type": "number", "min": 50, "max": 20000, "step": 50,
-             "value": request.get("range") or DEFAULT_RANGE_LY,
-             "hint": "Your hyperdrive's range (see the ship's hyperdrive in the game). Leave some margin: distances are approximate."},
+            {"id": "range", "label": "Jump range (light years)", "type": "number", "min": 50, "max": 20000, "step": 10,
+             "value": request.get("range") or default_range,
+             "hint": range_hint},
         ]})
     result = state.get("result")
     if not result:
@@ -763,7 +840,8 @@ def route_sections(ctx: Context, state: dict | None) -> list[dict]:
     return out
 
 
-def systems_tabs(ctx: Context, selected: int | None, route_state: dict | None = None) -> dict:
+def systems_tabs(ctx: Context, selected: int | None, route_state: dict | None = None,
+                 ship_range: dict | None = None, color_by: str = "kind") -> dict:
     """The Systems tab's sub-tabs: current system, visited systems (with the map), visited planets."""
     planets = visited_planets_section(ctx)
     return {"type": "tabs", "id": "systems-tabs", "tabs": [
@@ -771,9 +849,9 @@ def systems_tabs(ctx: Context, selected: int | None, route_state: dict | None = 
         {"id": "visited", "label": "Visited systems", "badge": len(ctx.keys()),
          "sections": visited_systems_sections(ctx, selected)},
         {"id": "planets", "label": "Planets", "badge": len(planets["rows"]), "sections": [planets]},
-        {"id": "galaxy", "label": "Galaxy", "sections": galaxy_sections(ctx, selected)},
+        {"id": "galaxy", "label": "Galaxy", "sections": galaxy_sections(ctx, selected, color_by, route_state)},
         {"id": "trade", "label": "Trade", "badge": len(ctx.economies) or None, "sections": trade_sections(ctx)},
-        {"id": "route", "label": "Route", "sections": route_sections(ctx, route_state)},
+        {"id": "route", "label": "Route", "sections": route_sections(ctx, route_state, ship_range)},
     ]}
 
 
