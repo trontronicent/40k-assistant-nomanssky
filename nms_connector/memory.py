@@ -20,7 +20,7 @@ What is read:
 - The galaxy map's cache of generated star system names (see
   ``system_names_in``): the names the game shows for systems nobody renamed.
 
-Scanning reads the game's private read/write memory (~5 GB) in 64 MB chunks
+Scanning reads the game's private read/write memory (~5 GB) in 16 MB chunks
 into one reused buffer; numpy (part of the 40k Assistant) does the filtering.
 Measured 2026-10-04 on 4.9 GB: 18.6 s before the vectorised filters below,
 the star-record pass another ~10 s; see ``scan`` for where the time went.
@@ -31,7 +31,9 @@ from __future__ import annotations
 import re
 import struct
 import sys
+import threading
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
 try:
@@ -40,7 +42,11 @@ except ImportError:  # pragma: no cover - the host ships numpy
     np = None
 
 GAME_EXE = "nms.exe"
-CHUNK = 64 << 20
+CHUNK = 16 << 20
+# Threads for a scan. On a hybrid CPU (measured on an i9-14900K, 2026-10-04) Windows moves a busy background thread
+# to an efficiency core after a few seconds and the scan slows 2.5x (2.2 s -> 6 s); four threads, each with its own
+# 16 MB buffer, keep it at ~1.2-2 s. numpy and ReadProcessMemory release the GIL, so the threads run in parallel.
+SCAN_WORKERS = 4
 
 # GcPlanetData (libMBIN 7.04): offsets inside the record.
 PLANET_SIZE = 0x3AD2
@@ -313,7 +319,7 @@ def chunks(reader, overlap: int = 0, regions=None):
 
     ``buf[:valid]`` holds the bytes read: ``length`` of them belong to this chunk, the rest overlaps the next
     one. When the reader can ``read_into`` (ProcessReader), one buffer is reused for every chunk: allocating,
-    zeroing and copying a fresh 64 MB per chunk took 4.7 s of a 4.9 GB scan, reading into one buffer 0.7 s
+    zeroing and copying a fresh 64 MB chunk each time took 4.7 s of a 4.9 GB scan, reading into one buffer 0.7 s
     (measured 2026-10-04). Consumers must therefore copy what they keep. Chunk addresses keep the regions'
     page alignment, which the aligned searches below rely on.
     """
@@ -330,6 +336,35 @@ def chunks(reader, overlap: int = 0, regions=None):
                 valid = len(data) if data else 0
             if valid:
                 yield base, base + offset, data, valid, min(valid, length)
+
+
+def find_aligned(buf, needle: bytes, valid: int, length: int, address: int = 0, align: int = 4) -> list[int]:
+    """Offsets (< length) where `needle` sits whole in ``buf[:valid]`` at an `align`-aligned memory address.
+
+    For the player-state anchor (two GcUniverseAddressData of int32s, so 4-aligned). ``bytes.find`` took 9 s per
+    4.9 GB for that needle - small ints, zero and 0xFF runs are its worst case (measured 2026-10-04). Instead the
+    buffer is compared as one 8-aligned u64 view: for each place the needle can start within an 8-byte word, the
+    8-byte piece of it that then lands on a word boundary is compared (the piece with the most bytes other than
+    0x00/0xFF, so a zero-heavy address still gives few hits), and the hits are checked whole. ~1 s per 4.9 GB.
+    """
+    size = len(needle)
+    if size < 16 or valid < size:
+        return []
+    words = np.frombuffer(buf, np.uint64, valid // 8)          # buf[0] is 8-aligned: a bytearray's data is
+    found = []
+    for phase in sorted({(i - address) % 8 for i in range(0, 8) if i % align == 0}):
+        # A needle starting at buffer offset 8 * j + phase has its byte k on a word boundary when k = -phase mod 8.
+        pieces = range((-phase) % 8, size - 7, 8)
+        probe = max(pieces, key=lambda k: (sum(b not in (0, 0xFF) for b in needle[k:k + 8]), -k))
+        want = np.frombuffer(needle, np.uint64, 1, probe)[0]
+        found.append(np.flatnonzero(words == want) * 8 - probe)
+    pos = np.sort(np.concatenate(found))
+    pos = pos[(pos >= 0) & (pos < length) & (pos + size <= valid)]
+    if not len(pos):
+        return []
+    arr = np.frombuffer(buf, np.uint8, valid)
+    whole = (arr[pos[:, None] + np.arange(size)] == np.frombuffer(needle, np.uint8)).all(axis=1)
+    return pos[whole].tolist()
 
 
 def current_system_from_planets(planets) -> int | None:
@@ -360,12 +395,76 @@ def planet_system_at(reader, address: int) -> int | None:
     return system_key(ua)
 
 
-def scan(reader, substances: set[str] | None, anchor: bytes | None, clock=None) -> ScanResult:
+def _scan_chunk(reader, buf, valid: int, address: int, length: int, anchor: bytes | None,
+                substances: set[str] | None) -> tuple[list[int], dict[int, str], list[tuple[int, dict]]]:
+    """Player-state copies, system names and (slot, planet) records in one chunk (``buf[:valid]`` from `address`;
+    things starting in the first `length` bytes belong to it, the rest overlaps the next chunk)."""
+    player_states: list[int] = []
+    if anchor:
+        for at in find_aligned(buf, anchor, valid, length, address):
+            ua = ua_from_bytes(bytes(buf[at + UA_AFTER_GAME_START:at + UA_AFTER_GAME_START + 24])) \
+                if at + UA_AFTER_GAME_START + 24 <= valid else None
+            if ua is None:
+                raw = reader.read(address + at + UA_AFTER_GAME_START, 24)
+                ua = ua_from_bytes(raw) if raw and len(raw) == 24 else None
+            if ua is not None:
+                player_states.append(address + at)
+    names = system_names_in(buf, length, valid, address)
+    planets: list[tuple[int, dict]] = []
+    for row in candidate_rows(buf, valid):
+        if row >= length:
+            break
+        start = row - P_COMMON
+        if start >= 0 and start + PLANET_SIZE <= valid:
+            blob = bytes(buf[start:start + PLANET_SIZE])
+        else:
+            blob = reader.read(address + start, PLANET_SIZE)
+            if not blob:
+                continue
+        planet = parse_planet(blob, reader.read, substances)
+        if planet:
+            planets.append((address + start, planet))
+    return player_states, names, planets
+
+
+def _chunk_results(reader, anchor, substances, workers: int):
+    """(region base, bytes of the chunk, _scan_chunk result) per chunk, in address order.
+
+    With ``read_into`` the chunks are spread over `workers` threads, each reading into its own buffer (freed when
+    the scan ends); otherwise (test readers) one after another through ``chunks``.
+    """
+    if not hasattr(reader, "read_into") or workers <= 1:
+        for base, address, buf, valid, length in chunks(reader, PLANET_SIZE):
+            yield base, length, _scan_chunk(reader, buf, valid, address, length, anchor, substances)
+        return
+    local = threading.local()
+
+    def run(job):
+        base, address, want, length = job
+        buf = getattr(local, "buf", None)
+        if buf is None:
+            buf = local.buf = bytearray(CHUNK + PLANET_SIZE)
+        valid = reader.read_into(address, buf, want)
+        if not valid:
+            return None
+        return base, min(valid, length), _scan_chunk(reader, buf, valid, address, min(valid, length), anchor, substances)
+
+    # Overlap the next chunk a little so a record split across chunks is still seen whole.
+    jobs = [(base, base + offset, min(min(CHUNK, size - offset) + PLANET_SIZE, size - offset), min(CHUNK, size - offset))
+            for base, size in reader.regions() for offset in range(0, size, CHUNK)]
+    with ThreadPoolExecutor(workers, thread_name_prefix="nms-scan") as pool:
+        for result in pool.map(run, jobs):     # map keeps the order, so merging below is as without threads
+            if result is not None:
+                yield result
+
+
+def scan(reader, substances: set[str] | None, anchor: bytes | None, clock=None, workers: int | None = None) -> ScanResult:
     """Find every planet record (and, with the save's GameStartAddress anchor, the player state).
 
-    Per 4.9 GB (measured 2026-10-04, game running): reading 0.7 s, planet candidates 1.2 s, name markers
-    0.7 s, anchor search 0.7 s. Before the reused buffer and the vectorised filters it was 18.6 s: reading
-    4.7 s, candidates 6 s, parsing 1.1 million false candidates 4 s, name search 2 s.
+    Per 4.9 GB (measured 2026-10-04, game running, one thread on a performance core): reading 0.7 s, planet
+    candidates 1.1 s, anchor 0.7 s, name markers 0.4 s. Before the reused buffer and the vectorised filters it was
+    18.6 s: reading 4.7 s, candidates 6 s, parsing 1.1 million false candidates 4 s, name search 2 s; the anchor's
+    bytes.find alone took 9 s. See SCAN_WORKERS for why it runs on threads.
     """
     import time
     clock = clock or time.perf_counter
@@ -376,40 +475,18 @@ def scan(reader, substances: set[str] | None, anchor: bytes | None, clock=None) 
     names: dict[int, str] = {}
     name_regions: list[int] = []
     total = 0
-    # Overlap the next chunk a little so a record split across chunks is still seen whole.
-    for base, address, buf, valid, length in chunks(reader, PLANET_SIZE):
+    for base, length, (states, found, records) in _chunk_results(reader, anchor, substances,
+                                                                 SCAN_WORKERS if workers is None else workers):
         total += length
-        if anchor:
-            at = buf.find(anchor, 0, valid)
-            while 0 <= at < length:
-                ua = ua_from_bytes(bytes(buf[at + UA_AFTER_GAME_START:at + UA_AFTER_GAME_START + 24])) \
-                    if at + UA_AFTER_GAME_START + 24 <= valid else None
-                if ua is None:
-                    raw = reader.read(address + at + UA_AFTER_GAME_START, 24)
-                    ua = ua_from_bytes(raw) if raw and len(raw) == 24 else None
-                if ua is not None:
-                    player_states.append(address + at)
-                at = buf.find(anchor, at + 1, valid)
-        found = system_names_in(buf, length, valid, address)
+        player_states += states
         if found:
             names.update(found)
             if base not in name_regions:
                 name_regions.append(base)
-        for row in candidate_rows(buf, valid):
-            if row >= length:
-                break
-            start = row - P_COMMON
-            if start >= 0 and start + PLANET_SIZE <= valid:
-                blob = bytes(buf[start:start + PLANET_SIZE])
-            else:
-                blob = reader.read(address + start, PLANET_SIZE)
-                if not blob:
-                    continue
-            planet = parse_planet(blob, reader.read, substances)
-            if planet:
-                # By address and name: a reused slot can carry another planet's address (history.planet_id).
-                planets[(planet["ua"], planet["name"])] = planet
-                slots[(planet["ua"], planet["name"])] = address + start
+        for slot, planet in records:
+            # By address and name: a reused slot can carry another planet's address (history.planet_id).
+            planets[(planet["ua"], planet["name"])] = planet
+            slots[(planet["ua"], planet["name"])] = slot
     return ScanResult(sorted(planets.values(), key=lambda p: (p["system"], p["index"])), player_states, total,
                       round(clock() - started, 2), sorted(slots.values()), names, name_regions)
 

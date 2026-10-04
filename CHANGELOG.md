@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **Scans stay fast while you play**: 1-2 seconds instead of 5-13. Finding your
+  position in memory (the save's start addresses) took up to 9 seconds per scan
+  on its own; it is now searched like the other records. The scan runs on four
+  threads: on CPUs with performance and efficiency cores (such as Intel's 12th-14th
+  generation) Windows moves a busy background thread to a slower core after a
+  few seconds, which made scans 2.5 times slower.
 - **Flora and fauna in English too**: some planets hold these values already
   translated into the game language ("Verloren"); they are now matched back to
   the game's text so the page shows "Lost (Verloren)" like everywhere else. A

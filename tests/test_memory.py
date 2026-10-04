@@ -174,11 +174,33 @@ def test_scan_through_a_reused_buffer_finds_the_same(monkeypatch):
     small = bytearray(0x3000)                       # shorter than the planets' region: stale bytes stay behind
     state, anchor = player_state_region()
     regions = {0x100000: region, 0x500000: small, 0x600000: state}
-    plain, reused = memory.scan(FakeReader(regions), SUBSTANCES, anchor), memory.scan(IntoReader(regions), SUBSTANCES, anchor)
-    assert [p["name"] for p in reused.planets] == ["Yaksh Primus", "Ezaw 36/M3"]
-    assert reused.planets == plain.planets and reused.slots == plain.slots
-    assert reused.player_states == plain.player_states == [0x600040]
-    assert reused.system_names == plain.system_names == {SYSTEM_98: "Ulebsk"}
+    plain = memory.scan(FakeReader(regions), SUBSTANCES, anchor)
+    for workers in (None, 1):                       # the default threads, and one thread
+        reused = memory.scan(IntoReader(regions), SUBSTANCES, anchor, workers=workers)
+        assert [p["name"] for p in reused.planets] == ["Yaksh Primus", "Ezaw 36/M3"]
+        assert reused.planets == plain.planets and reused.slots == plain.slots
+        assert reused.player_states == plain.player_states == [0x600040]
+        assert reused.system_names == plain.system_names == {SYSTEM_98: "Ulebsk"}
+        assert reused.name_regions == plain.name_regions == [0x100000] and reused.bytes_read == plain.bytes_read
+
+
+def test_the_anchor_is_found_at_aligned_addresses_only():
+    """The player-state anchor (int32 fields, so 4-aligned) is found wherever it sits 4-aligned - at either
+    half of an 8-byte word, given the chunk's own address - and nowhere else; a zero-heavy anchor and one
+    reaching past the readable bytes behave the same. bytes.find was replaced because it took 9 s per scan."""
+    anchor = struct.pack("<12i", 1, 78, -384, 2, -1755, 0, 0, 139, -384, 2, -1755, 0)
+    buf = bytearray(0x400)
+    for at in (0x40, 0x84, 0x101):                  # 0x101 is not 4-aligned: never a GcUniverseAddressData
+        buf[at:at + len(anchor)] = anchor
+    assert memory.find_aligned(buf, anchor, len(buf), len(buf)) == [0x40, 0x84]
+    assert memory.find_aligned(buf, anchor, len(buf), 0x84) == [0x40]                     # only starts < length
+    assert memory.find_aligned(buf, anchor, 0x84 + 47, len(buf)) == [0x40]                # must fit in valid
+    # The same bytes read from address 1: alignment follows the memory address, not the buffer offset.
+    assert memory.find_aligned(buf[1:], anchor, len(buf) - 1, len(buf), address=1) == [0x3F, 0x83]
+    zeros = bytes(16) + struct.pack("<i", 7) + bytes(28)
+    buf2 = bytearray(0x200)
+    buf2[0x60:0x60 + len(zeros)] = zeros
+    assert memory.find_aligned(buf2, zeros, len(buf2), len(buf2)) == [0x60]
 
 
 def test_candidates_are_filtered_by_index_and_address():
