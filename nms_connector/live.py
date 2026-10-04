@@ -138,6 +138,7 @@ class LiveMemory:
             self.last_scan_planets = len(result.planets)
             changed = self.history.record(result.planets, self.last_scan_iso, self.current_system)
             changed += self._read_economies(result.planets)
+            changed += self.history.record_system_names(result.system_names)
             self.history.save()   # always: the scan log is part of the file
             self.status, self.error = "ok", None
             return changed

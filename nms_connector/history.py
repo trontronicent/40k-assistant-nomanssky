@@ -120,6 +120,7 @@ class PlanetHistory:
         self.planets: dict[str, dict] = {}
         self.scans: list[dict] = []
         self.economies: dict[int, dict] = {}       # system key -> star attributes (economy, wealth, conflict, race)
+        self.system_names: dict[int, str] = {}     # system key -> generated name from the galaxy map's cache
         self.load()
 
     def load(self) -> None:
@@ -139,6 +140,8 @@ class PlanetHistory:
                 self.planets = {k: v for k, v in raw["planets"].items() if isinstance(v, dict) and isinstance(v.get("ua"), int)}
                 self.scans = [x for x in raw.get("scans") or [] if isinstance(x, dict)][-self.MAX_SCANS:]
                 self.economies = {int(k, 16): v for k, v in (raw.get("economies") or {}).items() if isinstance(v, dict)}
+                self.system_names = {int(k, 16): v for k, v in (raw.get("system_names") or {}).items()
+                                     if isinstance(v, str) and v}
             else:
                 continue
             return
@@ -147,7 +150,8 @@ class PlanetHistory:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_suffix(".tmp")
         tmp.write_text(json.dumps({"version": HISTORY_VERSION, "planets": self.planets, "scans": self.scans,
-                                   "economies": {f"{k:x}": v for k, v in self.economies.items()}},
+                                   "economies": {f"{k:x}": v for k, v in self.economies.items()},
+                                   "system_names": {f"{k:x}": v for k, v in self.system_names.items()}},
                                   ensure_ascii=False), encoding="utf-8")
         if self.path.exists():
             self.path.replace(self.path.with_suffix(".json.bak"))
@@ -224,6 +228,16 @@ class PlanetHistory:
             if old is None or {k: v for k, v in old.items() if k != "read_at"} != attrs:
                 changed += 1
             self.economies[key] = entry
+        return changed
+
+    def record_system_names(self, found: dict[int, str]) -> int:
+        """Store generated system names read from memory; returns how many are new or changed. Names are kept
+        once read: the game only caches the systems around you."""
+        changed = 0
+        for key, name in found.items():
+            if self.system_names.get(key) != name:
+                self.system_names[key] = name
+                changed += 1
         return changed
 
     def systems(self) -> dict[int, list[dict]]:

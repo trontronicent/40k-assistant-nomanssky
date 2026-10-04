@@ -35,6 +35,13 @@ sentinels. Every planet it sees is remembered, so the *Planets* tab grows as you
 travel. Planet resources are not stored in the save, so systems you visited
 before using the plugin show their names, but no resources until you go back.
 
+Systems nobody renamed show the **name the game made up** for them (for example
+*Ulebsk*), read from the galaxy map's data while the game runs. The game only
+keeps the names of the systems around you, so a system you visited long ago may
+show as *System <portal address>* until you come near it again; a name, once
+read, is remembered. A renamed system shows its uploaded name, and its original
+name as *Generated name* under *Where you are*.
+
 Your exact position (the planet you are on) can only be read around saves and
 loads; the rest of the time the plugin tells your system from the planets the
 game has loaded, and the planet shows as *unknown*. Save in the game and press

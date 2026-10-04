@@ -17,6 +17,8 @@ What is read:
 - The player's current universe address in ``GcPlayerStateData``, found via
   ``GameStartAddress1/2`` (fixed per save, taken from the save file) which sit
   0x90 bytes before ``UniverseAddress``.
+- The galaxy map's cache of generated star system names (see
+  ``system_names_in``): the names the game shows for systems nobody renamed.
 
 Scanning reads the game's private read/write memory (~5 GB) in 64 MB chunks
 and takes about 6 s; numpy (part of the 40k Assistant) does the filtering.
@@ -182,6 +184,7 @@ class ScanResult:
     bytes_read: int
     seconds: float
     slots: list[int] = field(default_factory=list)   # where each planet record lives (re-read cheaply per tick)
+    system_names: dict[int, str] = field(default_factory=dict)   # system key -> generated name (system_names_in)
 
     def majority_system(self) -> int | None:
         """The system most planet records belong to: the one you are in (see current_system_from_planets)."""
@@ -297,6 +300,7 @@ def scan(reader, substances: set[str] | None, anchor: bytes | None, clock=None) 
     planets: dict[tuple[int, str], dict] = {}
     slots: dict[tuple[int, str], int] = {}
     player_states: list[int] = []
+    names: dict[int, str] = {}
     total = 0
     for base, size in reader.regions():
         for offset in range(0, size, CHUNK):
@@ -317,6 +321,7 @@ def scan(reader, substances: set[str] | None, anchor: bytes | None, clock=None) 
                     if ua is not None:
                         player_states.append(base + offset + at)
                     at = buf.find(anchor, at + 1)
+            names.update(system_names_in(buf, length))
             for row in candidate_rows(buf):
                 if row >= length:
                     break
@@ -333,7 +338,7 @@ def scan(reader, substances: set[str] | None, anchor: bytes | None, clock=None) 
                     planets[(planet["ua"], planet["name"])] = planet
                     slots[(planet["ua"], planet["name"])] = base + offset + start
     return ScanResult(sorted(planets.values(), key=lambda p: (p["system"], p["index"])), player_states, total,
-                      round(clock() - started, 2), sorted(slots.values()))
+                      round(clock() - started, 2), sorted(slots.values()), names)
 
 
 def read_current_address(reader, player_state: int) -> dict | None:
@@ -426,4 +431,66 @@ def find_star_attributes(reader, planets_by_system: dict[int, list[dict]]) -> di
                     at = buf.find(needle, at + 1)
             if len(found) == len(planets_by_system):
                 return found
+    return found
+
+
+# --------------------------------------------------------------------------- generated system names
+
+# The galaxy map keeps an array of 0x218-byte records of the star systems around you, each holding the system's
+# generated name (the one the game shows when nobody renamed it, e.g. "Ulebsk") and, 0x20C bytes after the name,
+# the system's packed universe address. The name field is pre-filled with " ! NO PROC NAME !" before the name is
+# written over it, so a short name leaves "PROC NAME !" behind at a fixed offset - that is how the array is found.
+# From there its neighbours are read by the stride (longer names overwrite the marker). Verified 2026-10-04: the
+# current system 0xDA... is "Ulebsk" (its sun "Ulebsk I", belt "Ulebsk-Gürtel XII" and the in-game HUD agree),
+# and systems whose discoverer kept the generated name match the save's uploaded name ("Kungrivo", "Agestr").
+NAME_MARKER = b"PROC NAME !\x00"
+NAME_MARKER_AT = 0x0D            # where "PROC NAME !" sits in the name field
+NAME_RECORD = 0x218
+NAME_ADDRESS = 0x20C             # the packed address, after the name
+NAME_FIELD = 0x80
+NAME_RE = re.compile(r"[A-Za-z][A-Za-z0-9' .-]{1,40}")
+NAME_WALK_GAP = 2                # unreadable records tolerated in a row before the walk stops
+
+
+def name_record(buf: bytes, start: int) -> tuple[int, str] | None | bool:
+    """(system key, name) of the record whose name starts at ``start``; False for an empty (unused) record,
+    None when the bytes are no name record at all."""
+    if start < 0 or start + NAME_ADDRESS + 8 > len(buf):
+        return None
+    packed = struct.unpack_from("<Q", buf, start + NAME_ADDRESS)[0]
+    raw = buf[start:start + NAME_FIELD].split(b"\x00", 1)[0]
+    if not raw or b"PROC NAME" in raw:
+        return False if packed >> 52 == 0 else None
+    try:
+        name = raw.decode("ascii")
+    except UnicodeDecodeError:
+        return None
+    # A system address: planet nibble 0 (the record names a system) and a region set.
+    if packed >> 52 or not packed & 0xFFFFFFFF or not NAME_RE.fullmatch(name):
+        return None
+    return packed, name
+
+
+def system_names_in(buf: bytes, length: int | None = None) -> dict[int, str]:
+    """Generated system names in a chunk of memory: {system key: name} (see NAME_MARKER)."""
+    length = len(buf) if length is None else length
+    found: dict[int, str] = {}
+    done: set[int] = set()
+    at = buf.find(NAME_MARKER)
+    while 0 <= at < length:
+        start = at - NAME_MARKER_AT
+        if start not in done and name_record(buf, start) is not None:
+            for step in (-NAME_RECORD, NAME_RECORD):
+                pos, misses = (start if step > 0 else start - NAME_RECORD), 0
+                while misses < NAME_WALK_GAP and pos not in done:
+                    record = name_record(buf, pos)
+                    if record is None:
+                        misses += 1
+                    else:
+                        misses = 0
+                        done.add(pos)
+                        if record:
+                            found[system_key(record[0])] = record[1]
+                    pos += step
+        at = buf.find(NAME_MARKER, at + 1)
     return found

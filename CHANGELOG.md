@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.8.1 — 2026-10-04
+
+- **Generated system names**: systems nobody renamed show the name the game made
+  up for them (e.g. *Ulebsk*) instead of *System <portal address>*. Read from the
+  galaxy map's name cache in the game's memory (the systems around you) and kept
+  in the history; a renamed system shows its original name under *Where you are*.
+
 ## 0.8.0 — 2026-10-04
 
 - **Route planner** (*Systems → Route*): target system (known, or any portal

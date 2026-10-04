@@ -131,7 +131,8 @@ class Texts:
 
 
 def _system_label(key: int, visit: dict | None) -> str:
-    name = (visit or {}).get("name")
+    """The uploaded name, else the generated one the game shows, else 'System <portal address>'."""
+    name = (visit or {}).get("name") or (visit or {}).get("generated_name")
     return name or f"System {address_portal(unpack_address(key) or {}) or hex(key)}"
 
 
@@ -168,6 +169,7 @@ class Context:
         # Where distances are measured from: the system you are in, else where you were at the last save.
         self.origin = live.current_system if getattr(live, "current_system", None) is not None else origin
         self.economies = getattr(history, "economies", {}) or {}
+        self.system_names = getattr(history, "system_names", {}) or {}
         self.trading = getattr(gamedata, "trading", None) or trade.FALLBACK
         self.trading_source = getattr(gamedata, "trading_source", "built-in")
 
@@ -220,6 +222,14 @@ class Context:
     def keys(self) -> set[int]:
         return set(self.visits) | set(self.recorded)
 
+    def visit(self, key: int) -> dict | None:
+        """What the save says about a system, plus its generated name when the game's memory showed it."""
+        visit = self.visits.get(key)
+        generated = self.system_names.get(key)
+        if not generated:
+            return visit
+        return {**(visit or {}), "generated_name": generated}
+
     def current_planet_index(self) -> int | None:
         """Index of the planet you are on (0-based), None in space or when unknown."""
         on = ((self.live.current or {}).get("GalacticAddress") or {}).get("PlanetIndex", 0)
@@ -240,7 +250,7 @@ def where_you_are(ctx: Context) -> dict | None:
     key = ctx.live.current_system
     if key is None:
         return None
-    visit = ctx.visits.get(key)
+    visit = ctx.visit(key)
     addr = unpack_address(key) or {}
     index = ctx.current_planet_index()
     here = next((p for p in ctx.recorded.get(key, []) if p.get("index") == index), None) if index is not None else None
@@ -253,6 +263,8 @@ def where_you_are(ctx: Context) -> dict | None:
         planet = "in space" if index is None else f"planet {index + 1}"
     return {"type": "kv", "title": "Where you are now", "items": [
         {"label": "System", "value": _system_label(key, visit)},
+        *([{"label": "Generated name", "value": visit["generated_name"]}]
+          if visit and visit.get("name") and visit.get("generated_name") not in (None, visit.get("name")) else []),
         {"label": "Portal address", "value": address_portal(addr)},
         {"label": "Galaxy", "value": galaxy_name(addr.get("RealityIndex"))},
         {"label": "Planet", "value": planet},
@@ -341,7 +353,7 @@ def _body(planet: dict | None, index: int, saved: dict, visit: dict, ctx: Contex
 
 def system_map(key: int, ctx: Context, section_id: str, title_prefix: str) -> dict:
     """An orbit section: the star with what is known about the system, and every known planet."""
-    visit = ctx.visits.get(key) or {}
+    visit = ctx.visit(key) or {}
     planets = ctx.recorded.get(key, [])
     by_index = {p.get("index"): p for p in planets}
     saved = visit.get("planets") or {}
@@ -358,7 +370,7 @@ def current_system_sections(ctx: Context) -> list[dict]:
     key = ctx.live.current_system
     if key is None:
         return [{"type": "text", "text": "Not in a known system right now: live data appears while No Man's Sky runs."}]
-    visit = ctx.visits.get(key)
+    visit = ctx.visit(key)
     planets = ctx.recorded.get(key, [])
     return [
         system_map(key, ctx, CURRENT_MAP_ID, "Current system"),
@@ -382,13 +394,13 @@ def _shown_system(ctx: Context, selected: int | None) -> int | None:
 def _last_seen(key: int, ctx: Context) -> str:
     planets = ctx.recorded.get(key, [])
     last = max((p.get("last_seen") or "" for p in planets), default="")
-    return last or (ctx.visits.get(key) or {}).get("discovered_at") or ""
+    return last or (ctx.visit(key) or {}).get("discovered_at") or ""
 
 
 def visited_systems_sections(ctx: Context, selected: int | None) -> list[dict]:
     entries = []
     for key in ctx.keys():
-        visit = ctx.visits.get(key) or {}
+        visit = ctx.visit(key) or {}
         addr = unpack_address(key) or {}
         planets = ctx.recorded.get(key, [])
         named = sum(1 for p in (visit.get("planets") or {}).values() if p.get("name"))
@@ -418,7 +430,7 @@ def visited_systems_sections(ctx: Context, selected: int | None) -> list[dict]:
 def visited_planets_section(ctx: Context) -> dict:
     planet_rows = []
     for key, planets in ctx.recorded.items():
-        visit = ctx.visits.get(key)
+        visit = ctx.visit(key)
         label = _system_label(key, visit)
         for planet in planets:
             planet_rows.append(_planet_row(ctx.texts, planet, visit, ctx.sentinel_index, system_cell=label))
@@ -430,7 +442,7 @@ def visited_planets_section(ctx: Context) -> dict:
 
 
 def _galaxy_point(key: int, ctx: Context) -> dict:
-    visit = ctx.visits.get(key) or {}
+    visit = ctx.visit(key) or {}
     planets = ctx.recorded.get(key, [])
     addr = unpack_address(key) or {}
     bases = [b["name"] for b in ctx.bases if b.get("system") == key]
@@ -492,7 +504,7 @@ def galaxy_sections(ctx: Context, selected: int | None) -> list[dict]:
     rows, keys_out = [], []
     for e in sorted(nearest, key=lambda e: (e["distance"] is None, e["system"] != ctx.origin, e["distance"] or 0,
                                             ctx.texts.name(e["resource"]) or "")):
-        visit = ctx.visits.get(e["system"])
+        visit = ctx.visit(e["system"])
         rows.append([ctx.texts.item(e["resource"]), _planet_name(e["planet"], visit), _system_label(e["system"], visit),
                      galaxy.distance_text(e["distance"], e["system"] == ctx.origin) if ctx.origin is not None else "unknown",
                      e["count"]])
@@ -514,7 +526,7 @@ def trade_sections(ctx: Context) -> list[dict]:
         e = ctx.economies[key]
         t = ctx.trading.get(e.get("economy"), {})
         dist = galaxy.distance_ly(ctx.origin, key) if ctx.origin is not None else None
-        rows.append([_system_label(key, ctx.visits.get(key)), ctx.economy_name(e.get("economy")), e.get("wealth"),
+        rows.append([_system_label(key, ctx.visit(key)), ctx.economy_name(e.get("economy")), e.get("wealth"),
                      ctx.conflict_name(e.get("conflict")), e.get("race"),
                      trade.CATEGORY_NAMES.get(t.get("sells"), t.get("sells")),
                      trade.CATEGORY_NAMES.get(t.get("needs"), t.get("needs")),
@@ -532,7 +544,7 @@ def trade_sections(ctx: Context) -> list[dict]:
         def place(key):
             if key is None:
                 return None
-            return f"{_system_label(key, ctx.visits.get(key))} ({ctx.economy_name(ctx.economies[key].get('economy'))})"
+            return f"{_system_label(key, ctx.visit(key))} ({ctx.economy_name(ctx.economies[key].get('economy'))})"
         sellers = [e for e, t in ctx.trading.items() if t.get("sells") == r["category"]]
         buyers = [e for e, t in ctx.trading.items() if t.get("needs") == r["category"]]
         route_rows.append([
@@ -580,7 +592,7 @@ def route_sections(ctx: Context, state: dict | None) -> list[dict]:
         out.append({"type": "notice", "level": "info", "text":
                     "Where you are is not known yet (no save read and no live data), so routes cannot start anywhere."})
     here = galaxy.galaxy_of(ctx.origin) if ctx.origin is not None else None
-    options = sorted(((_system_label(k, ctx.visits.get(k)), k) for k in route_nodes(ctx)
+    options = sorted(((_system_label(k, ctx.visit(k)), k) for k in route_nodes(ctx)
                       if here is None or galaxy.galaxy_of(k) == here), key=lambda o: o[0].lower())
     out.append({
         "type": "form", "id": ROUTE_FORM_ID, "title": "Plan a route", "action": PLAN_ROUTE, "submit_label": "Plan route",
@@ -606,8 +618,7 @@ def route_sections(ctx: Context, state: dict | None) -> list[dict]:
         return out
 
     def label(key):
-        return _system_label(key, ctx.visits.get(key)) if key in ctx.keys() or key in ctx.economies else \
-            f"System {address_portal(unpack_address(key) or {})}"
+        return _system_label(key, ctx.visit(key))
 
     legs = result["legs"]
     target = legs[-1]["to"]
@@ -683,9 +694,9 @@ def scan_log_section(ctx: Context, scans: list[dict]) -> dict:
         found = []
         for key_text, names in (scan.get("systems") or {}).items():
             key = parse_system_key(key_text)
-            label = _system_label(key, ctx.visits.get(key)) if key is not None else key_text
+            label = _system_label(key, ctx.visit(key)) if key is not None else key_text
             found.append(f"{label}: {len(names)}")
-        rows.append([scan.get("at"), _system_label(here, ctx.visits.get(here)) if here is not None else "unknown",
+        rows.append([scan.get("at"), _system_label(here, ctx.visit(here)) if here is not None else "unknown",
                      scan.get("planets"), scan.get("new"), scan.get("changed"), scan.get("moved") or None,
                      ", ".join(found) or None])
     return {"type": "table", "title": f"Memory scans (last {len(rows)})",

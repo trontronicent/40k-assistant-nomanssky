@@ -578,3 +578,61 @@ def test_where_you_are_says_when_the_planet_is_unknown(tmp_path):
     ctx = planets_view.Context(Live(), PlanetHistory(tmp_path / "h.json"), {}, FakeGameData(), None)
     where = {i["label"]: i["value"] for i in planets_view.where_you_are(ctx)["items"]}
     assert where["Planet"].startswith("unknown") and where["Found by"].startswith("the planets")
+
+
+# --------------------------------------------------------------------------- generated system names
+
+def name_record_bytes(name: str, packed: int) -> bytes:
+    """One record of the galaxy map's name cache: the pre-filled name field with the name written over it."""
+    b = bytearray(memory.NAME_RECORD)
+    b[7:0x20] = fs(" ! NO PROC NAME !", 0x19)          # the game's fill: "PROC NAME !" at NAME_MARKER_AT
+    raw = name.encode("ascii") + b"\0"
+    b[0:len(raw)] = raw
+    struct.pack_into("<Q", b, memory.NAME_ADDRESS, packed)
+    return bytes(b)
+
+
+def test_generated_system_names_are_read_from_the_name_cache():
+    """A short name leaves the fill's marker behind, which finds the array; neighbours with long names (marker
+    overwritten) are read by the stride, unused records are skipped and the walk stops at foreign bytes."""
+    long_name = "Uodosta-Wend XVII"
+    records = [name_record_bytes(long_name, SYSTEM_115), name_record_bytes("", 0),
+               name_record_bytes("Ulebsk", SYSTEM_98), name_record_bytes("Kitima-Wos", 0x440002926E7F)]
+    assert b"PROC NAME" not in records[0][:0x20]          # the long name hides the marker
+    buf = bytes(range(256)) * 4 + b"".join(records) + b"\xff" * 0x800
+    names = memory.system_names_in(buf)
+    assert names == {SYSTEM_115: long_name, SYSTEM_98: "Ulebsk", 0x440002926E7F: "Kitima-Wos"}
+    assert memory.system_names_in(buf.replace(b"PROC NAME", b"proc name")) == {}   # nothing without the marker
+
+
+def test_name_records_are_validated():
+    """A planet address (nibble set), a name with non-name characters or non-ASCII bytes is no record."""
+    assert memory.name_record(name_record_bytes("Ulebsk", SYSTEM_98), 0) == (SYSTEM_98, "Ulebsk")
+    assert memory.name_record(name_record_bytes("Ulebsk", SYSTEM_98 | 1 << 52), 0) is None
+    assert memory.name_record(name_record_bytes("{bad}", SYSTEM_98), 0) is None
+    assert memory.name_record(b"\x8b\x75\xe9" + name_record_bytes("x", SYSTEM_98)[3:], 0) is None
+    assert memory.name_record(name_record_bytes("", 0), 0) is False
+
+
+def test_scan_reports_generated_names_and_history_keeps_them(tmp_path):
+    """The scan collects names over all regions; the history stores them and keeps them across a reload."""
+    reader = FakeReader({0x10000: bytearray(b"\0" * 64 + name_record_bytes("Ulebsk", SYSTEM_98) + b"\xff" * 0x300)})
+    result = memory.scan(reader, SUBSTANCES, None)
+    assert result.system_names == {SYSTEM_98: "Ulebsk"}
+    history = PlanetHistory(tmp_path / "h.json")
+    assert history.record_system_names(result.system_names) == 1 and history.record_system_names(result.system_names) == 0
+    history.save()
+    assert PlanetHistory(tmp_path / "h.json").system_names == {SYSTEM_98: "Ulebsk"}
+
+
+def test_systems_without_an_uploaded_name_show_the_generated_one(tmp_path):
+    """Labels prefer the uploaded name, then the generated name, then the portal address; a renamed system
+    shows its generated name as an extra line."""
+    history = recorded_toxic_planet(tmp_path)
+    history.system_names = {SYSTEM_98: "Ziverkess", SYSTEM_115: "Ebedyn VIII"}
+    ctx = planets_view.Context(LiveIn98(), history, visits_from_save(save_with_visits()), FakeGameData(), "Normal")
+    systems = planets_view.systems_tabs(ctx, None)["tabs"][1]["sections"][1]
+    assert [row[0] for row in systems["rows"]] == ["Delta Sol", "Ebedyn VIII"]
+    where = {i["label"]: i["value"] for i in planets_view.where_you_are(ctx)["items"]}
+    assert where["System"] == "Delta Sol" and where["Generated name"] == "Ziverkess"
+    assert planets_view._system_label(0x990002926E80, ctx.visit(0x990002926E80)) == "System 009902926E80"
