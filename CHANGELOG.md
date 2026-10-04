@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Flora and fauna in English too**: some planets hold these values already
+  translated into the game language ("Verloren"); they are now matched back to
+  the game's text so the page shows "Lost (Verloren)" like everywhere else. A
+  text with two different English meanings is shown as read.
+
 ## 0.9.1 — 2026-10-04
 
 - **Fixed: the current system stayed on the old one after a warp.** The game

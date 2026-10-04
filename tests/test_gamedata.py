@@ -8,6 +8,7 @@ readers and the offset calibration run exactly as on the game's files.
 import asyncio
 import hashlib
 import io
+import json
 import struct
 from pathlib import Path
 
@@ -275,6 +276,34 @@ def test_item_keys_and_icon_names():
 
 
 # --------------------------------------------------------------------------- database
+
+
+def test_translated_rarity_texts_from_memory_get_their_english(tmp_path):
+    """Seen live 2026-10-04: some planet records hold flora/fauna as the game-language text ('Verloren')
+    instead of a key. It is mapped back through the RARITY_* keys, so the page shows 'Lost (Verloren)'
+    like every other value; a text whose RARITY_ keys mean different things in English, or that no
+    RARITY_ key has, passes through unchanged (shown as read) rather than guessed."""
+    english = dict(ENGLISH, RARITY_WEIRD2="Lost", RARITY_LOW9="Few", RARITY_LOW8="Uncommon",
+                   RARITY_WEIRD1="Unusual", NAMEGEN_FLEET="Gone", ABUNDANCE4="Little", WEATHER_X="Rain")
+    german = dict(GERMAN, RARITY_WEIRD2="Verloren", RARITY_LOW9="Wenig", RARITY_LOW8="Ungewöhnlich",
+                  RARITY_WEIRD1="Ungewöhnlich", NAMEGEN_FLEET="Verloren", ABUNDANCE4="Wenig", WEATHER_X="Regen")
+    game = make_game(tmp_path / "game", english, german)
+    data = GameData(tmp_path / "data")
+    data.load(game)
+    data.resolve_texts(game, {"WEATHER_X", "Verloren", "Wenig", "Ungewöhnlich", "Nirgends"})
+    assert data.text("WEATHER_X") == {"en": "Rain", "local": "Regen"}
+    assert data.text("Verloren") == {"en": "Lost", "local": "Verloren"}      # not the fleet name "Gone"
+    assert data.text("Wenig") == {"en": "Few", "local": "Wenig"}             # not ABUNDANCE4 "Little"
+    assert data.text("Ungewöhnlich") is None and data.text("Nirgends") is None
+    cached = GameData(tmp_path / "data")
+    cached.load(game)
+    assert cached.resolve_texts(game, {"Verloren"}) == 0 and cached.text("Verloren")["en"] == "Lost"
+    # A cache from before (no format) gave up on the text: it is tried again, unknown keys stay unknown.
+    data.texts_file.write_text(json.dumps({"build_id": "100", "language": "german", "texts": {},
+                                           "unknown": ["Verloren", "NO_SUCH_KEY"]}), encoding="utf-8")
+    old = GameData(tmp_path / "data")
+    old.load(game)
+    assert old.resolve_texts(game, {"Verloren", "NO_SUCH_KEY"}) == 1 and old.text("Verloren")["en"] == "Lost"
 
 
 def test_gamedata_builds_caches_and_converts_icons(tmp_path):

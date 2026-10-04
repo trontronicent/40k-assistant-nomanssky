@@ -34,6 +34,20 @@ ITEM_TABLES = ("nms_reality_gcproducttable", "nms_reality_gcsubstancetable", "nm
 PAK_HINTS = {TABLE_DIR: "NMSARC.Precache.pak", "language/": "NMSARC.MetadataEtc.pak",
              "textures/ui/": "NMSARC.TexUI.pak"}
 ICON_NAME_RE = re.compile(r"[^a-z0-9._-]+")
+TEXT_KEY_RE = re.compile(r"^[A-Z0-9_]+$")       # a localisation key; anything else is already text
+REVERSE_PREFIX = "RARITY_"                      # the keys translated values in planet records come from
+TEXTS_FORMAT = 2                                # 2: translated values are mapped back (0.9.2)
+
+
+def reverse_texts(paks: PakSet, language: str, values: set[str]) -> dict[str, list[str]]:
+    """{text: [RARITY_* keys whose `language` text it is]} for texts found in memory instead of keys."""
+    out: dict[str, list[str]] = {}
+    for name in paks.names_matching("language/", f"_{language}.mbin"):
+        for key, text in mbin.parse_language_table(paks.read(name)).items():
+            text = mbin.clean_text(text)
+            if key.startswith(REVERSE_PREFIX) and text in values:
+                out.setdefault(text, []).append(key)
+    return out
 
 
 class GameDataError(RuntimeError):
@@ -239,16 +253,31 @@ class GameData:
             return 0
         languages = ["english"] if install.language == "english" else ["english", install.language]
         found: dict[str, dict[str, str]] = {lang: {} for lang in languages}
+        # Values that are already text, not keys: some planet records hold flora/fauna translated ("Verloren",
+        # seen 2026-10-04). They are mapped back through the game language's RARITY_* keys (reverse_texts).
+        translated = {k for k in todo if not TEXT_KEY_RE.match(k)}
+        reverse: dict[str, list[str]] = {}
         try:
             with PakSet(install.pcbanks, PAK_HINTS) as paks:
+                if translated and install.language != "english":
+                    reverse = reverse_texts(paks, install.language, translated)
+                wanted = (todo - translated) | {key for keys in reverse.values() for key in keys}
                 for lang in languages:
                     for name in paks.names_matching("language/", f"_{lang}.mbin"):
-                        for key, value in mbin.parse_language_table(paks.read(name), todo).items():
+                        for key, value in mbin.parse_language_table(paks.read(name), wanted).items():
                             found[lang].setdefault(key, value)
         except (OSError, PakError, ZstdUnavailable, mbin.MbinError) as exc:
             self.icon_error = f"texts: {type(exc).__name__}: {exc}"
             return 0
-        for key in todo:
+        for value in translated:
+            # Only when every matching key means the same in English: "Ungewöhnlich" is both Unusual and
+            # Uncommon, and a guess would be worse than showing the text as read.
+            english = {mbin.clean_text(found["english"].get(key)) for key in reverse.get(value, [])} - {None}
+            if len(english) == 1:
+                self._texts[value] = {"en": english.pop(), "local": value}
+            else:
+                self._unknown_texts.add(value)
+        for key in todo - translated:
             en = mbin.clean_text(found["english"].get(key))
             if en is None:
                 self._unknown_texts.add(key)
@@ -265,12 +294,16 @@ class GameData:
             return {}, set()
         if cached.get("build_id") != install.build_id or cached.get("language") != install.language:
             return {}, set()
-        return cached.get("texts") or {}, set(cached.get("unknown") or [])
+        unknown = set(cached.get("unknown") or [])
+        if cached.get("format", 1) < TEXTS_FORMAT:   # translated values were given up on before: try them again
+            unknown = {k for k in unknown if TEXT_KEY_RE.match(k)}
+        return cached.get("texts") or {}, unknown
 
     def _write_texts(self, install: GameInstall) -> None:
         self.texts_file.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.texts_file.with_suffix(".tmp")
-        tmp.write_text(json.dumps({"build_id": install.build_id, "language": install.language, "texts": self._texts,
+        tmp.write_text(json.dumps({"format": TEXTS_FORMAT, "build_id": install.build_id, "language": install.language,
+                                   "texts": self._texts,
                                    "unknown": sorted(self._unknown_texts)}, ensure_ascii=False), encoding="utf-8")
         tmp.replace(self.texts_file)
 
