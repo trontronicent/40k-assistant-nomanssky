@@ -3,22 +3,52 @@
   "manifest_version": 1,
   "id": "nomanssky",
   "name": "No Man's Sky",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Connector to No Man's Sky: save data (location, inventories with item names and icons, ships, bases), every visited system on a clickable map, and - read live from the running game - planets, resources and gas.",
   "author": {
-    "name": "TronTronicEnt",
+    "name": "Reto Kummer alias Reat Kay",
     "url": "https://github.com/trontronicent"
   },
   "license": "MIT",
+  "help": "HELP.md",
+  "credits": [
+    {
+      "name": "Reto Kummer alias Reat Kay",
+      "for": "the plugin",
+      "url": "https://github.com/trontronicent"
+    },
+    {
+      "name": "monkeyman192 and the MBINCompiler contributors",
+      "for": "mapping.json (save keys) and the game's data layouts; downloaded at runtime, not bundled (LGPL-3.0)",
+      "url": "https://github.com/monkeyman192/MBINCompiler"
+    },
+    {
+      "name": "monkeyman192",
+      "for": "HGPAKtool, which documents the game's archive format (MIT)",
+      "url": "https://github.com/monkeyman192/HGPAKtool"
+    },
+    {
+      "name": "Hello Games",
+      "for": "No Man's Sky; item names and icons are read from your own installation and never redistributed"
+    },
+    {
+      "name": "The No Man's Sky community",
+      "for": "black hole, Atlas and purple-star system indices, and the gas each biome gives"
+    }
+  ],
   "app": {
-    "min_version": "3.3.0",
+    "min_version": "3.4.0",
     "plugin_api": 2
   },
   "contributes": {
     "backend": {
       "module": "nms_connector",
       "entry": "create_plugin",
-      "permissions": ["read-game-files", "read-game-memory", "network"]
+      "permissions": [
+        "read-game-files",
+        "read-game-memory",
+        "network"
+      ]
     }
   }
 }

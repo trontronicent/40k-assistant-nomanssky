@@ -4,6 +4,9 @@ A plugin (STC) for the [40k Assistant / Strategicum](https://github.com/trontron
 It reads your **No Man's Sky save files** and shows what a companion needs to
 know. Install it from the app's **Plugins → Manage plugins** page.
 
+Author: **Reto Kummer alias Reat Kay**. The plugin's help (`HELP.md`) and
+credits appear in the 40k Assistant's manual under *Plugin Help* (app 3.4.0+).
+
 ## What it shows
 
 - **Status:** units, nanites, quicksilver, health, shield, ship health, play time

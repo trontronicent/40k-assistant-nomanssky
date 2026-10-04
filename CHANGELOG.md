@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0 — 2026-10-04
+
+- **Help and credits in the app's manual:** the plugin's help (`HELP.md`) and its
+  credits appear in the 40k Assistant's manual under *Plugin Help*; the plugin
+  list links to it.
+- Author: Reto Kummer alias Reat Kay.
+- Needs the 40k Assistant 3.4.0 (manifest keys `help` and `credits`).
+
 ## 0.4.1 — 2026-10-04
 
 - Shorter plugin description: 0.4.0's exceeded the registry's 300-character
