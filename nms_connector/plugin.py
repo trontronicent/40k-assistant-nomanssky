@@ -36,6 +36,7 @@ from .tables import GameTables
 from .watcher import SaveWatcher
 
 POLL_S = 5
+CAMERA_EVERY_S = 1         # PROTOTYPE star fixes: how often the galaxy map camera is sampled while the game runs
 MAPPING_RELEASE_API = "https://api.github.com/repos/monkeyman192/MBINCompiler/releases/latest"
 MAPPING_RECHECK_S = 24 * 3600
 HTTP_TIMEOUT_S = 20
@@ -116,7 +117,9 @@ class NmsConnector:
         self._game_failed = 0.0
         self.history = PlanetHistory(self.data_dir / "planet_history.json")
         galaxy.set_positions(self.history.positions)
-        self.positions = positions.PositionTracker()   # exact position of the current system (game memory)
+        # PROTOTYPE: star positions from the galaxy map camera (positions.py), named by the user on the page.
+        self.camera = positions.CameraReader()
+        self.star_fixer = positions.StarFixer(self.history.star_fixes)
         self.starmap = starmap.StarmapReader()        # the galaxy map's star records around you (game memory)
         self.live = LiveMemory(self.history)
         self.visits: dict[int, dict] = {}
@@ -160,6 +163,7 @@ class NmsConnector:
 
     async def start(self) -> None:
         self.ctx.spawn(self._run(), "save-watch")
+        self.ctx.spawn(self._camera_loop(), "map-camera")
 
     async def stop(self) -> None:
         await self.ctx.run_blocking(self._save_events)
@@ -179,15 +183,56 @@ class NmsConnector:
         tmp.write_text(json.dumps(self.route_state), encoding="utf-8")
         tmp.replace(self.route_path)
 
-    def _track_position(self, now: float) -> None:
-        """Record the current system's exact position when the game shows one that can be its own."""
-        key = self.live.current_system
-        found = self.positions.tick(self.live.reader, key, galaxy.region(key), now)
-        if found and self.history.positions.get(found[0]) != found[1] and positions.accept(self.history.positions, *found):
-            self.history.positions[found[0]] = found[1]
-            galaxy.set_positions(self.history.positions)
+    def _sample_camera(self, now: float) -> list[dict]:
+        """PROTOTYPE: one galaxy-map camera sample; new or refined star fixes are saved (blocking)."""
+        changed = self.star_fixer.feed(self.camera.read(self.live.reader, now))
+        if changed:
             self.history.save()
-            self.ctx.logger.info("[NMS] Exact position of %x: %s", found[0], found[1])
+            for fix in changed:
+                self.ctx.logger.info("[NMS] Star fix %d (prototype): %s from %d lines of sight, miss %.2f LJ",
+                                     fix["id"], fix["position"], fix["rays"], fix["miss_ly"])
+        return changed
+
+    async def _camera_loop(self) -> None:
+        """PROTOTYPE: sample the galaxy map camera every CAMERA_EVERY_S while the game is read; a lock seen from
+        two directions becomes a star fix (positions.StarFixer). 0x260 bytes per sample; never dies."""
+        while True:
+            try:
+                if self.live.reader is not None and self.live.status == "ok":
+                    await self.ctx.run_blocking(self._sample_camera, time.time())
+            except asyncio.CancelledError:
+                raise
+            except OSError as exc:      # the game closed mid-read: the next sample reopens nothing, LiveMemory does
+                self.ctx.logger.debug("[NMS] Map camera not read: %s", exc)
+            except Exception as exc:
+                self.ctx.logger.warning("[NMS] Map camera sample failed: %s: %s", type(exc).__name__, exc)
+            await asyncio.sleep(CAMERA_EVERY_S)
+
+    def _name_fix(self, params: dict) -> dict:
+        """PROTOTYPE action: name a star fix as a system (or forget it). Params are untrusted input."""
+        try:
+            fix_id = int(str(params.get("fix") or "").strip())
+        except ValueError:
+            return {"ok": False, "message": "Choose a star fix."}
+        fix = next((f for f in self.history.star_fixes if f["id"] == fix_id), None)
+        if fix is None:
+            return {"ok": False, "message": f"Star fix {fix_id} does not exist (any more)."}
+        if params.get("forget") is True or str(params.get("system") or "") == positions.FORGET:
+            self.history.star_fixes.remove(fix)
+            message = f"Star fix {fix_id} forgotten."
+        else:
+            key = planets_view.parse_system_key(params.get("system"))
+            if key is None:
+                return {"ok": False, "message": "Choose the system this star is."}
+            key = memory.system_key(key)
+            for other in self.history.star_fixes:      # one fix per system: the newer naming wins
+                if other is not fix and other.get("system") == f"{key:x}":
+                    other["system"] = None
+            fix["system"] = f"{key:x}"
+            message = f"Star fix {fix_id} is now {planets_view._system_label(key, self.context().visit(key))} (prototype)."
+        galaxy.set_positions(self.history.positions)
+        self.history.save()
+        return {"ok": True, "message": message, "focus": planets_view.STAR_FIX_ID}
 
     def _follow_route(self) -> bool:
         """Plan the stored route again from where you are now, when you moved since it was planned.
@@ -365,11 +410,6 @@ class NmsConnector:
             self.live.last_scan_at = None
         changed = await self.ctx.run_blocking(self.live.tick, self.anchor, self._substances(), now)
         await self.ctx.run_blocking(self._follow_route)
-        if self.live.reader is not None and self.live.status == "ok" and self.live.current_system is not None:
-            try:
-                await self.ctx.run_blocking(self._track_position, now)
-            except OSError as exc:      # the game closed mid-read
-                self.ctx.logger.debug("[NMS] Position not read: %s", exc)
         if self.live.reader is not None and self.live.status == "ok" and self.live.current_system is not None                 and self.starmap.due(now):
             try:
                 found = await self.ctx.run_blocking(self.starmap.scan, self.live.reader, self.live.current_system)
@@ -505,6 +545,8 @@ class NmsConnector:
                 return {"ok": False, "message": self.live.error or "No Man's Sky is not running."}
             return {"ok": True, "message": f"Read {self.live.last_scan_planets} planet(s) from the game in "
                                            f"{self.live.last_scan_seconds} s."}
+        if action_id == planets_view.NAME_FIX:
+            return await self.ctx.run_blocking(self._name_fix, params or {})
         if action_id == "clear_history":
             self.watcher.events.clear()
             await self.ctx.run_blocking(self._save_events)

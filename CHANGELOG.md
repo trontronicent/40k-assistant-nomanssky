@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Star positions (prototype)**: exact distances from the galaxy map. Lock a star
+  on the map twice from different directions: where the two lines of sight cross
+  is its exact position (a *star fix*, *Systems → Star positions*). Name the fix
+  as its system; distances between named systems are then exact as the game's map
+  shows them (checked on four stars). **Fix:** the positions recorded since the
+  exact-positions change were the map camera's position, not the system's - they
+  are no longer used (kept in the history file as `positions_discarded`).
+
 - **What your equipment does**: every technology and upgrade module now shows its
   stat modifiers, read from the game's technology tables - an upgrade module every
   stat it can have with its range (*Mining Speed +5-10 %*, *always* marked; the

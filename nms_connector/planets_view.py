@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from . import galaxy, route, starmap, trade
+from . import galaxy, positions, route, starmap, trade
 from .summary import address_portal, galaxy_name, unpack_address
 
 # GcPlanetInfo.SentinelsPerDifficulty is indexed by the ground combat timer setting.
@@ -51,11 +51,14 @@ ROUTE_FORM_ID = "route-form"
 ROUTE_RESULT_ID = "route-result"
 DEFAULT_RANGE_LY = 1000
 ROUTE_WIP_NOTE = ("Work in progress: the route planner is very much work in progress. Distances are estimated from "
-                  "regions (about 400 ly per step, not yet checked against the game), the exact position of a system "
-                  "inside its region is unknown, and routes have not been tested in the game yet. Use them as a rough "
+                  "regions (400 ly per step, checked against the game's distance to the centre), the exact position of a "
+                  "system inside its region is only known for star fixes you named (Star positions, prototype), and "
+                  "routes have not been tested in the game yet. Use them as a rough "
                   "guide and check the jumps on the in-game galaxy map.")
 POINT_COLORS = {"resources": "#5fbf6a", "save": "#8fa3b8", "bases": "#7ad7ff"}
 SYSTEM_MAP_ID = "system-map"
+NAME_FIX = "name_star_fix"               # PROTOTYPE action: name (or forget) a star fix
+STAR_FIX_ID = "star-fixes"
 CURRENT_MAP_ID = "current-map"
 
 
@@ -600,8 +603,8 @@ def _galaxy_point(key: int, ctx: Context, color_by: str = "kind") -> dict:
                  {"label": "Portal address", "value": address_portal(addr)},
                  {"label": "Region (voxel X, Y, Z)", "value": ", ".join(str(v) for v in galaxy.region(key))},
                  {"label": "Distance from you", "value": galaxy.distance_text(dist, key == ctx.origin) if ctx.origin is not None else "unknown"},
-                 {"label": "Position", "value": ("exact (read in the game): " + ", ".join(f"{v:.2f}" for v in galaxy.exact(key)))
-                  if galaxy.exact(key) else "region only (exact once you visit it with the game running)"},
+                 {"label": "Position", "value": ("exact (star fix, prototype): " + ", ".join(f"{v:.4f}" for v in galaxy.exact(key)))
+                  if galaxy.exact(key) else "region only (exact once you name a star fix for it - Star positions)"},
                  {"label": "Economy", "value": ctx.economy_summary(key) or "not read yet"},
                  {"label": "Planets with resources", "value": len(planets) or None},
                  {"label": "Named by", "value": visit.get("named_by")},
@@ -906,9 +909,75 @@ def route_sections(ctx: Context, state: dict | None, ship_range: dict | None = N
     return out
 
 
+STAR_FIX_HOWTO = (
+    "PROTOTYPE - exact distances from the galaxy map. Open the galaxy map while the game runs and lock a star "
+    "(the camera flies to it) and leave the camera still for 2 seconds. Pan far away in another direction and lock the same star again (2 seconds still): where the two lines "
+    "of sight cross is the star's exact position, and a star fix appears below within a few seconds. Then tell the "
+    "plugin which system it is (the form below) - it cannot read that reliably yet. Name the fix of the system you "
+    "are in, too: distances from you need both. Named fixes make distances exact, as the map shows them (decimals "
+    "cut off; checked on 4 stars on 2026-10-05). Fixes that no two locks confirm do not appear.")
+
+
+def _fix_options(ctx: Context) -> list[tuple[str, int]]:
+    """Systems a fix can be named as: the current one first, then those in its region, then the rest (<= 480)."""
+    here = ctx.origin
+    keys = set(ctx.keys()) | set(ctx.system_names)
+    if here is not None:
+        keys.add(here)
+    def rank(k):
+        same = here is not None and galaxy.region(k) == galaxy.region(here) and galaxy.galaxy_of(k) == galaxy.galaxy_of(here)
+        return (k != here, not same, _system_label(k, ctx.visit(k)).lower())
+    return [(_system_label(k, ctx.visit(k)), k) for k in sorted(keys, key=rank)][:480]
+
+
+def star_fix_sections(ctx: Context) -> list[dict]:
+    """Systems -> Star positions (prototype): how to make fixes, the fixes with their distance from you, the form."""
+    fixes = list(getattr(ctx.history, "star_fixes", []) or [])
+    here = ctx.origin
+    here_pos = galaxy.exact(here) if here is not None else None
+    rows, keys = [], []
+    for fix in sorted(fixes, key=lambda f: f["id"]):
+        key = parse_system_key(fix.get("system")) if fix.get("system") else None
+        name = _system_label(key, ctx.visit(key)) if key is not None else "not named yet"
+        if key is not None and key == here:
+            dist = "you are here"
+        elif here_pos is None:
+            dist = "name the fix of the system you are in first"
+        else:
+            dist = f"{positions.map_distance_ly(here_pos, fix['position']):,} ly (prototype)"
+        rays = fix.get("rays") or 0
+        seen = f"{rays}" if rays >= positions.CONFIRMED_RAYS else f"{rays} - unconfirmed, lock it once more"
+        rows.append([f"Fix {fix['id']}", name, dist, ", ".join(f"{c:.4f}" for c in fix["position"]),
+                     seen, f"{fix.get('miss_ly', 0):.2f} ly", fix.get("first_seen"), fix.get("last_seen")])
+        keys.append(str(fix["id"]))
+    out = [{"type": "notice", "level": "info", "text": STAR_FIX_HOWTO},
+           {"type": "table", "id": STAR_FIX_ID, "title": f"Star fixes (prototype) ({len(rows)})",
+            "columns": ["Fix", "System", "Distance from you", "Position (region units)", "Lines of sight",
+                        "Lines missed by", "Found", "Last confirmed"],
+            "rows": rows, "row_keys": keys,
+            "empty": "No star fix yet: lock a star on the galaxy map twice, from two different directions."}]
+    if fixes:
+        options = [{"value": system_key_text(k), "label": f"{label} ({address_portal(unpack_address(k) or {})})"
+                    + (" - you are here" if k == here else "")} for label, k in _fix_options(ctx)]
+        options.append({"value": positions.FORGET, "label": "Forget this fix (it was the wrong star)"})
+        out.append({"type": "form", "id": "name-star-fix", "title": "Name a star fix (prototype)", "action": NAME_FIX,
+                    "submit_label": "Save",
+                    "description": "Which system did you lock? The map shows its name when it is selected.",
+                    "fields": [
+                        {"id": "fix", "label": "Star fix", "type": "select", "value": keys[-1],
+                         "options": [{"value": k, "label": f"Fix {k}"} for k in keys],
+                         "hint": "The newest fix is preselected."},
+                        {"id": "system", "label": "is the system", "type": "select", "value": options[0]["value"],
+                         "options": options,
+                         "hint": "Your current system first, then the systems of its region. One fix per system: "
+                                 "naming another fix the same system replaces it."}]})
+    return out
+
+
 def systems_tabs(ctx: Context, selected: int | None, route_state: dict | None = None,
                  ship_range: dict | None = None, color_by: str = "kind") -> dict:
-    """The Systems tab's sub-tabs: current system, visited systems (with the map), visited planets."""
+    """The Systems tab's sub-tabs: current system, visited systems (with the map), planets, galaxy, trade, route
+    and the star positions found on the galaxy map (prototype)."""
     planets = visited_planets_section(ctx)
     return {"type": "tabs", "id": "systems-tabs", "tabs": [
         {"id": "current", "label": "Current system", "sections": live_notices(ctx.live) + current_system_sections(ctx)},
@@ -918,6 +987,8 @@ def systems_tabs(ctx: Context, selected: int | None, route_state: dict | None = 
         {"id": "galaxy", "label": "Galaxy", "sections": galaxy_sections(ctx, selected, color_by, route_state)},
         {"id": "trade", "label": "Trade", "badge": len(ctx.economies) or None, "sections": trade_sections(ctx)},
         {"id": "route", "label": "Route", "sections": route_sections(ctx, route_state, ship_range)},
+        {"id": "star-fixes", "label": "Star positions (prototype)",
+         "badge": len(getattr(ctx.history, "star_fixes", []) or []) or None, "sections": star_fix_sections(ctx)},
     ]}
 
 

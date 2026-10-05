@@ -102,6 +102,13 @@ def planet_id(planet: dict) -> str:
     return f"{planet['ua']:x}:{planet.get('name') or '?'}"
 
 
+def _valid_fix(fix) -> bool:
+    """A stored star fix as positions.StarFixer writes it (anything else is dropped on load)."""
+    return (isinstance(fix, dict) and isinstance(fix.get("id"), int) and isinstance(fix.get("position"), list)
+            and len(fix["position"]) == 3 and all(isinstance(c, (int, float)) for c in fix["position"])
+            and (fix.get("system") is None or isinstance(fix.get("system"), str)))
+
+
 class PlanetHistory:
     """Every planet read from memory, persisted as JSON - only ever added to or refreshed, never replaced.
 
@@ -121,7 +128,11 @@ class PlanetHistory:
         self.scans: list[dict] = []
         self.economies: dict[int, dict] = {}       # system key -> star attributes (economy, wealth, conflict, race)
         self.system_names: dict[int, str] = {}     # system key -> generated name from the galaxy map's cache
-        self.positions: dict[int, tuple] = {}      # system key -> exact voxel position (positions.py)
+        # PROTOTYPE (positions.py): star fixes from the galaxy map's camera, named by the user -> exact positions.
+        self.star_fixes: list[dict] = []
+        # Positions recorded before 0.10.0 from the map camera's eye - wrong (they were never star positions); kept
+        # in the file for research, never used.
+        self.positions_discarded: dict[str, list] = {}
         self.load()
 
     def load(self) -> None:
@@ -144,11 +155,19 @@ class PlanetHistory:
                 self.economies = {int(k, 16): v for k, v in (raw.get("economies") or {}).items() if isinstance(v, dict)}
                 self.system_names = {int(k, 16): v for k, v in (raw.get("system_names") or {}).items()
                                      if isinstance(v, str) and v}
-                self.positions = {int(k, 16): tuple(float(c) for c in v) for k, v in (raw.get("positions") or {}).items()
-                                  if isinstance(v, list) and len(v) == 3}
+                self.positions_discarded = {str(k): v for k, v in
+                                            {**(raw.get("positions_discarded") or {}), **(raw.get("positions") or {})}.items()
+                                            if isinstance(v, list) and len(v) == 3}
+                self.star_fixes = [f for f in raw.get("star_fixes") or [] if _valid_fix(f)]
             else:
                 continue
             return
+
+    @property
+    def positions(self) -> dict[int, tuple]:
+        """{system key: exact position} of the named star fixes (PROTOTYPE)."""
+        from .positions import named_positions
+        return named_positions(self.star_fixes)
 
     def save(self) -> None:
         """Write the history atomically, keeping the previous file as .json.bak."""
@@ -157,7 +176,7 @@ class PlanetHistory:
         tmp.write_text(json.dumps({"version": HISTORY_VERSION, "planets": self.planets, "scans": self.scans,
                                    "economies": {f"{k:x}": v for k, v in self.economies.items()},
                                    "system_names": {f"{k:x}": v for k, v in self.system_names.items()},
-                                   "positions": {f"{k:x}": list(v) for k, v in self.positions.items()}},
+                                   "star_fixes": self.star_fixes, "positions_discarded": self.positions_discarded},
                                   ensure_ascii=False), encoding="utf-8")
         if self.path.exists():
             self.path.replace(self.path.with_suffix(".json.bak"))

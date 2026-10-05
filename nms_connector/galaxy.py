@@ -2,10 +2,10 @@
 
 A packed system address names a *region* (voxel X, Y, Z: a cube of the galaxy,
 X and Z -2048..2047, Y -128..127) and a system index inside it. The save gives no
-finer position; the running game shows the *current* system's exact position
-(positions.py), collected per visited system into ``set_positions``. Two systems
-with exact positions are measured exactly (still at REGION_LY per voxel); for the
-others:
+finer position. PROTOTYPE: star positions found on the galaxy map (positions.py,
+star fixes named by the user) are set with ``set_positions``; two systems that both
+have one are measured as the map does - floor(distance x REGION_LY), verified on 4
+stars on 2026-10-05 - and marked (ExactLy). For the others:
 
 - distances are measured between regions, at REGION_LY light years per voxel
   step (the community's figure for the galaxy map; approximate), and two
@@ -29,14 +29,18 @@ GOLDEN_ANGLE = math.pi * (3 - math.sqrt(5))
 _positions: dict[int, tuple] = {}     # system key -> exact voxel position (set_positions)
 
 
+class ExactLy(float):
+    """A distance between two star positions read on the galaxy map (PROTOTYPE): shown as exact."""
+
+
 def set_positions(positions: dict[int, tuple]) -> None:
-    """The exact positions known (history.positions); distances and the map use them where they can."""
+    """The exact positions known (named star fixes, history.positions); distances and the map use them."""
     global _positions
     _positions = positions
 
 
 def exact(key: int) -> tuple[float, float, float] | None:
-    """The system's exact voxel position, if it was read in the game."""
+    """The system's exact voxel position, if a star fix was named for it (PROTOTYPE)."""
     return _positions.get(key & ~(0xF << 52)) if key is not None else None
 
 
@@ -71,13 +75,13 @@ def map_position(key: int) -> tuple[float, float, float]:
 
 
 def distance_ly(a: int, b: int) -> float | None:
-    """Distance between two systems in light years: exact when both positions were read in the game, else
-    between their regions (0 in one region); None across galaxies."""
+    """Distance between two systems in light years: exact (ExactLy, the map's floor) when both have a star
+    position, else between their regions (0 in one region); None across galaxies."""
     if galaxy_of(a) != galaxy_of(b):
         return None
     pa, pb = exact(a), exact(b)
     if pa and pb:
-        return REGION_LY * math.dist(pa, pb)
+        return ExactLy(math.floor(REGION_LY * math.dist(pa, pb)))
     (ax, ay, az), (bx, by, bz) = region(a), region(b)
     return REGION_LY * math.sqrt((ax - bx) ** 2 + (ay - by) ** 2 + (az - bz) ** 2)
 
@@ -87,6 +91,8 @@ def distance_text(ly: float | None, same_system: bool = False) -> str:
         return "this system"
     if ly is None:
         return "other galaxy"
+    if isinstance(ly, ExactLy):
+        return f"{ly:,.0f} ly (exact, prototype)"
     if ly == 0:
         return "same region (< 400 ly)"
     return f"~{ly:,.0f} ly"

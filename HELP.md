@@ -21,7 +21,7 @@ Open it from **Plugins → No Man's Sky** in the header. The buttons at the top:
 The tabs:
 
 - **Overview** - **timers** (when your settlement buildings are finished and your frigate expeditions return), units, nanites, quicksilver, health, where you were at the last save, where you are now, your fleet and companions: the **primary ship** with its estimated warp range and the star colours it reaches, your **settlements** at a glance (construction, a decision waiting), the **freighter** with its warp range, and the current mission in the game's words.
-- **Systems** - *Current system* (live from the game, with a map), *Visited systems* (every system from your save; click one to see its map), *Planets* (every planet whose resources were read), *Galaxy* (the galaxy map and the nearest planet with each resource) and *Trade* (economies and trade routes) and *Route* (the route planner).
+- **Systems** - *Current system* (live from the game, with a map), *Visited systems* (every system from your save; click one to see its map), *Planets* (every planet whose resources were read), *Galaxy* (the galaxy map and the nearest planet with each resource) and *Trade* (economies and trade routes), *Route* (the route planner) and *Star positions (prototype)* (exact positions of stars you lock on the galaxy map).
 - **Inventory** - exosuit, starship, freighter, **storage containers** (0-9, numbered as in the game) and **Equipment**, each item with its icon, its name in English and in the game's language, and its **category**. Hover an item's name for its description (in English and in the game's language); **trade goods** also tell which economies pay well for them, the nearest such system you know (or that you have not found one yet) and where they are cheap to buy. Planet resources have the same tooltip. See *Equipment* below.
 - **Ships & bases** - your ships (type, class, estimated **warp range**, the star colours they can reach, base stats, slots), **every ship's technology** (one tab per ship) and your bases with portal addresses. See *Ships* below.
 - **Settlements** - the economy of each settlement you run: see *Settlements* below.
@@ -201,13 +201,34 @@ Below the map, **Nearest planet with each resource** names, for every resource
 the plugin has read, the closest planet offering it: your own system first,
 then by distance. Click a row to open that system.
 
-Distances are measured between regions (about 400 light years per step) - except
-between systems whose **exact position** is known: while the game runs, the plugin
-reads where the system you are in lies inside its region and keeps it, so every
-system you visit from now on gets an exact position (a system's details on the map
-say *Position: exact*). Between two such systems the distance is exact, and the
-map draws them where they really are; the others sit on a small circle around
-their region's point.
+Distances are measured between regions (400 light years per step, checked against
+the game's distance to the galaxy centre) - except between systems with a named
+**star fix** (see *Star positions* below, a prototype). Between two such systems the
+distance is exact, as the game's map shows it, and the map draws them where they
+really are; the others sit on a small circle around their region's point.
+
+## Star positions (prototype)
+
+**This is a prototype**: the method works on the stars it was tried on, but naming
+the stars is still up to you. *Systems → Star positions (prototype)* gives two
+systems in one region their real distance instead of "same region (< 400 ly)".
+
+1. With the game running, open the **galaxy map** and **lock a star** (the camera
+   flies to it); leave the camera still for **2 seconds**.
+2. **Pan far away** in another direction and **lock the same star again**. Where
+   the two lines of sight cross is the star's exact position: a **star fix**
+   appears in the tab within a few seconds. A third lock confirms it (fixes from
+   only two are marked *unconfirmed* and dropped after a day if never named).
+3. In the form below the table, say **which system** the fix is (the map shows the
+   name of the selected star). Name the fix of the **system you are in** too:
+   distances from you need both.
+
+Named fixes show their distance from you as the game's map does (the decimals cut
+off: checked on four stars, 157, 109, 116 and 56 LJ), and every other distance
+between two named systems - on the galaxy map, in trade and in the route
+planner - becomes exact (*exact, prototype*). *Forget this fix* removes a wrong one.
+Positions recorded by earlier versions were not star positions (they were the
+map camera's position) and are no longer used.
 
 ## Economy and trade
 
