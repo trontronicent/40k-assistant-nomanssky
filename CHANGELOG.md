@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.11.0 — 2026-10-05
 
 - **In the app's desktop overlay** (needs the 40k Assistant 3.11.0): right-click the
   overlay → Show → No Man's Sky shows the timers counting down, where you are, your
@@ -8,7 +8,8 @@
   by voice (Codeword / Live call).
 - **Settings tab**: the plugin persona's **codeword** for Live Comms, and **Single
   Context Per Question** (*Helps saving VRAM*): the persona answers each question
-  without the earlier turns.
+  without the earlier turns. The form is also at the top of the Overview, and the
+  switch is in the overlay (click the line or tick it in its right-click menu).
 
 - **Planet search**: *Systems → Planets* has a search field - find recorded planets
   by what they are like (type, weather, resources, plants, gas, flora, fauna,
