@@ -408,7 +408,7 @@ def test_view_without_the_game_explains_where_names_come_from(tmp_path, monkeypa
     async def scenario():
         plugin = create_plugin(FakeCtx(tmp_path / "data"))
         await plugin._tick()
-        return plugin.view(), plugin._item_columns()
+        return plugin.view(), plugin.page.item_columns()
 
     view, columns = asyncio.run(scenario())
     assert any("NMS_GAME_DIR" in s.get("text", "") for s in view["sections"])
@@ -427,3 +427,20 @@ def test_ids_that_are_not_items_get_the_games_icons_too(tmp_path):
     (tmp_path / "assets" / "bones.png").write_bytes(b"png")
     assert gd.icon_name("UI_BONES_HINT") == "bones.png"
     assert len([k for k in EXTRA_ICONS if k.startswith("SETTLEMENT_")]) == 15
+
+
+def test_button_images_in_game_texts_do_not_leave_their_id():
+    """Upgrade descriptions say "Use <VAL_ON><IMG>FE_ALT1<><> to begin upgrade installation": removing only the
+    tags left "Use FE_ALT1 to begin" in every tooltip (seen 2026-10-05); the image now reads "[button]"."""
+    from nms_connector import mbin
+    text = "Use <VAL_ON><IMG>FE_ALT1<><> to begin upgrade installation. A <TRADEABLE>moderate<> upgrade."
+    assert mbin.clean_text(text) == "Use [button] to begin upgrade installation. A moderate upgrade."
+
+
+def test_the_games_fill_ins_do_not_show_as_placeholders():
+    """A creature egg's description has the game's per-item fill-ins (%NAME%, %READY%%EXTRA%): they come from the
+    egg's seed in play, so the tooltip shows "…" instead of the placeholders (seen 2026-10-05 on 6 eggs)."""
+    from nms_connector.gamedata import _plain
+    assert _plain("%NAME%'s Genetic Material") == "…'s Genetic Material"
+    assert _plain("A living, fertile egg, %READY%%EXTRA%  %MODIFIED%  Scans show %SIZE%.") == \
+        "A living, fertile egg, … … Scans show …."

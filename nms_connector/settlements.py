@@ -218,6 +218,7 @@ class LiveSettlements:
         self.last_search_seconds: float | None = None
 
     def _load(self) -> dict[int, dict]:
+        """The last settlement-screen readings from settlement_screen.json ({} when missing or damaged)."""
         try:
             raw = json.loads(self.path.read_text(encoding="utf-8")) if self.path else {}
             return {int(k, 16): {"stats": [int(v) for v in e["stats"]][:8], "at": float(e["at"])} for k, e in raw.items()
@@ -246,6 +247,8 @@ class LiveSettlements:
                 self._save()
 
     def _tick(self, reader, seeds: list[int], nearby: list[int]) -> None:
+        """Re-read the known live records; search for the settlements in your system that have none yet,
+        at most every SEARCH_EVERY_S."""
         now = self._clock()
         for seed in seeds:
             address = self.addresses.get(seed)
@@ -259,6 +262,7 @@ class LiveSettlements:
             self._search(reader, missing, now)
 
     def _search(self, reader, seeds: list[int], now: float) -> None:
+        """One memory pass for these settlement seeds (8-aligned u64), keeping hits whose record checks out."""
         started = time.perf_counter()
         self._searched_at = now
         import numpy as np

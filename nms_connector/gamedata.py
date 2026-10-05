@@ -19,15 +19,16 @@ import shutil
 import time
 from pathlib import Path
 
-from . import mbin, trade
+from . import mbin, techstats, trade
 from .game_install import GameInstall, language_label
 from .hgpak import PakError, PakSet, ZstdUnavailable
 
-CACHE_FORMAT = 2                 # 2: item categories and descriptions (0.9.0)
+CACHE_FORMAT = 4                 # 2: item categories and descriptions (0.9.0); 3-4: upgrade module texts, fill-ins (0.10.0)
 DESC_CHARS = 600
 ICON_PX = 64
 TABLE_DIR = "metadata/reality/tables/"
 # Tables that hold everything an inventory slot can contain; first one wins an id clash.
+PROC_TABLE = "nms_reality_gcproceduraltechnologytable"
 ITEM_TABLES = ("nms_reality_gcproducttable", "nms_reality_gcsubstancetable", "nms_reality_gctechnologytable",
                "nms_reality_gcproceduraltechnologytable", "nms_basepartproducts",
                "nms_modularcustomisationproducts")
@@ -91,12 +92,19 @@ def icon_file_name(texture: str) -> str | None:
     return name if name[0].isalnum() and len(name) <= 120 else None
 
 
+FILL_IN_RE = re.compile(r"(%[A-Z0-9_]+%)+")      # the game's per-item fill-ins: %NAME%, %SIZE%, %READY%%EXTRA%
+
+
 def _plain(text: str | None) -> str | None:
-    """A game text without colour markup and with collapsed blank lines, cut to DESC_CHARS."""
+    """A game text without colour markup, with collapsed blank lines and spaces, cut to DESC_CHARS. The game's
+    fill-ins (a creature egg's "%NAME%'s Genetic Material", "%SIZE% and %TRAIT%") come from the item's seed in
+    play; the plugin cannot know them, so each becomes "…" instead of showing the placeholder."""
     text = mbin.clean_text(text)
     if not text:
         return None
+    text = FILL_IN_RE.sub("…", text)
     text = re.sub(r"\n{3,}", "\n\n", text.replace("\r", ""))
+    text = re.sub(r"[ \t]{2,}", " ", text)        # where a removed fill-in or button image stood
     return text if len(text) <= DESC_CHARS else text[:DESC_CHARS - 1].rstrip() + "…"
 
 
@@ -104,11 +112,14 @@ def build_items(paks: PakSet, language: str) -> dict[str, dict]:
     """{id: {"en", "local", "icon", "cat_en", "cat_local", "desc_en", "desc_local"}} for every item in the game's
     tables (category = the subtitle the game shows under an item's name; *_local only when it differs)."""
     records: dict[str, mbin.ItemRecord] = {}
+    upgrade_texts: dict[str, tuple[str, str]] = {}   # procedural upgrades: (description key, upgraded tech's name key)
     for table in ITEM_TABLES:
         try:
             data = paks.read(f"{TABLE_DIR}{table}.mbin")
         except KeyError:
             continue  # a table renamed by a game update: the others still work
+        if table == PROC_TABLE:
+            upgrade_texts = techstats.procedural_texts(data)
         try:
             parsed = mbin.parse_item_table(data)
         except mbin.MbinError:
@@ -120,6 +131,7 @@ def build_items(paks: PakSet, language: str) -> dict[str, dict]:
 
     wanted = {k for r in records.values()
               for k in (r.name_key, r.lower_key, r.subtitle_key, r.category_key, r.desc_key) if k}
+    wanted |= {k for keys in upgrade_texts.values() for k in keys}
     languages = ["english"] if language == "english" else ["english", language]
     strings: dict[str, dict[str, str]] = {}
     for lang in languages:
@@ -144,8 +156,33 @@ def build_items(paks: PakSet, language: str) -> dict[str, dict]:
                 local = _plain(strings[language].get(text_key)) if language != "english" else None
                 if local and local != en:
                     entry[f"{field}_local"] = local
+        if key in upgrade_texts and "desc_en" not in entry:
+            _add_upgrade_texts(entry, records.get(record.template), upgrade_texts[key], strings, language)
         items[key] = entry
     return items
+
+
+def _add_upgrade_texts(entry: dict, template: mbin.ItemRecord | None, keys: tuple[str, str],
+                       strings: dict[str, dict[str, str]], language: str) -> None:
+    """A procedural upgrade's description ('A moderate upgrade for the Mining Beam ...') and category - its
+    template's name and the technology it upgrades ('Upgrade Module: Mining Beam') - in English and the game's
+    language (*_local only when it differs)."""
+    desc_key, group_key = keys
+    for suffix, lang in (("en", "english"), ("local", language)):
+        if suffix == "local" and language == "english":
+            break
+        desc = _plain(strings[lang].get(desc_key))
+        kind = mbin.display_name(template, strings[lang]) if template else None
+        group = mbin.clean_text(strings[lang].get(group_key))
+        category = f"{kind}: {group}" if kind and group else (group or kind)
+        if suffix == "local" and desc == entry.get("desc_en"):
+            desc = None
+        if suffix == "local" and category == entry.get("cat_en"):
+            category = None
+        if desc:
+            entry[f"desc_{suffix}"] = desc
+        if category:
+            entry[f"cat_{suffix}"] = category
 
 
 class GameData:
@@ -158,6 +195,8 @@ class GameData:
         self.items: dict[str, dict] = {}
         self.trading: dict = dict(trade.FALLBACK)      # economy -> needs/sells/price factors (game file or fallback)
         self.trading_source = "built-in"
+        # What each technology does (stat modifiers); set by the connector once per game build (GameTables).
+        self.tech: techstats.TechStats = techstats.TechStats()
         self.build_id: str | None = None
         self.language = "english"
         self.built_at: str | None = None
@@ -227,6 +266,7 @@ class GameData:
             self._write_cache()
 
     def _load_cache(self, install: GameInstall) -> bool:
+        """Adopt the cached item database when it was built for this build and language (True), else False."""
         try:
             cached = json.loads(self.cache_file.read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -326,6 +366,7 @@ class GameData:
         return len(todo)
 
     def _load_texts(self, install: GameInstall) -> tuple[dict, set]:
+        """The cached resolved texts and known-unknown keys of this build and language ({}, set() otherwise)."""
         try:
             cached = json.loads(self.texts_file.read_text(encoding="utf-8"))
         except (OSError, ValueError):

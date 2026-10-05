@@ -37,6 +37,7 @@ ID_RE = re.compile(r"^[A-Z0-9_]{2,15}$")
 NOT_ID_SUFFIXES = ("_NAME", "_NAME_L", "_DESC", "_SUB", "_L")
 SUB_RE = re.compile(r"(^|_)SUB(_\d+)?$")
 MARKUP_RE = re.compile(r"<[A-Z0-9_]*>|<>")
+IMAGE_RE = re.compile(r"<IMG>[A-Za-z0-9_]*<>")
 KEY_RE = re.compile(r"^[A-Za-z0-9_]{2,63}$")
 
 
@@ -46,6 +47,7 @@ class MbinError(ValueError):
 
 @dataclass(frozen=True)
 class ItemRecord:
+    """One entry of an item table: its id and the keys and texture the calibration found for it."""
     item_id: str
     name_key: str = ""
     lower_key: str = ""
@@ -235,10 +237,11 @@ def parse_language_table(data: bytes, wanted: set[str] | None = None) -> dict[st
 
 
 def clean_text(text: str | None) -> str | None:
-    """Remove the game's colour markup (<TECHNOLOGY>…<>) from a name."""
+    """Remove the game's colour markup (<TECHNOLOGY>…<>) from a text; a button image (<IMG>FE_ALT1<>, drawn
+    as the key to press) becomes "[button]" instead of leaving its id in the sentence."""
     if not text:
         return None
-    return MARKUP_RE.sub("", text).strip() or None
+    return MARKUP_RE.sub("", IMAGE_RE.sub("[button]", text)).strip() or None
 
 
 def display_name(record: ItemRecord, strings: dict[str, str]) -> str | None:

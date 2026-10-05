@@ -36,6 +36,10 @@ FOLLOW_UPS = (15, 45)   # follow-up scans after arriving: a scan costs 1-2 s sin
 
 
 class LiveMemory:
+    """The running game, read-only: when to scan its memory, which system you are in and what was found.
+
+    ``tick`` is called every 5 s; a full scan runs on a game start, a warp (and once more
+    shortly after), and every few minutes - otherwise only the cheap address re-reads run."""
     def __init__(self, history: PlanetHistory, opener=None, pid_finder=None, scanner=None, star_finder=None):
         self.history = history
         self._open = opener or memory.ProcessReader

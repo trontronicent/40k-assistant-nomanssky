@@ -83,6 +83,7 @@ class Pak:
         self._f.close()
 
     def _read_index(self) -> None:
+        """Read the header, the file index and (compressed paks) the chunk index; PakError when malformed."""
         head = self._f.read(0x30)
         if len(head) < 0x30 or head[:5] != MAGIC:
             raise PakError(f"{self.path.name} is not an HGPAK file")
@@ -117,6 +118,7 @@ class Pak:
         self.names = {name.decode("utf-8", "replace").lower(): i + 1 for i, name in enumerate(manifest) if name}
 
     def _chunk(self, index: int) -> bytes:
+        """One 64 KiB chunk, decompressed (a stored size of exactly 64 KiB is raw); the last one is cached."""
         if self._cached_chunk[0] == index:
             return self._cached_chunk[1]
         if index >= len(self._chunk_sizes):
@@ -133,6 +135,7 @@ class Pak:
         return data
 
     def _read_entry(self, k: int) -> bytes:
+        """The bytes of file entry k: read directly, or assembled from the chunks it spans."""
         _, offset, size = self._entries[k]
         if not self.compressed:
             self._f.seek(offset)

@@ -125,6 +125,7 @@ class PlanetHistory:
         self.load()
 
     def load(self) -> None:
+        """Load the history file (the .bak copy when the main file is damaged), migrating version 1 files."""
         for path in (self.path, self.path.with_suffix(".json.bak")):
             try:
                 raw = json.loads(path.read_text(encoding="utf-8"))
@@ -150,6 +151,7 @@ class PlanetHistory:
             return
 
     def save(self) -> None:
+        """Write the history atomically, keeping the previous file as .json.bak."""
         self.path.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.path.with_suffix(".tmp")
         tmp.write_text(json.dumps({"version": HISTORY_VERSION, "planets": self.planets, "scans": self.scans,

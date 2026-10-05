@@ -1,0 +1,254 @@
+"""The No Man's Sky Plugin Persona: the persona this plugin brings, and the game data for each of its replies.
+
+App 3.9.0 stores the persona from ``personas()`` once and calls ``chat_context(question)`` before every reply of a
+persona that draws on this plugin, injecting the text into its system prompt as ``[GAME DATA: No Man's Sky]``
+(an injection, not a tool: llama.cpp drops tools). ``assistant.build_context`` (pure) assembles items, places and
+trade goods; this class adds what needs the connector's state: status lines, settlements, economies and - for a
+question about equipment - the installed technology with what it does.
+
+The persona also carries a ``setup`` (app 3.10.0): the plugin page asks, while linking the persona to a model,
+whether it should draw on a Codex knowledge library (suggested: one whose name contains "No Man's Sky") and use
+web search when the model can. Game mechanics, recipes and lore come from there; the player's own numbers only from
+the game data.
+"""
+
+from __future__ import annotations
+
+import re
+import time
+
+from . import assistant, galaxy, planets_view, settlements, timers, trade
+
+PERSONA_PROMPT = (
+    "You are the No Man's Sky Plugin Persona, the player's companion for No Man's Sky. With every message you "
+    "get a [GAME DATA: No Man's Sky] block: live data from the player's game - inventories with totals per "
+    "item and per place, currencies, location, ships and warp range, equipment and what it does, settlements, "
+    "frigates and timers.\n\n"
+    "Answer questions about their game from that block, every part of a question. For amounts, give the total first, "
+    "then where it is (\"You have 1,234 Copper: 500 in the exosuit, 734 in Storage Container 0.\"). Name items in the "
+    "player's language - the block gives the English name and, in brackets, the game's language - and leave out the "
+    "item ids in square brackets unless asked. If the block does not contain what was asked, say so plainly and "
+    "suggest where to look in the game - never invent numbers. Mention when the data comes from an older save if it "
+    "matters. Upgrade modules show the range their stats can have; the game keeps the exact values to itself, so "
+    "give the range and say so.\n\n"
+    "For general No Man's Sky questions (recipes, mechanics, lore) use the Codex excerpts or web search results when "
+    "you are given them and cite them as given; otherwise answer from your own knowledge and say that it is not from "
+    "their save. The player's own numbers come only from the game data. Be concise and friendly; answer in the "
+    "language the player writes in."
+)
+
+# What the plugin page asks while linking the persona to a model (app 3.10.0, plugins/personas.normalize_setup).
+PERSONA_SETUP = {
+    "knowledge": {"ask": True, "suggest": "No Man's Sky", "mode": "auto",
+                  "why": "Recipes, mechanics and lore from your Codex library - the game data only knows your save."},
+    "web_search": {"ask": True, "mode": "tool",
+                   "why": "Look up current game facts (updates, expeditions) when the model can search."},
+}
+
+SETTLEMENT_WORDS = {"settlement", "settlements", "siedlung", "siedlungen", "overseer", "aufseher", "colony", "town"}
+ECONOMY_WORDS = {"economy", "economies", "wirtschaft", "trade", "sell", "buy", "verkaufen", "kaufen", "handel"}
+# A question about equipment: the installed technology of what it names (all of it when it names nothing).
+EQUIPMENT_WORDS = {
+    "multitool": "multitools", "multi-tool": "multitools", "multitools": "multitools", "multiwerkzeug": "multitools",
+    "weapon": "multitools", "waffe": "multitools", "exosuit": "exosuit", "exoanzug": "exosuit", "suit": "exosuit",
+    "anzug": "exosuit", "exocraft": "exocraft", "exo-fahrzeug": "exocraft", "vehicle": "exocraft",
+    "fahrzeug": "exocraft", "roamer": "exocraft", "nautilon": "exocraft", "minotaur": "exocraft",
+    "colossus": "exocraft", "pilgrim": "exocraft", "nomad": "exocraft", "freighter": "freighter", "frachter": "freighter",
+    "ship": "ships", "starship": "ships", "schiff": "ships", "raumschiff": "ships",
+}
+TECH_WORDS = {"upgrade", "upgrades", "module", "modules", "modul", "module", "technology", "technologies", "technologie",
+              "technologien", "tech", "equipment", "ausrüstung", "installed", "installiert", "stats", "werte",
+              "modifiers", "bonus", "boni", "slot", "slots"}
+MAX_TECH_LINES = 40
+MAX_TECH_CHARS = 5000     # the app cuts the whole game-data block at 8,000 characters
+
+
+class PluginCompanion:
+    """The persona and its chat data, for one connector (whose state is read on every call)."""
+
+    def __init__(self, connector):
+        self.connector = connector
+
+    def personas(self) -> list[dict]:
+        """The persona this plugin brings (the app stores it once; the user links it to a model)."""
+        return [{
+            "slug": "companion", "name": "No Man's Sky Plugin Persona",
+            "personality": "Helpful, precise with numbers, a seasoned traveller of the Euclid galaxy.",
+            "speech_style": "Short and clear; totals first, then where things are.",
+            "background": "Brought by the No Man's Sky plugin: answers from your live game data - inventories, "
+                          "ships, equipment, settlements, frigates, timers and location.",
+            "system_prompt": PERSONA_PROMPT, "temperature": 0.3, "setup": PERSONA_SETUP,
+        }]
+
+    def chat_context(self, question: str) -> dict:
+        """The game data for one chat message (see assistant.py); the app injects it into the system prompt."""
+        c = self.connector
+        snap = c.snapshot
+        ctx = c.context()
+        text = c.describe
+
+        def names_of(item_id):
+            entry = c.gamedata.lookup(item_id) or {}
+            return [n for n in dict.fromkeys([entry.get("en"), entry.get("local")]) if n]
+
+        def name_of(item_id):
+            return ctx.texts.name(item_id) or item_id
+
+        here = c.here()
+
+        def planets_offering(item_id):
+            """The nearest recorded planets offering an item (resource, plant or gas), as 'name in system (distance)'."""
+            found = []
+            for planet in c.history.planets.values():
+                gas = planets_view.planet_gas(planet)
+                if item_id in (planet.get("common"), planet.get("uncommon"), planet.get("rare"), gas) \
+                        or item_id in (planet.get("extra") or []):
+                    dist = galaxy.distance_ly(here, planet["system"]) if here is not None else None
+                    found.append((dist if dist is not None else 1e12, planet))
+            found.sort(key=lambda d: d[0])
+            out = []
+            for dist, planet in found[:assistant.NEAREST_PLANETS]:
+                system = planets_view._system_label(planet["system"], ctx.visit(planet["system"]))
+                where = "your current system" if planet["system"] == here else galaxy.distance_text(dist if dist < 1e12 else None)
+                out.append(f"{planet.get('name') or 'a planet'} in {system} ({where})")
+            return out
+
+        status = [f"No Man's Sky - data of the save written {assistant.saved_text((snap or {}).get('saved_at'))}"
+                  + (", position live from the running game" if c.live.current_system is not None else "")]
+        if snap:
+            status.append(f"Units {snap.get('units') or 0:,}, Nanites {snap.get('nanites') or 0:,}, "
+                          f"Quicksilver {snap.get('quicksilver') or 0:,}")
+            if here is not None:
+                status.append(f"You are in the system {planets_view._system_label(here, ctx.visit(here))} "
+                              f"({snap['location'].get('galaxy')}), portal address {snap['location'].get('portal')}")
+            status.append(f"Primary ship: {text.primary_ship()}")
+            status.append(f"Freighter: {text.freighter(snap['freighter']['name'])}")
+            status.append(f"Current mission: {text.mission(snap.get('current_mission'))}")
+        extra = []
+        now = time.time()
+        shown = timers.visible(c.timers, now)
+        if shown:
+            extra.append("Timers: " + "; ".join(
+                f"{t['label']} - {'done' if t['ends_at'] <= now else 'ends ' + timers.clock(t['ends_at'])}" for t in shown))
+        if c.settlements:
+            extra.append(f"Settlements: {text.settlements()}")
+        if c.frigates:
+            out_on = [f for f in c.frigates if f["on_expedition"]]
+            extra.append(f"Frigates: {len(c.frigates)} ({len(out_on)} out on an expedition)")
+        words = set(re.findall(r"[\w'-]+", (question or "").lower()))
+        extra += self.settlement_lines(words, now)
+        extra += self.economy_lines(question, ctx, here)
+        extra += self.equipment_lines(words, ctx.texts)
+        all_names = {i: [n for n in (e.get("en"), e.get("local")) if n] for i, e in (c.gamedata.items or {}).items()}
+
+        def item_notes(item_id):
+            hint = ctx.trade_hint(item_id)        # trade goods: who pays well, the nearest known such system
+            return " ".join(hint.split("\n")) if hint else None
+
+        return {"title": "No Man's Sky", "text": assistant.build_context(
+            question, snap, name_of, names_of, all_names, status, extra, planets_offering, item_notes)}
+
+    def settlement_lines(self, words: set[str], now: float) -> list[str]:
+        """Settlement details for a question about them (or naming one): stats as the screen shows them when read,
+        production, perks, the waiting decision, the construction."""
+        c = self.connector
+        names = {s["name"].lower() for s in c.settlements}
+        if not (words & SETTLEMENT_WORDS or any(n.split()[0] in words for n in names if n)):
+            return []
+        rules = c.tables.settlement_rules
+        out = []
+        for s in c.settlements:
+            out.append(f"Settlement {s['name']}: population {s['population']} ({s['race'] or 'unknown race'})")
+            reading = c.settlement_live.values.get(s.get("seed"))
+            if reading:
+                shown = [f"{settlements.STAT_LABELS[st]} {settlements.shown(st, v, rules, s['population'])}"
+                         for st, v in zip(settlements.STATS, reading["stats"]) if st not in ("Sentinels", "Debt")]
+                out.append(f"  as its screen showed at {timers.clock(reading['at'])}: " + ", ".join(shown))
+            if s["production"]:
+                out.append("  production: " + "; ".join(
+                    f"{(c.gamedata.lookup(p['item']) or {}).get('en') or p['item']} {p['amount']} of {p['cap']}"
+                    for p in s["production"]))
+            if s["pending"] and s["pending"] != "None":
+                out.append(f"  a decision is waiting: {settlements._words(s['pending'])}")
+            elif s["last_judgement"]:
+                lo, hi = rules["judgement_wait"]
+                out.append(f"  next decision between {timers.clock(s['last_judgement'] + lo)} and "
+                           f"{timers.clock(s['last_judgement'] + hi)}")
+            build = next((t for t in c.timers if t["key"].startswith("settlement.") and s["name"] in t["label"]), None)
+            if build:
+                out.append(f"  construction: {build['label']} - " + (f"finished at {timers.clock(build['ends_at'])}"
+                           if build["ends_at"] <= now else f"ends {timers.clock(build['ends_at'])}"))
+            out.append(f"  perks: {len(s['perks'])} (details in the plugin's Settlements tab)")
+        return out
+
+    def economy_lines(self, question: str, ctx, here) -> list[str]:
+        """For a question about economies or trading: the nearest known systems of each economy it names (all
+        economies when it names none), read or predicted from the game's generation rules (marked)."""
+        q = (question or "").lower()
+        named = [e for e in trade.ECONOMY_FALLBACK_NAMES
+                 if any(n and n.lower() in q for n in (trade.ECONOMY_FALLBACK_NAMES[e], ctx.economy_name(e), e))]
+        if not named and not (ECONOMY_WORDS & set(re.findall(r"[\w']+", q))):
+            return []
+        out = [f"Economy of your current system: {ctx.economy_summary(here) or 'unknown'}"] if here is not None else []
+        for econ in named or list(trade.ECONOMY_FALLBACK_NAMES):
+            keys = [k for k, e in ctx.economies.items()
+                    if e.get("economy") == econ and galaxy.galaxy_of(k) == galaxy.galaxy_of(here or k)]
+            keys.sort(key=lambda k: (galaxy.distance_ly(here, k) or 0) if here is not None else 0)
+            if not keys:
+                continue
+            listed = []
+            for k in keys[:3 if not named else 6]:
+                e = ctx.economies[k]
+                dist = galaxy.distance_text(galaxy.distance_ly(here, k), k == here) if here is not None else "?"
+                listed.append(f"{planets_view._system_label(k, ctx.visit(k))} ({e.get('wealth')}, {dist}"
+                              + (", predicted" if e.get("predicted") else "") + ")")
+            out.append(f"Nearest {ctx.economy_name(econ)} systems: " + "; ".join(listed))
+        return out
+
+    def equipment_lines(self, words: set[str], texts) -> list[str]:
+        """For a question about equipment or upgrades: the installed technology of what it names (exosuit,
+        multi-tools, exocraft, freighter, ships - all of them when it names none) with what each part does."""
+        c = self.connector
+        asked = {EQUIPMENT_WORDS[w] for w in words if w in EQUIPMENT_WORDS}
+        if not (words & TECH_WORDS or (asked and words & {"what", "was", "which", "welche", "does", "can"})):
+            return []
+        groups: list[tuple[str, list[dict]]] = []
+        eq = c.equipment
+        if eq is not None:
+            if not asked or "exosuit" in asked:
+                groups.append(("Exosuit", eq.exosuit.technology))
+            if not asked or "multitools" in asked:
+                groups += [(f"Multi-tool {t.name(texts)}", t.technology) for t in eq.multitools]
+            if not asked or "exocraft" in asked:
+                groups += [(f"Exocraft {v.name(texts)}", v.technology) for v in eq.exocraft]
+            if not asked or "freighter" in asked:
+                groups.append(("Freighter", eq.freighter.technology))
+        if not asked or "ships" in asked:
+            groups += [(f"Starship {s['name'] or s['type']}" + (" (primary)" if s["primary"] else ""), s["technology"])
+                       for s in c.ships]
+        tech_stats = getattr(c.gamedata, "tech", None)
+
+        def english_modifiers(item_id):
+            # English stat names only: half the length of 'Shield Strength (Schildstärke)', the model translates.
+            if tech_stats is None or not tech_stats.ready:
+                return texts.modifiers(item_id)
+            return tech_stats.modifiers(item_id, lambda key: (c.gamedata.text(key) or {}).get("en"))
+
+        out: list[str] = []
+        used = 0
+        for title, technology in groups:
+            parts = []
+            for tech in technology:
+                if tech["id"].startswith("SHIPSLOT_DMG"):
+                    continue
+                mods = english_modifiers(tech["id"])
+                parts.append(texts.name(tech["id"]) + (f" ({', '.join(mods)})" if mods else ""))
+            line = f"{title}: " + ("; ".join(parts) if parts else "no technology")
+            if out and (used + len(line) > MAX_TECH_CHARS or len(out) >= MAX_TECH_LINES):
+                out.append("(more equipment in the plugin's Equipment tab - ask about one item, e.g. the multi-tool)")
+                break
+            out.append(line)
+            used += len(line)
+        if out:
+            out.append("Upgrade modules list the range of each stat they can have; the exact values are not stored.")
+        return out

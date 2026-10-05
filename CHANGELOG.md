@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+- **What your equipment does**: every technology and upgrade module now shows its
+  stat modifiers, read from the game's technology tables - an upgrade module every
+  stat it can have with its range (*Mining Speed +5-10 %*, *always* marked; the
+  game keeps the exact values to itself), fixed technology the range it adds, the
+  ability it unlocks or a known value (*Clip Size 64*). In the *What it does*
+  column and in the item's tooltip.
+- **Equipment tab with sub-tabs**: Exosuit, Multi-tools, **Exocraft** (new: Roamer,
+  Nomad, Colossus, Pilgrim, Nautilon, Minotaur, named in the game's languages) and
+  Freighter. *Ships & bases* shows **every ship's technology** (one tab per ship),
+  not only the primary ship's.
+- **Missing texts filled in**: tooltips show the description in the game's
+  language too (only English was shown); all 199 upgrade modules get a category
+  (*Upgrade Module: Mining Beam*) and, where the game has one, a description
+  (they had none); button images in game texts read "[button]" instead of
+  "FE_ALT1"; a creature egg's per-item fill-ins (%NAME%, %SIZE%) show as "…".
+  The item database is rebuilt once (about a second).
+- **Persona setup** (needs the 40k Assistant 3.10.0): while linking the persona
+  the plugin page asks for a **Codex library** (libraries named *No Man's Sky*
+  are preselected) and **web search** (*when needed* only for a model that can
+  search). The persona also answers **equipment questions** ("which upgrades
+  does my multi-tool have?") with what each part does.
+- **Code structure**: the connector's page, persona, summaries and game tables
+  are separate classes (`page.py`, `companion.py`, `describe.py`, `tables.py`);
+  the technology tables are read once (`techstats.py`) for both the stat
+  modifiers and the warp range.
+
 - **Economies from the galaxy map**: with the galaxy map open the game holds the
   economy, wealth, conflict, race and star colour of the stars around you; the
   plugin reads them every few minutes (~6 s in the background) and traces each

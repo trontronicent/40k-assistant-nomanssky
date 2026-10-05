@@ -310,21 +310,21 @@ def test_the_current_mission_is_shown_as_the_games_text(tmp_path):
     plugin = create_plugin(FakeCtx(tmp_path))
     long = "Apollo has asked me to upgrade my equipment by obtaining blueprints from a multitool technology trader. " * 3
     plugin.gamedata.text = lambda key: {"en": long, "local": long} if key == "UI_CORE_ACT1_STEP10_DESC" else None
-    text = plugin._mission_text("ACT1_STEP10")
+    text = plugin.describe.mission("ACT1_STEP10")
     assert text.startswith("Apollo has asked me") and text.endswith("... (ACT1_STEP10)") and len(text) < 240
-    assert plugin._mission_text("UNKNOWN_STEP") == "UNKNOWN_STEP" and plugin._mission_text(None) == "none"
+    assert plugin.describe.mission("UNKNOWN_STEP") == "UNKNOWN_STEP" and plugin.describe.mission(None) == "none"
 
 
 def test_the_overview_names_the_primary_ship_and_the_settlements(tmp_path):
     """The Overview's fleet block leads with the primary ship and its warp range estimate and a line per
     settlement (construction, waiting decision) - the details live in Ships & bases and Settlements."""
     plugin = create_plugin(FakeCtx(tmp_path))
-    assert plugin._primary_ship_text() == "none" and plugin._settlements_text() == "none"
+    assert plugin.describe.primary_ship() == "none" and plugin.describe.settlements() == "none"
     plugin.ships = [{"name": "Bang", "type": "Fighter", "class": "C", "primary": True, "stats": {"hyperdrive": 0.0},
                      "technology": [{"id": "HYPERDRIVE"}, {"id": "UP_HYP4#1"}, {"id": "HDRIVEBOOST1"}]}]
-    assert plugin._primary_ship_text() == "Bang (Fighter, class C) - warp range ~320-365 ly, red stars"
+    assert plugin.describe.primary_ship() == "Bang (Fighter, class C) - warp range ~320-365 ly, red stars"
     plugin.settlements = [{"name": "Kay City", "building": "Farm", "pending": "StrangerVisit"}, {"name": "Rest", "pending": "None"}]
-    assert plugin._settlements_text() == "Kay City: Farm in construction, a decision is waiting; Rest (see Settlements)"
+    assert plugin.describe.settlements() == "Kay City: Farm in construction, a decision is waiting; Rest (see Settlements)"
 
 
 def test_the_plugin_brings_its_persona_and_answers_chat_questions_from_the_save(tmp_path):
@@ -353,8 +353,46 @@ def test_settlement_and_economy_questions_get_their_details(tmp_path):
     plugin.settlements = [{"name": "Kay City", "population": 20, "race": "Explorers", "seed": 1, "production": [],
                            "pending": "StrangerVisit", "last_judgement": 0, "building": "Farm", "perks": ["a"]}]
     plugin.timers = [{"key": "settlement.kay.27", "label": "Kay City: Farm built", "ends_at": 100.0, "started_at": 1.0}]
-    lines = plugin._settlement_lines({"how", "is", "my", "settlement"}, 200.0)
+    lines = plugin.companion.settlement_lines({"how", "is", "my", "settlement"}, 200.0)
     assert lines[0] == "Settlement Kay City: population 20 (Explorers)"
     assert "  a decision is waiting: Stranger visit" in lines and "  construction: Kay City: Farm built - finished at" in lines[2]
-    assert plugin._settlement_lines({"copper"}, 200.0) == []
-    assert plugin._settlements_text().startswith("Kay City: Farm finished, a decision is waiting")
+    assert plugin.companion.settlement_lines({"copper"}, 200.0) == []
+    assert plugin.describe.settlements().startswith("Kay City: Farm finished, a decision is waiting")
+
+
+def test_the_persona_asks_for_a_codex_library_and_web_search_and_answers_equipment_questions(tmp_path):
+    """The persona carries a setup (app 3.10.0): the plugin page asks for a Codex library (suggested "No Man's Sky")
+    and web search when the model can; its prompt keeps the player's numbers to the game data. A question about
+    the multi-tool lists its installed technology with what each part does; other questions get no equipment."""
+    from nms_connector import equipment
+    from test_equipment import Texts, save
+    plugin = create_plugin(FakeCtx(tmp_path))
+    persona, = plugin.personas()
+    assert persona["setup"]["knowledge"]["suggest"] == "No Man's Sky" and persona["setup"]["web_search"]["ask"]
+    assert "Codex excerpts or web search" in persona["system_prompt"]
+    plugin.equipment = equipment.Equipment.from_save(save())
+
+    class Named(Texts):
+        def name(self, item_id):
+            return item_id.split("#")[0]
+
+    lines = plugin.companion.equipment_lines({"which", "upgrades", "multitool"}, Named())
+    assert lines[0] == ("Multi-tool Quantum Kay Needler (class A, in your hand): UP_LASER1 (Mining Speed +5-10 %, "
+                        "Heat Dispersion +5-15 %); TERRAINEDITOR")
+    assert len(lines) == 3 and "exact values are not stored" in lines[-1]
+    assert plugin.companion.equipment_lines({"how", "much", "copper"}, Named()) == []
+
+
+def test_game_tables_load_once_per_build_and_report_fallbacks():
+    """GameTables reads every table of a build once (again after an update) and names each table that fell back to
+    built-in values; the views use the fallbacks until then."""
+    from nms_connector import ships
+    from nms_connector.tables import GameTables
+    tables = GameTables()
+    assert tables.needs_load(None) and tables.ship_ranges is ships.FALLBACK and tables.trait_names == {}
+    warnings = tables.load(None)
+    assert not tables.needs_load(None) and len(warnings) == 5 and all("not found" in w for w in warnings)
+
+    class Install:
+        build_id = "new"
+    assert tables.needs_load(Install())

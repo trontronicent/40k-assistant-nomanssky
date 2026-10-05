@@ -149,20 +149,39 @@ class Texts:
         en, local = entry.get("cat_en"), entry.get("cat_local")
         return f"{en} / {local}" if en and local and local != en else (en or local or None)
 
+    def label(self, key: str | None) -> str | None:
+        """A localisation key resolved earlier (GameData.resolve_texts) as 'English (game language)', else None."""
+        entry = self.gamedata.text(key) if key else None
+        return self.both(entry["en"], entry["local"]) if entry else None
+
+    def modifiers(self, item_id: str | None) -> list[str]:
+        """What a technology does, one line per stat ('Hyperdrive Range +220-265 ly'); [] for anything else or
+        before the technology tables are read (techstats.TechStats on GameData.tech)."""
+        tech = getattr(self.gamedata, "tech", None)
+        return tech.modifiers(item_id, self.label) if item_id and tech is not None else []
+
     def hint(self, item_id: str | None) -> str | None:
-        """Tooltip of an item: category, description and - for trade goods - where they sell."""
+        """Tooltip of an item, in blocks separated by a blank line: category; the game's description (and its
+        game-language text when that differs); what a technology does (its stat modifiers); for trade goods, where
+        they sell."""
         if not item_id:
             return None
         entry = self.gamedata.lookup(item_id) or {}
-        lines = []
+        blocks = []
         if self.category(item_id):
-            lines.append(f"Category: {self.category(item_id)}")
+            blocks.append(f"Category: {self.category(item_id)}")
         if entry.get("desc_en"):
-            lines.append(entry["desc_en"])
+            blocks.append(entry["desc_en"])
+        if entry.get("desc_local"):
+            blocks.append(f"{getattr(self.gamedata, 'language_label', 'Game language')}: {entry['desc_local']}")
+        mods = self.modifiers(item_id)
+        if mods:
+            note = self.gamedata.tech.note(item_id)
+            blocks.append("What it does:\n" + "\n".join(f"• {m}" for m in mods) + (f"\n{note}" if note else ""))
         trade_lines = self.trade_hint(item_id) if self.trade_hint else None
         if trade_lines:
-            lines.append(trade_lines)
-        return "\n\n".join(lines) or None
+            blocks.append(trade_lines)
+        return "\n\n".join(blocks) or None
 
     def item(self, item_id: str | None, text: str | None = None):
         """An item id -> table cell with the game's icon, name (id when unknown) and tooltip."""
@@ -357,6 +376,8 @@ def live_notices(live) -> list[dict]:
 
 
 def where_you_are(ctx: Context) -> dict | None:
+    """'Where you are now': system, portal, galaxy and planet - the planet exact from the player
+    state, else from the newest save in the same system, else unknown. None outside a known system."""
     key = ctx.live.current_system
     if key is None:
         return None
@@ -392,6 +413,7 @@ def where_you_are(ctx: Context) -> dict | None:
 
 
 def _star(key: int, visit: dict, planets: list[dict], ctx: Context) -> dict:
+    """The star of a system map: portal, region, system index, black hole/Atlas/purple, names, bases, trade."""
     addr = unpack_address(key) or {}
     index = addr.get("SolarSystemIndex")
     color, special = STAR_COLOR, None
@@ -424,6 +446,7 @@ def _star(key: int, visit: dict, planets: list[dict], ctx: Context) -> dict:
 
 
 def _body(planet: dict | None, index: int, saved: dict, visit: dict, ctx: Context, here: bool) -> dict:
+    """One planet of a system map: colour/size by biome and class, badges, and its details for the side panel."""
     texts = ctx.texts
     planet = planet or {}
     info = planet.get("info") or {}
@@ -485,6 +508,7 @@ def system_map(key: int, ctx: Context, section_id: str, title_prefix: str) -> di
 
 
 def current_system_sections(ctx: Context) -> list[dict]:
+    """Systems -> Current system: the live system map and its planets table."""
     key = ctx.live.current_system
     if key is None:
         return [{"type": "text", "text": "Not in a known system right now: live data appears while No Man's Sky runs."}]
@@ -516,6 +540,8 @@ def _last_seen(key: int, ctx: Context) -> str:
 
 
 def visited_systems_sections(ctx: Context, selected: int | None) -> list[dict]:
+    """Systems -> Visited systems: the selected system's map and the clickable table (current
+    system first, then systems with resources, newest first)."""
     entries = []
     for key in ctx.keys():
         visit = ctx.visit(key) or {}
@@ -546,6 +572,7 @@ def visited_systems_sections(ctx: Context, selected: int | None) -> list[dict]:
 
 
 def visited_planets_section(ctx: Context) -> dict:
+    """Systems -> Planets: every planet with recorded resources, by system."""
     planet_rows = []
     for key, planets in ctx.recorded.items():
         visit = ctx.visit(key)
@@ -560,6 +587,7 @@ def visited_planets_section(ctx: Context) -> dict:
 
 
 def _galaxy_point(key: int, ctx: Context, color_by: str = "kind") -> dict:
+    """One system on the galaxy map: position, colour (by the chosen mode) and its details."""
     visit = ctx.visit(key) or {}
     planets = ctx.recorded.get(key, [])
     addr = unpack_address(key) or {}
@@ -608,6 +636,7 @@ def _galaxy_point(key: int, ctx: Context, color_by: str = "kind") -> dict:
 
 
 def _galaxy_legend(color_by: str, ctx: Context) -> list[dict]:
+    """The galaxy map's legend for a colouring mode (kind, economy, conflict, star)."""
     you = [{"label": "You are here", "color": "#ffd27a"}]
     if color_by == "economy":
         return you + [{"label": ctx.economy_name(e) or e, "color": c} for e, c in ECONOMY_COLORS.items()] + [

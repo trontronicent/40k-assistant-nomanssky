@@ -220,6 +220,7 @@ def candidate_rows(buf, valid: int | None = None):
 
 @dataclass
 class ScanResult:
+    """What one memory scan found: planet records, player-state copies, generated system names."""
     planets: list[dict]
     player_states: list[int]     # every copy of GcPlayerStateData found by the anchor (often none - see below)
     bytes_read: int

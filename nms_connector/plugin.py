@@ -1,28 +1,38 @@
-"""The No Man's Sky connector: watches the save folder and presents the data.
+"""The No Man's Sky connector: watches the save folder and the running game and holds what it read.
 
-Runs inside the 40k Assistant backend (plugin API 2). Reads save files, the
-game's own data files (item names and icons) and - while the game runs - its
-memory (planets and resources of the current system), all read-only; never
-writes anything into the game or its folders. Network use: downloading the key
-mapping (mapping.json) from MBINCompiler's GitHub releases.
+Runs inside the 40k Assistant backend (plugin API 2). Reads save files, the game's own data files (item names,
+icons, tables) and - while the game runs - its memory (planets and resources of the current system), all
+read-only; never writes anything into the game or its folders. Network use: downloading the key mapping
+(mapping.json) from MBINCompiler's GitHub releases.
+
+``NmsConnector`` owns the state and the work loop (a tick every 5 s: key mapping, game files, newest save, game
+memory) and the page's actions. Presenting it is delegated:
+
+* ``page.ConnectorPage`` - the view (tabs, tables, notices);
+* ``companion.PluginCompanion`` - the persona it brings and the game data for each of its chat replies;
+* ``describe.StateText`` - one-line summaries both of them use;
+* ``tables.GameTables`` - the game-file tables (timers, frigate traits, warp range, settlements, technology stats).
 """
 
 from __future__ import annotations
 
 import asyncio
 import json
-import re
 import time
 import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from . import assistant, equipment, frigates, galaxy, memory, planets_view, positions, route, saves, settlements, ships, starmap, timers, trade
+from . import equipment, frigates, galaxy, memory, planets_view, positions, route, saves, settlements, ships, starmap, timers, trade
+from .companion import PluginCompanion
+from .describe import StateText
 from .game_install import GameInstall, find_game
 from .gamedata import GameData
 from .history import PlanetHistory, visits_from_save
 from .live import LiveMemory
+from .page import ConnectorPage
 from .summary import mission_text_keys, summarize
+from .tables import GameTables
 from .watcher import SaveWatcher
 
 POLL_S = 5
@@ -33,21 +43,6 @@ GAME_CHECK_S = 60          # how often to look for the game / a new game build
 GAME_RETRY_S = 300         # after a failed item-database build
 LIVE_EVERY_S = 5           # how often to look at the game's memory (a full scan only when needed, see live.py)
 USER_AGENT = "40k-assistant-nomanssky (https://github.com/trontronicent/40k-assistant-nomanssky)"
-
-
-def _fmt_int(value) -> str:
-    return f"{value:,}" if isinstance(value, int) else "–"
-
-
-def _fmt_duration(seconds) -> str:
-    if not isinstance(seconds, (int, float)):
-        return "–"
-    seconds = int(seconds)
-    if seconds < 120:
-        return f"{seconds} s"
-    if seconds < 7200:
-        return f"{seconds // 60} min {seconds % 60:02d} s"
-    return f"{seconds // 3600} h {seconds % 3600 // 60:02d} min"
 
 
 def download_mapping(dest: Path) -> str:
@@ -86,6 +81,9 @@ def _snapshot_item_ids(snap: dict) -> list[str]:
 
 
 class NmsConnector:
+    """The plugin instance the app creates (``create_plugin``): state, work loop, actions; view and chat are
+    delegated (see the module docstring)."""
+
     def __init__(self, ctx):
         self.ctx = ctx
         self.data_dir: Path = ctx.data_dir
@@ -98,19 +96,15 @@ class NmsConnector:
         self._last_mapping_attempt = 0.0
         self.save_dir: Path | None = None
         self.snapshot: dict | None = None
+        self.tables = GameTables()                # timers, frigate traits, warp range, settlements, tech stats
         self.timers: list[dict] = []              # settlement constructions, expeditions (timers.py)
-        self.timer_tables: dict | None = None     # durations from the game's files (timers.load_tables)
-        self._timer_tables_for = None
         self.settlements: list[dict] = []         # your settlements' economy (settlements.py)
-        self.settlement_tables: dict | None = None
-        self.settlement_live = settlements.LiveSettlements(self.data_dir / "settlement_screen.json")
+        self.settlement_live = settlements.LiveSettlements(self.data_dir / "settlement_screen.json")  # screen values
         self.ships: list[dict] = []               # your starships (ships.py)
         self.freighter: dict | None = None        # your freighter's technology (ships.freighter_from_save)
-        self.equipment: dict | None = None        # exosuit, multi-tools, freighter technology (equipment.py)
+        self.equipment: equipment.Equipment | None = None   # exosuit, multi-tools, exocraft, freighter technology
         self.frigates: list[dict] = []            # your frigates (frigates.py)
-        self.frigate_traits: dict | None = None   # trait names from the game (frigates.load_traits)
         self.galaxy_colors = "kind"               # how the galaxy map colours systems (planets_view.COLOR_MODES)
-        self.ship_tables: dict | None = None      # warp-range bonuses from the game's technology tables   # the settlement screen's values (game memory)
         self.snapshot_file: str | None = None
         self.decoded_at: str | None = None
         self.decode_seconds: float | None = None
@@ -136,6 +130,31 @@ class NmsConnector:
         self.selected_system: int | None = None   # clicked in the visited-systems table
         self._planet_icons_ready = False          # names/icons of the recorded planets ensured since the last build
         self._force = asyncio.Event()
+        self.describe = StateText(self)
+        self.page = ConnectorPage(self)
+        self.companion = PluginCompanion(self)
+
+    # ------------------------------------------------------------------ shared views of the state
+
+    @property
+    def game_checked(self) -> bool:
+        """True once the game installation has been looked for (until then 'not found' would be premature)."""
+        return bool(self._game_checked)
+
+    def here(self) -> int | None:
+        """The system you are in: live from the game, else where the newest save was written."""
+        return self.live.current_system if self.live.current_system is not None else self.save_system
+
+    def context(self) -> planets_view.Context:
+        """Everything the system, planet and item sections are built from, as of now."""
+        snap = self.snapshot
+        return planets_view.Context(self.live, self.history, self.visits, self.gamedata, self.combat_timer,
+                                    snap["bases"] if snap else [], origin=self.save_system,
+                                    save_position=self.save_position)
+
+    def primary_range(self) -> dict | None:
+        """The primary ship's warp-range estimate (route planner default, galaxy map reach)."""
+        return ships.primary_range(self.ships, self.tables.ship_ranges)
 
     # ------------------------------------------------------------------ lifecycle
 
@@ -177,7 +196,7 @@ class NmsConnector:
         'From: <the system you planned in> (you)' after travelling (seen 2026-10-04). True when it changed.
         """
         request, result = self.route_state.get("request"), self.route_state.get("result") or {}
-        origin = self.live.current_system if self.live.current_system is not None else self.save_system
+        origin = self.here()
         if not request or not result.get("ok") or origin is None or result["legs"][0]["from"] == origin:
             return False
         target = result["legs"][-1]["to"]
@@ -198,7 +217,7 @@ class NmsConnector:
         except (TypeError, ValueError):
             range_ly = 0.0
         request = {"target": target_text, "portal": portal, "range": range_ly if range_ly > 0 else None}
-        origin = self.live.current_system if self.live.current_system is not None else self.save_system
+        origin = self.here()
         if origin is None:
             result = {"ok": False, "reason": "where you are is not known yet"}
         elif not 50 <= range_ly <= 20000:
@@ -214,9 +233,8 @@ class NmsConnector:
                 result = {"ok": False, "reason": reason}
             else:
                 target = memory.system_key(target)
-                ctx = planets_view.Context(self.live, self.history, self.visits, self.gamedata, self.combat_timer,
-                                           (self.snapshot or {}).get("bases") or [], origin=self.save_system)
-                estimate = ships.primary_range(self.ships, self.ship_tables or ships.FALLBACK)
+                ctx = self.context()
+                estimate = self.primary_range()
                 colours = planets_view.reachable_stars(estimate["colours"]) if estimate else None
                 result = route.plan_route(planets_view.route_nodes(ctx, colours), origin, target, range_ly)
                 if colours is not None:
@@ -242,6 +260,8 @@ class NmsConnector:
         tmp.replace(self.events_path)
 
     async def _ensure_mapping(self, force: bool = False) -> None:
+        """Load the save-key mapping, and download it when missing, forced or stale (unknown keys, at most
+        daily); after a failure it waits 60 s before trying again."""
         if self.mapping is None and self.mapping_path.is_file() and not force:
             self.mapping = await self.ctx.run_blocking(saves.load_mapping, self.mapping_path)
             try:
@@ -265,6 +285,7 @@ class NmsConnector:
             self.ctx.logger.warning("[NMS] Could not download the key mapping: %s", self.mapping_error)
 
     async def _run(self) -> None:
+        """The work loop: a tick every POLL_S seconds, or at once when an action asks (``_force``); never dies."""
         while True:
             try:
                 await self._tick()
@@ -287,22 +308,11 @@ class NmsConnector:
             return
         self._game_checked = now
         self.install = await self.ctx.run_blocking(find_game)
-        build = getattr(self.install, "build_id", None)
-        if self.timer_tables is None or build != self._timer_tables_for:
-            self.timer_tables = await self.ctx.run_blocking(timers.load_tables, self.install)
-            self._timer_tables_for = build
-            if self.timer_tables.get("error"):
-                self.ctx.logger.warning("[NMS] Timer durations: built-in values (%s)", self.timer_tables["error"])
-            self.frigate_traits = await self.ctx.run_blocking(frigates.load_traits, self.install)
-            if self.frigate_traits.get("error"):
-                self.ctx.logger.warning("[NMS] Frigate trait names unavailable: %s", self.frigate_traits["error"])
-            self.ship_tables = await self.ctx.run_blocking(ships.load_tables, self.install)
-            if self.ship_tables.get("error"):
-                self.ctx.logger.warning("[NMS] Warp range values: built-in (%s)", self.ship_tables["error"])
-            self.settlement_tables = await self.ctx.run_blocking(settlements.load_tables, self.install)
-            if self.settlement_tables.get("error"):
-                self.ctx.logger.warning("[NMS] Settlement tables: built-in values (%s)", self.settlement_tables["error"])
-            await self._ensure_settlement_texts()
+        if self.tables.needs_load(self.install):
+            for warning in await self.ctx.run_blocking(self.tables.load, self.install):
+                self.ctx.logger.warning("[NMS] %s", warning)
+            self.gamedata.tech = self.tables.tech       # Texts.modifiers: what each technology does
+            await self._ensure_texts()
         if self.install is None or (self.gamedata.matches(self.install) and not force):
             return
         if not force and self.gamedata.error and now - self._game_failed < GAME_RETRY_S:
@@ -317,14 +327,16 @@ class NmsConnector:
                                  self.gamedata.language_label, self.gamedata.build_id, self.gamedata.build_seconds)
             await self._ensure_icons()
 
-    async def _ensure_settlement_texts(self) -> None:
-        """Perk names and product icons of the Settlements tab and the current mission's text (cached by GameData
+    async def _ensure_texts(self) -> None:
+        """The game texts the page and the persona need beyond item names - perk names, the current mission,
+        frigate traits, technology stat names, exocraft names - and the settlement/frigate icons (cached by GameData
         after the first time)."""
-        if not ((self.settlements or self.snapshot) and self.settlement_tables and self.install and self.gamedata.ready):
+        if not ((self.settlements or self.snapshot) and self.tables.loaded and self.install and self.gamedata.ready):
             return
-        keys = settlements.text_keys(self.settlements, self.settlement_tables)
+        keys = settlements.text_keys(self.settlements, self.tables.settlement_rules)
         keys |= set(mission_text_keys((self.snapshot or {}).get("current_mission")))
-        keys |= frigates.text_keys(self.frigates, (self.frigate_traits or {}).get("traits") or {})
+        keys |= frigates.text_keys(self.frigates, self.tables.trait_names)
+        keys |= self.tables.tech.text_keys() | {k for k in equipment.VEHICLE_KEYS if k}
         await self.ctx.run_blocking(self.gamedata.resolve_texts, self.install, keys)
         await self.ctx.run_blocking(self.gamedata.ensure_icons, self.install,
                                     settlements.item_ids(self.settlements) + settlements.icon_ids()
@@ -332,7 +344,8 @@ class NmsConnector:
 
     async def _ensure_icons(self) -> None:
         if self.snapshot and self.install and self.gamedata.ready:
-            tech = [t["id"] for s in self.ships for t in s["technology"]] + equipment.item_ids(self.equipment or {})
+            tech = [t["id"] for s in self.ships for t in s["technology"]]
+            tech += self.equipment.item_ids() if self.equipment else []
             await self.ctx.run_blocking(self.gamedata.ensure_icons, self.install, _snapshot_item_ids(self.snapshot) + tech)
 
     def _substances(self) -> set[str] | None:
@@ -342,6 +355,8 @@ class NmsConnector:
         return {k for k, v in self.gamedata.items.items() if "SUBSTANCE" in (v.get("icon") or "")} or None
 
     async def _read_memory(self, force: bool = False) -> None:
+        """Read the running game (every LIVE_EVERY_S): position and planets (LiveMemory), the route, the
+        exact system position, the galaxy map's star records, the settlement screen and new planets' texts."""
         now = time.time()
         if not force and now - self._live_checked < LIVE_EVERY_S:
             return
@@ -394,6 +409,7 @@ class NmsConnector:
             await self._read_memory()
 
     async def _tick_saves(self) -> None:
+        """Find the save folder, record new save writes and decode the newest settled save."""
         dirs = await self.ctx.run_blocking(saves.find_save_dirs)
         self.save_dir = dirs[0] if dirs else None
         if self.save_dir is None:
@@ -409,6 +425,8 @@ class NmsConnector:
             await self._decode(max(files, key=lambda f: f.mtime))
 
     async def _decode(self, save_file: saves.SaveFile) -> None:
+        """Read one save file into the connector's state: snapshot, visits, settlements and timers, ships,
+        equipment, frigates, the memory anchor and where you were; then icons and texts."""
         started = time.perf_counter()
         try:
             readable, unknown = await self.ctx.run_blocking(saves.read_save, save_file.path, self.mapping)
@@ -418,12 +436,12 @@ class NmsConnector:
         self.snapshot = await self.ctx.run_blocking(summarize, readable)
         self.visits = await self.ctx.run_blocking(visits_from_save, readable)
         self.settlements = settlements.settlements_from_save(readable)
-        self.timers = sorted(timers.timers_from_save(readable, self.timer_tables or timers.FALLBACK)
-                             + settlements.decision_timers(self.settlements, self.settlement_tables or settlements.FALLBACK),
+        self.timers = sorted(timers.timers_from_save(readable, self.tables.timer_durations)
+                             + settlements.decision_timers(self.settlements, self.tables.settlement_rules),
                              key=lambda t: t["ends_at"])
         self.ships = ships.ships_from_save(readable)
         self.freighter = ships.freighter_from_save(readable)
-        self.equipment = equipment.equipment_from_save(readable)
+        self.equipment = equipment.Equipment.from_save(readable)
         self.frigates = frigates.frigates_from_save(readable)
         ps = (readable.get("BaseContext") or {}).get("PlayerStateData") or {}
         try:
@@ -442,11 +460,12 @@ class NmsConnector:
         self.decode_seconds = round(time.perf_counter() - started, 2)
         self.decoded_at = datetime.now().isoformat(timespec="seconds")
         await self._ensure_icons()
-        await self._ensure_settlement_texts()
+        await self._ensure_texts()
 
     # ------------------------------------------------------------------ UI
 
     async def action(self, action_id: str, params: dict) -> dict:
+        """Run one of the page's actions (buttons, forms, row clicks); params are untrusted input."""
         if action_id == planets_view.PLAN_ROUTE:
             return await self.ctx.run_blocking(self._plan_route, params or {})
         if action_id == planets_view.OPEN_SYSTEM:
@@ -492,416 +511,16 @@ class NmsConnector:
             return {"ok": True, "message": "Save history cleared."}
         raise ValueError(f"unknown action {action_id}")
 
-    def _item_columns(self) -> list[str]:
-        if self.gamedata.ready and self.gamedata.language != "english":
-            return ["Name (English)", f"Name ({self.gamedata.language_label})", "Category", "Item id", "Amount", "Max"]
-        return ["Name", "Category", "Item id", "Amount", "Max"]
-
-    def _item_rows(self, rows: list[list], ctx) -> list[list]:
-        """[id, amount, max] -> [{text, icon, hint}, (local name,) category, id, amount, max]: the game's names,
-        icon and category; the tooltip holds the description and, for trade goods, where they sell."""
-        bilingual = self.gamedata.ready and self.gamedata.language != "english"
-        out = []
-        for item_id, amount, maximum in rows:
-            entry = self.gamedata.lookup(item_id) or {}
-            name = ctx.texts.item(item_id, entry.get("en") or item_id)
-            category = ctx.texts.category(item_id)
-            out.append([name, entry.get("local"), category, item_id, amount, maximum] if bilingual
-                       else [name, category, item_id, amount, maximum])
-        return out
-
-    def _storage_tab(self, snap: dict, ctx, columns: list[str]) -> dict:
-        """The Storage tab: one table per storage container that holds something (containers 0-9 as numbered
-        in the game), and which containers are empty."""
-        sections, empty = [], []
-        for chest in snap.get("storage") or []:
-            if chest["number"] is not None:
-                custom = chest["name"] if chest["name"] and not str(chest["name"]).startswith("BLD_") else None
-                title = f"Storage Container {chest['number']}" + (f": {custom}" if custom else "")
-            else:
-                title = f"Other storage ({chest['key'].removesuffix('Inventory')})"
-            if not chest["rows"]:
-                empty.append(str(chest["number"]))
-                continue
-            sections.append({"type": "table", "title": f"{title} - {len(chest['rows'])} stacks", "columns": columns,
-                             "rows": self._item_rows(chest["rows"], ctx)})
-        if empty:
-            sections.append({"type": "text", "text": f"Empty storage containers: {', '.join(empty)}."})
-        if not sections:
-            sections.append({"type": "text", "text": "No storage container in this save holds anything."})
-        return {"id": "storage", "label": "Storage", "badge": sum(1 for c in snap.get("storage") or [] if c["rows"]) or None,
-                "sections": sections}
-
-    def _overview(self, snap: dict | None, ctx) -> list[dict]:
-        out: list[dict] = []
-        where = planets_view.where_you_are(ctx)
-        if not snap:
-            out.append({"type": "text", "text": "No save has been read yet: status, location and inventories appear "
-                                                "once the connector has read a save file."})
-            return out + ([where] if where else [])
-        loc = snap["location"]
-        out.append(timers.timers_section(self.timers, getattr(self.ctx, "section_types", ()), time.time()))
-        out.append({"type": "stats", "title": "Status", "items": [
-            {"label": "Units", "value": _fmt_int(snap["units"])},
-            {"label": "Nanites", "value": _fmt_int(snap["nanites"])},
-            {"label": "Quicksilver", "value": _fmt_int(snap["quicksilver"])},
-            {"label": "Health", "value": snap["health"]},
-            {"label": "Shield", "value": snap["shield"]},
-            {"label": "Ship health", "value": snap["ship_health"]},
-            {"label": "Play time", "value": _fmt_duration(snap["play_time_s"])},
-        ]})
-        if where:
-            out.append(where)
-        out.append({"type": "kv", "title": "Location (at the last save)", "items": [
-            {"label": "Galaxy", "value": loc["galaxy"]},
-            {"label": "Portal address", "value": loc["portal"]},
-            {"label": "Region (voxel X, Y, Z)", "value": ", ".join(str(v) for v in loc["voxel"])},
-            {"label": "System index", "value": loc["system_index"]},
-            {"label": "Planet index", "value": loc["planet_index"]},
-            {"label": "Bases in this system", "value": ", ".join(b["name"] for b in snap["bases"] if b["here"]) or "none"},
-        ]})
-        out.append({"type": "kv", "title": "Fleet and companions", "items": [
-            {"label": "Primary ship", "value": self._primary_ship_text()},
-            {"label": "Settlements", "value": self._settlements_text()},
-            {"label": "Ships", "value": len(snap["ships"])},
-            {"label": "Frigates", "value": snap["frigates"]},
-            {"label": "Frigate expeditions", "value": snap["expeditions"]},
-            {"label": "Companions (pets)", "value": snap["pets"]},
-            {"label": "Freighter", "value": self._freighter_text(snap["freighter"]["name"])},
-            {"label": "Current mission", "value": self._mission_text(snap["current_mission"])},
-            {"label": "Difficulty", "value": snap["difficulty"]},
-        ]})
-        return out
-
-    # ------------------------------------------------------------------ chat (app 3.9.0: plugin personas)
-
-    PERSONA_PROMPT = (
-        "You are the No Man's Sky Plugin Persona, the player's companion for No Man's Sky. With every message you "
-        "get a [GAME DATA: No Man's Sky] block: live data from the player's game - inventories with totals per "
-        "item and per place, currencies, location, ships and warp range, settlements, frigates and timers.\n\n"
-        "Answer questions about their game from that block, every part of a question. For amounts, give the total first, then where it is "
-        "(\"You have 1,234 Copper: 500 in the exosuit, 734 in Storage Container 0.\"). Name items in the player's "
-        "language - the block gives the English name and, in brackets, the game's language - and leave out the "
-        "item ids in square brackets unless asked. If the block does not contain what was asked, say so plainly and suggest where to "
-        "look in the game - never invent numbers. Mention when the data comes from an older save if it matters. "
-        "For general No Man's Sky questions (recipes, mechanics) answer from your own knowledge and say that it is "
-        "not from their save. Be concise and friendly; answer in the language the player writes in."
-    )
-
-    def personas(self) -> list[dict]:
-        """The persona this plugin brings (the app stores it once; the user links it to a model)."""
-        return [{
-            "slug": "companion", "name": "No Man's Sky Plugin Persona",
-            "personality": "Helpful, precise with numbers, a seasoned traveller of the Euclid galaxy.",
-            "speech_style": "Short and clear; totals first, then where things are.",
-            "background": "Brought by the No Man's Sky plugin: answers from your live game data - inventories, "
-                          "ships, settlements, frigates, timers and location.",
-            "system_prompt": self.PERSONA_PROMPT, "temperature": 0.3,
-        }]
-
-    def chat_context(self, question: str) -> dict:
-        """The game data for one chat message (see assistant.py); the app injects it into the system prompt."""
-        snap = self.snapshot
-        ctx = planets_view.Context(self.live, self.history, self.visits, self.gamedata, self.combat_timer,
-                                   snap["bases"] if snap else [], origin=self.save_system, save_position=self.save_position)
-
-        def names_of(item_id):
-            entry = self.gamedata.lookup(item_id) or {}
-            names = [entry.get("en"), entry.get("local")]
-            return [n for n in dict.fromkeys(names) if n]
-
-        def name_of(item_id):
-            return ctx.texts.name(item_id) or item_id
-
-        here = self.live.current_system if self.live.current_system is not None else self.save_system
-
-        def planets_offering(item_id):
-            found = []
-            for planet in self.history.planets.values():
-                gas = planets_view.planet_gas(planet)
-                if item_id in (planet.get("common"), planet.get("uncommon"), planet.get("rare"), gas) \
-                        or item_id in (planet.get("extra") or []):
-                    dist = galaxy.distance_ly(here, planet["system"]) if here is not None else None
-                    found.append((dist if dist is not None else 1e12, planet))
-            found.sort(key=lambda d: d[0])
-            out = []
-            for dist, planet in found[:assistant.NEAREST_PLANETS]:
-                system = planets_view._system_label(planet["system"], ctx.visit(planet["system"]))
-                where = "your current system" if planet["system"] == here else galaxy.distance_text(dist if dist < 1e12 else None)
-                out.append(f"{planet.get('name') or 'a planet'} in {system} ({where})")
-            return out
-
-        status = [f"No Man's Sky - data of the save written {assistant.saved_text((snap or {}).get('saved_at'))}"
-                  + (", position live from the running game" if self.live.current_system is not None else "")]
-        if snap:
-            status.append(f"Units {snap.get('units') or 0:,}, Nanites {snap.get('nanites') or 0:,}, "
-                          f"Quicksilver {snap.get('quicksilver') or 0:,}")
-            if here is not None:
-                status.append(f"You are in the system {planets_view._system_label(here, ctx.visit(here))} "
-                              f"({snap['location'].get('galaxy')}), portal address {snap['location'].get('portal')}")
-            status.append(f"Primary ship: {self._primary_ship_text()}")
-            status.append(f"Freighter: {self._freighter_text(snap['freighter']['name'])}")
-            status.append(f"Current mission: {self._mission_text(snap.get('current_mission'))}")
-        extra = []
-        now = time.time()
-        shown = timers.visible(self.timers, now)
-        if shown:
-            extra.append("Timers: " + "; ".join(
-                f"{t['label']} - {'done' if t['ends_at'] <= now else 'ends ' + timers.clock(t['ends_at'])}" for t in shown))
-        if self.settlements:
-            extra.append(f"Settlements: {self._settlements_text()}")
-        out_on = [f for f in self.frigates if f["on_expedition"]]
-        if self.frigates:
-            extra.append(f"Frigates: {len(self.frigates)} ({len(out_on)} out on an expedition)")
-        words = set(re.findall(r"[\w']+", (question or "").lower()))
-        extra += self._settlement_lines(words, now)
-        extra += self._economy_lines(question, ctx, here)
-        all_names = {i: [n for n in (e.get("en"), e.get("local")) if n] for i, e in (self.gamedata.items or {}).items()}
-
-        def item_notes(item_id):
-            hint = ctx.trade_hint(item_id)        # trade goods: who pays well, the nearest known such system
-            return " ".join(hint.split("\n")) if hint else None
-
-        text = assistant.build_context(question, snap, name_of, names_of, all_names, status, extra, planets_offering,
-                                       item_notes)
-        return {"title": "No Man's Sky", "text": text}
-
-    SETTLEMENT_WORDS = {"settlement", "settlements", "siedlung", "siedlungen", "overseer", "aufseher", "colony", "town"}
-    ECONOMY_WORDS = {"economy", "economies", "wirtschaft", "trade", "sell", "buy", "verkaufen", "kaufen", "handel"}
-
-    def _settlement_lines(self, words: set[str], now: float) -> list[str]:
-        """Settlement details for a question about them (or naming one): stats as the screen shows them when read,
-        production, perks, the waiting decision, the construction."""
-        names = {s["name"].lower() for s in self.settlements}
-        if not (words & self.SETTLEMENT_WORDS or any(n.split()[0] in words for n in names if n)):
-            return []
-        tables = self.settlement_tables or settlements.FALLBACK
-        out = []
-        for s in self.settlements:
-            out.append(f"Settlement {s['name']}: population {s['population']} ({s['race'] or 'unknown race'})")
-            reading = self.settlement_live.values.get(s.get("seed"))
-            if reading:
-                shown = [f"{settlements.STAT_LABELS[st]} {settlements.shown(st, v, tables, s['population'])}"
-                         for st, v in zip(settlements.STATS, reading["stats"]) if st not in ("Sentinels", "Debt")]
-                out.append(f"  as its screen showed at {timers.clock(reading['at'])}: " + ", ".join(shown))
-            if s["production"]:
-                out.append("  production: " + "; ".join(f"{self.gamedata.lookup(p['item']) and self.gamedata.lookup(p['item']).get('en') or p['item']}"
-                                                        f" {p['amount']} of {p['cap']}" for p in s["production"]))
-            if s["pending"] and s["pending"] != "None":
-                out.append(f"  a decision is waiting: {settlements._words(s['pending'])}")
-            elif s["last_judgement"]:
-                lo, hi = tables["judgement_wait"]
-                out.append(f"  next decision between {timers.clock(s['last_judgement'] + lo)} and {timers.clock(s['last_judgement'] + hi)}")
-            build = next((t for t in self.timers if t["key"].startswith("settlement.") and s["name"] in t["label"]), None)
-            if build:
-                out.append(f"  construction: {build['label']} - " + (f"finished at {timers.clock(build['ends_at'])}"
-                           if build["ends_at"] <= now else f"ends {timers.clock(build['ends_at'])}"))
-            out.append(f"  perks: {len(s['perks'])} (details in the plugin's Settlements tab)")
-        return out
-
-    def _economy_lines(self, question: str, ctx, here) -> list[str]:
-        """For a question about economies or trading: the nearest known systems of each economy it names (all
-        economies when it names none), read or predicted from the game's generation rules (marked)."""
-        q = (question or "").lower()
-        named = [e for e in trade.ECONOMY_FALLBACK_NAMES
-                 if any(n and n.lower() in q for n in (trade.ECONOMY_FALLBACK_NAMES[e], ctx.economy_name(e), e))]
-        if not named and not (self.ECONOMY_WORDS & set(re.findall(r"[\w']+", q))):
-            return []
-        out = [f"Economy of your current system: {ctx.economy_summary(here) or 'unknown'}"] if here is not None else []
-        for econ in named or list(trade.ECONOMY_FALLBACK_NAMES):
-            keys = [k for k, e in ctx.economies.items() if e.get("economy") == econ and galaxy.galaxy_of(k) == galaxy.galaxy_of(here or k)]
-            keys.sort(key=lambda k: (galaxy.distance_ly(here, k) or 0) if here is not None else 0)
-            if not keys:
-                continue
-            listed = []
-            for k in keys[:3 if not named else 6]:
-                e = ctx.economies[k]
-                dist = galaxy.distance_text(galaxy.distance_ly(here, k), k == here) if here is not None else "?"
-                listed.append(f"{planets_view._system_label(k, ctx.visit(k))} ({e.get('wealth')}, {dist}"
-                              + (", predicted" if e.get("predicted") else "") + ")")
-            out.append(f"Nearest {ctx.economy_name(econ)} systems: " + "; ".join(listed))
-        return out
-
-    def _primary_ship_text(self) -> str:
-        """'Bang (Fighter, class C) - warp range ~320-365 ly, red and green stars' (details in Ships & bases)."""
-        primary = next((s for s in self.ships if s["primary"]), None)
-        if primary is None:
-            return "none"
-        est = ships.warp_range(primary, self.ship_tables or ships.FALLBACK)
-        stars = f", {' and '.join(est['colours'])} stars" if est["colours"] else ""
-        return f"{ships.ship_label(primary)} ({primary['type']}, class {primary['class']}) - warp range {ships.range_text(est)}{stars}"
-
-    def _freighter_text(self, name: str | None) -> str:
-        """'Iron Maiden - warp range ~100 ly' (the freighter's hyperdrive, estimated like a ship's)."""
-        label = name or "(unnamed)"
-        if not self.freighter:
-            return label
-        est = ships.freighter_range(self.freighter, self.ship_tables or ships.FALLBACK)
-        return f"{label} (class {self.freighter['class']}) - warp range {ships.range_text(est)}"
-
-    def _settlements_text(self) -> str:
-        """'Kay City: Farm in construction, decision waiting' - one line per settlement for the Overview."""
-        if not self.settlements:
-            return "none"
-        parts = []
-        now = time.time()
-        for s in self.settlements:
-            build = next((t for t in self.timers if t["key"].startswith("settlement.") and s["name"] in t["label"]), None)
-            # The save keeps the building after it is finished (until you claim it): the timer tells which.
-            if build and build["ends_at"] <= now:
-                bits = [f"{s['building'] or 'construction'} finished"]
-            else:
-                bits = [f"{s['building']} in construction"] if s.get("building") else []
-            if s.get("pending") and s["pending"] != "None":
-                bits.append("a decision is waiting")
-            parts.append(f"{s['name']}: {', '.join(bits)}" if bits else s["name"])
-        return "; ".join(parts) + " (see Settlements)"
-
-    def _mission_text(self, mission_id: str | None) -> str:
-        """The current mission as the game describes it, with its id; the id alone when no text is known."""
-        if not mission_id:
-            return "none"
-        for key in mission_text_keys(mission_id):
-            entry = self.gamedata.text(key)
-            if entry:
-                # One line, without the game's fill-ins ("%PLANET%", "%SETTLEMENT%": the game names them in play).
-                text = " ".join(re.sub(r"%[A-Z0-9_]+%", "it", entry["en"]).split())
-                text = text if len(text) <= 220 else text[:217].rsplit(" ", 1)[0] + "..."
-                return f"{text} ({mission_id})"
-        return mission_id
-
-    def _inventories(self, snap: dict | None, ctx) -> list[dict]:
-        if not snap:
-            return [{"type": "text", "text": "Inventories appear once a save has been read."}]
-        columns = self._item_columns()
-        hint = {"type": "text", "text": "Hover an item's name for its description; trade goods also tell where they "
-                                        "sell and whether you know such a system."}
-        tabs = [{"id": "exosuit", "label": "Exosuit", "sections": [hint,
-            {"type": "table", "title": "Exosuit inventory", "columns": columns,
-             "rows": self._item_rows(snap["exosuit"] + snap["exosuit_cargo"], ctx), "empty": "Empty"}]}]
-        primary = next((s for s in snap["ships"] if s["primary"]), None)
-        if primary:
-            tabs.append({"id": "starship", "label": f"Starship: {primary['name']}", "sections": [
-                {"type": "table", "title": f"Starship inventory: {primary['name']}", "columns": columns,
-                 "rows": self._item_rows(primary["inventory"], ctx), "empty": "Empty"}]})
-        tabs.append({"id": "freighter", "label": "Freighter", "sections": [
-            {"type": "table", "title": "Freighter inventory", "columns": columns,
-             "rows": self._item_rows(snap["freighter"]["inventory"], ctx), "empty": "Empty"}]})
-        tabs.append(self._storage_tab(snap, ctx, columns))
-        tabs.append({"id": "equipment", "label": "Equipment",
-                     "sections": equipment.equipment_sections(self.equipment, ctx.texts)})
-        return [{"type": "tabs", "id": "inventory-tabs", "tabs": tabs}]
-
-    def _fleet(self, snap: dict | None, ctx) -> list[dict]:
-        if not snap:
-            return [{"type": "text", "text": "Ships and bases appear once a save has been read."}]
-        def system_label(key):
-            visit = ctx.visit(key)
-            return planets_view._system_label(key, visit) if visit else None
-
-        return ships.ship_sections(self.ships, self.ship_tables or ships.FALLBACK, ctx.texts) + frigates.frigate_sections(
-            self.frigates, (self.frigate_traits or {}).get("traits") or {}, ctx.texts, system_label) + [
-            {"type": "table", "title": "Bases", "columns": ["Name", "Type", "Galaxy", "Portal address", "Parts"],
-             "rows": [[b["name"], b["type"], b["galaxy"], b["portal"], b["objects"]] for b in snap["bases"]]},
-        ]
-
-    def _saves(self, snap: dict | None, ctx) -> list[dict]:
-        sections: list[dict] = []
-        stats = self.watcher.stats()
-        sections.append({"type": "kv", "title": "How often the game saves (measured)", "items": [
-            {"label": "Save writes recorded", "value": stats["writes"]},
-            {"label": "Typical interval while playing", "value": _fmt_duration(stats["median_interval_s"])},
-            {"label": "Shortest / longest", "value": f"{_fmt_duration(stats['shortest_interval_s'])} / {_fmt_duration(stats['longest_interval_s'])}"},
-        ]})
-        sections.append({"type": "table", "title": "Recent save writes", "columns": ["Time", "File", "Slot", "Size (kB)", "Since previous"],
-                         "rows": [[e["at"], e["file"], e["slot"], round(e["size"] / 1024), _fmt_duration(e["since_previous_s"])]
-                                  for e in reversed(self.watcher.events[-50:])],
-                         "empty": "No save written since the connector started. Play and save (or let the game autosave)."})
-        source = [
-            {"label": "Save folder", "value": str(self.save_dir) if self.save_dir else "not found"},
-            {"label": "Read from", "value": self.snapshot_file or "–"},
-            {"label": "Read at", "value": self.decoded_at or "–"},
-            {"label": "Decode time", "value": f"{self.decode_seconds} s" if self.decode_seconds is not None else "–"},
-            {"label": "Key mapping", "value": f"{self.mapping_meta.get('tag', '?')} ({len(self.mapping)} keys)" if self.mapping else "–"},
-        ]
-        if self.install:
-            game = f"{self.install.root} (build {self.install.build_id})" if self.install.build_id else str(self.install.root)
-            source.append({"label": "Game folder", "value": game})
-        if self.gamedata.ready:
-            source.append({"label": "Item names", "value":
-                           f"{len(self.gamedata.items):,} items in English and {self.gamedata.language_label}, "
-                           f"read from the game files {self.gamedata.built_at or ''}".strip()})
-        live = {"ok": "reading NMS.exe" + (f" - last scan {self.live.last_scan_iso}, {self.live.last_scan_seconds} s, "
-                                           f"{self.live.last_scan_bytes / 2**30:.1f} GB, {self.live.last_scan_planets} planet(s)"
-                                           if self.live.last_scan_iso else ""),
-                "not-running": "the game is not running", "idle": "waiting"}.get(self.live.status, self.live.error)
-        source.append({"label": "Game memory (read-only)", "value": live})
-        source.append({"label": "Planets recorded", "value":
-                       f"{len(self.history.planets)} in {len(self.history.systems())} system(s), "
-                       f"kept in {self.history.path} (previous version: .json.bak)"})
-        if self.gamedata.icon_error:
-            source.append({"label": "Last icon problem", "value": self.gamedata.icon_error})
-        if snap:
-            source.append({"label": "Save format version", "value": snap["save_version"]})
-        sections.append({"type": "kv", "title": "Source", "items": source})
-        sections.append(planets_view.scan_log_section(ctx, self.history.scans))
-        return sections
+    # ------------------------------------------------------------------ what the app calls
 
     def view(self) -> dict:
-        sections: list[dict] = []
-        if self.save_dir is None:
-            sections.append({"type": "notice", "level": "warn", "text":
-                             "No No Man's Sky saves found. Expected under %APPDATA%\\HelloGames\\NMS (Windows) "
-                             "or the Steam Proton folder (Linux); set NMS_SAVE_DIR to override."})
-        if self.mapping is None:
-            sections.append({"type": "notice", "level": "warn" if self.mapping_error else "info", "text":
-                             f"Key mapping not available yet ({self.mapping_error})." if self.mapping_error
-                             else "Downloading the key mapping (mapping.json) from MBINCompiler…"})
-        if self.unknown_keys:
-            sections.append({"type": "notice", "level": "warn", "text":
-                             f"{self.unknown_keys} save keys are unknown to the current mapping (probably a game "
-                             "update). Press 'Update key mapping'."})
-        if self.error:
-            sections.append({"type": "notice", "level": "error", "text": self.error})
-        if self.install is None and self._game_checked:
-            sections.append({"type": "notice", "level": "info", "text":
-                             "Item names and icons come from the game's own files, but the No Man's Sky installation "
-                             "was not found in any Steam library. Set NMS_GAME_DIR to the game folder to use another one."})
-        elif self.gamedata.error:
-            sections.append({"type": "notice", "level": "warn", "text":
-                             f"Item names and icons are unavailable: {self.gamedata.error}"})
+        """The page (see page.py)."""
+        return self.page.view()
 
-        snap = self.snapshot
-        ctx = planets_view.Context(self.live, self.history, self.visits, self.gamedata, self.combat_timer,
-                                   snap["bases"] if snap else [], origin=self.save_system,
-                                   save_position=self.save_position)
-        sections.append({"type": "tabs", "id": "main", "tabs": [
-            {"id": "overview", "label": "Overview", "sections": self._overview(snap, ctx)},
-            {"id": "systems", "label": "Systems", "badge": len(ctx.keys()) or None,
-             "sections": [planets_view.systems_tabs(ctx, self.selected_system, self.route_state,
-                                                    ships.primary_range(self.ships, self.ship_tables or ships.FALLBACK),
-                                                    self.galaxy_colors)]},
-            {"id": "inventory", "label": "Inventory", "sections": self._inventories(snap, ctx)},
-            {"id": "fleet", "label": "Ships & bases", "sections": self._fleet(snap, ctx)},
-            {"id": "settlements", "label": "Settlements", "badge": len(self.settlements) or None,
-             "sections": settlements.settlement_sections(self.settlements, self.settlement_tables or settlements.FALLBACK,
-                                                         ctx.texts, time.time(), self.settlement_live.values)},
-            {"id": "saves", "label": "Saves & source", "sections": self._saves(snap, ctx)},
-        ]})
-        return {
-            "title": "No Man's Sky",
-            "subtitle": "Read from your save files (updates whenever the game saves) and, while it runs, from the game.",
-            "updated_at": self.decoded_at,
-            "actions": [
-                {"id": "rescan", "label": "Rescan", "description": "Read the newest save file again now."},
-                {"id": "update_mapping", "label": "Update key mapping",
-                 "description": "Download the newest mapping.json from MBINCompiler (needed after game updates)."},
-                {"id": "scan_memory", "label": "Scan game now",
-                 "description": "Read the planets of the current system from the running game now (read-only, ~10 s)."},
-                {"id": "rebuild_names", "label": "Re-read item names",
-                 "description": "Read item names and icons from the game files again (done automatically after a game update)."},
-                {"id": "clear_history", "label": "Clear save history", "description": "Forget the recorded save writes.",
-                 "confirm": "Clear the recorded save history?"},
-            ],
-            "sections": sections,
-        }
+    def personas(self) -> list[dict]:
+        """The persona this plugin brings (see companion.py; app 3.9.0)."""
+        return self.companion.personas()
+
+    def chat_context(self, question: str) -> dict:
+        """The game data for one chat reply of a persona that draws on this plugin (see companion.py)."""
+        return self.companion.chat_context(question)

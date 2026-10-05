@@ -22,8 +22,8 @@ The tabs:
 
 - **Overview** - **timers** (when your settlement buildings are finished and your frigate expeditions return), units, nanites, quicksilver, health, where you were at the last save, where you are now, your fleet and companions: the **primary ship** with its estimated warp range and the star colours it reaches, your **settlements** at a glance (construction, a decision waiting), the **freighter** with its warp range, and the current mission in the game's words.
 - **Systems** - *Current system* (live from the game, with a map), *Visited systems* (every system from your save; click one to see its map), *Planets* (every planet whose resources were read), *Galaxy* (the galaxy map and the nearest planet with each resource) and *Trade* (economies and trade routes) and *Route* (the route planner).
-- **Inventory** - exosuit, starship, freighter, **storage containers** (0-9, numbered as in the game) and **Equipment** (the exosuit's technology, every multi-tool - the one in your hand first - and the freighter's technology, with charge), each item with its icon, its name in English and in the game's language, and its **category**. Hover an item's name for its description; **trade goods** also tell which economies pay well for them, the nearest such system you know (or that you have not found one yet) and where they are cheap to buy. Planet resources have the same tooltip.
-- **Ships & bases** - your ships (type, class, estimated **warp range**, the star colours they can reach, base stats, slots) and the primary ship's technology; your bases with portal addresses. See *Ships* below.
+- **Inventory** - exosuit, starship, freighter, **storage containers** (0-9, numbered as in the game) and **Equipment**, each item with its icon, its name in English and in the game's language, and its **category**. Hover an item's name for its description (in English and in the game's language); **trade goods** also tell which economies pay well for them, the nearest such system you know (or that you have not found one yet) and where they are cheap to buy. Planet resources have the same tooltip. See *Equipment* below.
+- **Ships & bases** - your ships (type, class, estimated **warp range**, the star colours they can reach, base stats, slots), **every ship's technology** (one tab per ship) and your bases with portal addresses. See *Ships* below.
 - **Settlements** - the economy of each settlement you run: see *Settlements* below.
 - **Saves & source** - how often the game saves, the recent save writes, where the data comes from and the last memory scans.
 
@@ -43,9 +43,26 @@ and ask about your game:
   settlement building?* - it also knows your ships, timers, settlements,
   frigates, currencies and where you are.
 
+- *Which upgrades does my multi-tool have?* - your installed technology (exosuit,
+  multi-tools, exocraft, freighter, ships) with what each part does.
+
+While linking it, the card also asks two things (app 3.10.0):
+
+- **Codex knowledge** - a Codex library the persona draws on for recipes,
+  mechanics and lore. Libraries whose name contains *No Man's Sky* are ticked
+  for you (the Codex panel's *Populate* can fill one for the game). *Auto* adds
+  the best-matching excerpts before every reply; *When needed* lets the model
+  look things up itself.
+- **Web search** - *When needed* (the model searches itself when a question
+  needs current facts) is offered only for a model that can search, and not in
+  Turbo-Opt mode; *Before every reply* works with any model but makes every
+  reply wait for a search; *Off*.
+
+Your numbers always come from the game data, never from the Codex or the web.
 Its answers are as fresh as the game's last save (and the live position while
-the game runs). You can change its prompt and settings in the persona editor;
-other personas can draw on the same data under *Intel → Plugin Data*.
+the game runs). **Change** on the card picks another model, library or search
+setting; the persona editor changes its prompt and voice; other personas can
+draw on the same data under *Intel → Plugin Data*.
 
 ## Timers
 
@@ -121,6 +138,28 @@ class. Click a planet for its resources, gas, weather, flora, fauna, sentinels
 and your discoveries there. Planets known only from your save appear as *not
 scanned yet*.
 
+## Equipment
+
+*Inventory → Equipment* has a tab each for the **Exosuit**, the **Multi-tools**
+(the one in your hand first, with its class), the **Exocraft** (Roamer, Nomad,
+Colossus, Pilgrim, Nautilon and Minotaur - those that carry technology; the one
+you summon first is marked) and the **Freighter**. Every part has its icon,
+category, charge and **what it does**:
+
+- **Upgrade modules** (C/B/A/S-class and illegal ones) list every stat they can
+  have, with its range - for example *Mining Speed +5-10 %; Heat Dispersion
+  +5-15 %*; *(always)* marks the stats every such module gets. The game draws
+  each module's stats and exact values from its seed when it is installed and
+  does not store the result, so only the ranges are known - the same as in the
+  game's own description ("exact upgrade statistics are unknown until
+  installation is complete").
+- **Fixed technology** shows what it adds (a hyperdrive's 100 ly), the ability it
+  unlocks (*Advanced Mining Laser*, *Surveying Enabled*) or a value you know from
+  the game (*Clip Size 64*).
+
+Hover a part for the game's description in English and in the game's language.
+The values come from the game's technology tables of your installation.
+
 ## Ships
 
 *Ships & bases* lists your ships with type, class, the ship's own bonuses
@@ -136,8 +175,9 @@ technology, and how many are still damaged) and:
 - **Star colours it can reach** - red, green, blue and purple stars need the
   matching hyperdrive upgrades (Cadmium, Emeril, Indium drive and the Atlas one).
 
-Below, the primary ship's technology: charge, and what each part adds. The route
-planner starts with the lower warp range of your primary ship.
+Below, every ship's technology in its own tab (the primary ship first): charge
+and what each part does, as on the *Equipment* tab, plus the star colours a drive
+opens. The route planner starts with the lower warp range of your primary ship.
 
 **Frigates** are listed with their class icon, grade, race, their combat,
 exploration, industry and trade values, their traits (named as in the game; hover

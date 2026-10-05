@@ -107,10 +107,31 @@ def test_storage_tab_lists_full_containers_and_names_the_empty_ones(tmp_path, mo
                         {"number": 1, "key": "Chest2Inventory", "name": "BLD_STORAGE_NAME", "rows": []},
                         {"number": 7, "key": "Chest8Inventory", "name": "Metals", "rows": [["STELLAR2", 469, 9999]]},
                         {"number": None, "key": "ChestMagicInventory", "name": None, "rows": [["STELLAR2", 15, 9999]]}]}
-    tab = plugin._storage_tab(snap, context(tmp_path, {}), ["Name", "Category", "Item id", "Amount", "Max"])
+    tab = plugin.page.storage_tab(snap, context(tmp_path, {}), ["Name", "Category", "Item id", "Amount", "Max"])
     titles = [s.get("title") for s in tab["sections"]]
     assert titles[:3] == ["Storage Container 0 - 1 stacks", "Storage Container 7: Metals - 1 stacks",
                           "Other storage (ChestMagic) - 1 stacks"]
     assert tab["sections"][0]["rows"][0][:3] == [{"text": "FUEL1", "icon": "x.png", "hint": "Category: Fuel Element"},
                                                  "Fuel Element", "FUEL1"]
     assert tab["sections"][-1]["text"] == "Empty storage containers: 1." and tab["badge"] == 3
+
+
+def test_tooltips_give_the_description_in_both_languages_and_what_a_technology_does():
+    """The game-language description was never shown (only desc_en) - it is now its own block when it differs;
+    technology adds a 'What it does' block from the technology tables (GameData.tech) with the note on ranges."""
+    from nms_connector import techstats
+    from test_techstats import proc_table, tech_table
+
+    class Data(GameData):
+        items = {"UP_HYP4": {"en": "Hyperdrive Upgrade", "local": "Hyperantrieb-Upgrade", "cat_en": "Upgrade",
+                             "desc_en": "Extends the jump.", "desc_local": "Verlängert den Sprung."}}
+        tech = techstats.parse(tech_table(), proc_table())
+
+        def text(self, key):
+            return {"en": "Hyperdrive Range", "local": "Hyperantrieb-Reichweite"} if key == "SHIP_HYPERDRIVE_JUMPDISTANCE" else None
+
+    texts = planets_view.Texts(Data())
+    blocks = texts.hint("^UP_HYP4#66014").split("\n\n")
+    assert blocks[:3] == ["Category: Upgrade", "Extends the jump.", "Deutsch: Verlängert den Sprung."]
+    assert blocks[3].startswith("What it does:\n• Hyperdrive Range (Hyperantrieb-Reichweite) +220-265 ly (always)\nGets 2")
+    assert texts.modifiers("FUEL1") == [] and planets_view.Texts(GameData()).modifiers("UP_HYP4") == []

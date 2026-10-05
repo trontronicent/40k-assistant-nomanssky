@@ -46,6 +46,7 @@ MAX_SYSTEM_INDEX = 0x42F          # purple systems go up to 0x429
 
 
 class PRNG:
+    """The game's 64-bit multiply-with-carry random generator (nms_namegen's port)."""
     def __init__(self, seed: int):
         self.seed = seed
 
@@ -78,6 +79,7 @@ def _round(a, b, c, d, rota, rotb):
 
 
 def _hash(a, b, c, d, key, seed):
+    """The Threefish-style mixing rounds the game uses to derive per-system seeds (four 64-bit words)."""
     a, b, c, d = _round(a, b, c, d, -0x17, 0x18)
     a, b, c, d = _round(a, b, c, d, -0x5, 0x1B)
     a = (a + key + 1) & MASK64
@@ -111,6 +113,7 @@ def _hash(a, b, c, d, key, seed):
 
 
 def _index_primed(ua: int) -> int:
+    """The primed generation seed of a system from its packed universe address."""
     seed = ua & 0xFFFFFFFFFF
     system_id = ((ua >> 0x20) >> 8) & 0xFFF
     key = (seed ^ 0x1BD11BDAA9FC1A22) & MASK64
@@ -137,6 +140,7 @@ def portal_code(key: int) -> tuple[int, int]:
 
 
 def voxel_attributes(code: int) -> dict:
+    """Per-region counts the generation uses, from the region's packed voxel code (distance from the core)."""
     x, y, z = code & 0xFFF, (code & 0xFF000000) >> 24, (code & 0xFFF000) >> 12
     x = x - 0x1000 if x > 0x7FF else x
     z = z - 0x1000 if z > 0x7FF else z

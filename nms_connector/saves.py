@@ -33,6 +33,7 @@ class SaveFormatError(ValueError):
 
 @dataclass(frozen=True)
 class SaveFile:
+    """One save file on disk: its number (save.hg = 1, save2.hg = 2, ...), size and modification time."""
     path: Path
     number: int          # 1 for save.hg, 2 for save2.hg, ...
     size: int
@@ -83,6 +84,7 @@ def find_save_dirs(roots: list[Path] | None = None) -> list[Path]:
 
 
 def list_save_files(folder: Path) -> list[SaveFile]:
+    """Every save*.hg in a folder, by number; [] when the folder cannot be read."""
     out = []
     try:
         entries = list(os.scandir(folder))

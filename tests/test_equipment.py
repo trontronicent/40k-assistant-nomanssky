@@ -1,4 +1,4 @@
-"""Tests for the Equipment tab: exosuit technology, multi-tools and freighter technology from the save."""
+"""Tests for the Equipment tab: exosuit, multi-tools, exocraft and freighter technology from the save."""
 
 from nms_connector import equipment
 
@@ -8,9 +8,12 @@ def tech(tid, amount=-1, maximum=100):
 
 
 def save():
-    """Kay's equipment on 2026-10-04 (trimmed): exosuit parts, two used multi-tools and three unused entries
-    (no model), the active one at index 2 ("ActiveMultioolIndex", spelled so in the save), a freighter drive."""
+    """Kay's equipment on 2026-10-04/05 (trimmed): exosuit parts, two used multi-tools and three unused entries
+    (no model), the active one at index 2 ("ActiveMultioolIndex", spelled so in the save), a freighter drive, and
+    exocraft by GcVehicleType: the Roamer (index 0, summoned first) with parts, an empty Nomad, the unused
+    hovercraft slot (4) and the Minotaur (6)."""
     unused = {"Name": "", "Resource": {"Filename": ""}, "Store": {"Class": {"InventoryClass": "C"}}}
+    vehicle = lambda *ids: {"Inventory_TechOnly": {"Slots": [tech(i) for i in ids]}}     # noqa: E731
     return {"BaseContext": {"PlayerStateData": {
         "Inventory_TechOnly": {"Slots": [tech("PROTECT", 80, 100), tech("UP_JET1#50161")]},
         "Inventory": {"Slots": [{"Type": {"InventoryType": "Substance"}, "Id": "^FUEL1"}]},
@@ -22,19 +25,26 @@ def save():
             {"Name": "Quantum Kay Needler", "Resource": {"Filename": "MULTITOOL.SCENE.MBIN"},
              "Store": {"Class": {"InventoryClass": "A"}, "Slots": [tech("UP_LASER1#53433"), tech("TERRAINEDITOR", 562, 600)]}},
             unused],
+        "PrimaryVehicle": 0,
+        "VehicleOwnership": [vehicle("VEHICLE_ENGINE", "UP_EXGUN1#59766"), vehicle(), {}, {}, vehicle("VEHICLE_ENGINE"),
+                             {}, vehicle("MECH_ENGINE")],
         "FreighterInventory_TechOnly": {"Slots": [tech("F_HYPERDRIVE", 96, 120)]}}}}
 
 
 def test_equipment_is_read_with_the_multitool_in_your_hand_first():
     """Only technology slots count (not the fuel in the general inventory); unused multi-tool entries are
-    skipped; the active one comes first and is marked."""
-    eq = equipment.equipment_from_save(save())
-    assert [t["id"] for t in eq["exosuit"]] == ["PROTECT", "UP_JET1#50161"]
-    assert [(t["name"], t["class"], t["active"]) for t in eq["multitools"]] == [
-        ("Quantum Kay Needler", "A", True), ("Shitttool", "B", False)]
-    assert eq["freighter"][0]["id"] == "F_HYPERDRIVE"
-    assert equipment.item_ids(eq) == ["PROTECT", "UP_JET1#50161", "F_HYPERDRIVE", "UP_LASER1#53433", "TERRAINEDITOR", "LASER"]
-    assert equipment.equipment_from_save({}) == {"exosuit": [], "multitools": [], "freighter": []}
+    skipped; the active one comes first and is marked; exocraft without technology and the game's unused
+    hovercraft slot are left out."""
+    eq = equipment.Equipment.from_save(save())
+    assert eq.exosuit.ids == ["PROTECT", "UP_JET1#50161"]
+    assert [(t.title, t.active) for t in eq.multitools] == [
+        ("Quantum Kay Needler (class A, in your hand)", True), ("Shitttool (class B)", False)]
+    assert [c.name() for c in eq.exocraft] == ["Roamer (summoned first)", "Minotaur"]
+    assert eq.freighter.ids == ["F_HYPERDRIVE"]
+    assert eq.item_ids() == ["PROTECT", "UP_JET1#50161", "UP_LASER1#53433", "TERRAINEDITOR", "LASER",
+                             "VEHICLE_ENGINE", "UP_EXGUN1#59766", "MECH_ENGINE", "F_HYPERDRIVE"]
+    empty = equipment.Equipment.from_save({})
+    assert empty.item_ids() == [] and empty.multitools == [] and empty.exocraft == []
 
 
 class Texts:
@@ -44,14 +54,27 @@ class Texts:
     def category(self, item_id):
         return "Upgrade" if item_id.startswith("UP_") else None
 
+    def modifiers(self, item_id):
+        return ["Mining Speed +5-10 %", "Heat Dispersion +5-15 %"] if item_id.startswith("UP_LASER1") else []
 
-def test_the_equipment_tab_lists_each_part_with_icon_category_and_charge():
-    """One table for the exosuit, one per multi-tool (title says which is in your hand), one for the freighter;
-    parts without charge show none."""
-    out = equipment.equipment_sections(equipment.equipment_from_save(save()), Texts())
-    titles = [s.get("title") for s in out]
-    assert titles[:4] == ["Exosuit technology (2)", "Multi-tool: Quantum Kay Needler (class A, in your hand)",
-                          "Multi-tool: Shitttool (class B)", "Freighter technology (1)"]
-    assert out[0]["rows"][0] == [{"text": "PROTECT", "icon": "x.png"}, None, "80 / 100"]
-    assert out[1]["rows"][0][1:] == ["Upgrade", None] and out[1]["rows"][1][2] == "562 / 600"
+    def label(self, key):
+        return "Roamer (Rover)" if key == "VEHICLE_BUGGY_TITLE_L" else None
+
+
+def test_the_equipment_tab_has_sub_tabs_with_what_each_part_does():
+    """Sub-tabs Exosuit / Multi-tools / Exocraft / Freighter with counts; each part has icon, category, charge
+    and what it does (the stat ranges); exocraft are named in the game's languages; a note explains ranges."""
+    out = equipment.equipment_sections(equipment.Equipment.from_save(save()), Texts())
+    tabs = out[0]["tabs"]
+    assert [(t["label"], t["badge"]) for t in tabs] == [("Exosuit", 2), ("Multi-tools", 2), ("Exocraft", 2),
+                                                        ("Freighter", 1)]
+    exosuit = tabs[0]["sections"][0]
+    assert exosuit["id"] == "exosuit-tech" and exosuit["title"] == "Exosuit technology (2)"
+    assert exosuit["rows"][0] == [{"text": "PROTECT", "icon": "x.png"}, None, "80 / 100", None]
+    needler = tabs[1]["sections"][0]
+    assert needler["title"] == "Multi-tool: Quantum Kay Needler (class A, in your hand)"
+    assert needler["rows"][0][1:] == ["Upgrade", None, "Mining Speed +5-10 %; Heat Dispersion +5-15 %"]
+    assert needler["rows"][1][2] == "562 / 600"
+    assert tabs[2]["sections"][0]["title"] == "Exocraft: Roamer (Rover) (summoned first)"
+    assert "seed" in out[1]["text"]
     assert equipment.equipment_sections(None, Texts())[0]["type"] == "text"

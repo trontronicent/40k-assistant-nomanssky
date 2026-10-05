@@ -39,6 +39,7 @@ LANGUAGE_LABELS = {
 
 @dataclass(frozen=True)
 class GameInstall:
+    """One installed copy of the game: its folder, Steam build, language and how it was found."""
     root: Path              # the game folder (contains GAMEDATA)
     build_id: str | None    # Steam build id; None outside Steam
     language: str           # suffix of the game's language files, e.g. "german"

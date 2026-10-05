@@ -18,6 +18,8 @@ SESSION_GAP_S = 2 * 3600   # intervals longer than this span a break, not play
 
 
 class SaveWatcher:
+    """Notices save writes: a file counts as written once its size and mtime stayed the same for
+    ``settle_s``; every write is recorded (``events``) to measure how often the game saves."""
     def __init__(self, settle_s: float = 2.0, max_events: int = 300, events: list[dict] | None = None):
         self.settle_s = settle_s
         self.max_events = max_events

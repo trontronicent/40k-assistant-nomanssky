@@ -96,6 +96,7 @@ def _enum(value, field: str) -> str | None:
 
 
 def frigates_from_save(readable: dict) -> list[dict]:
+    """Your frigates from FleetFrigates: class, race, grade, stats, traits, record, home system, state."""
     ps = ((readable or {}).get("BaseContext") or {}).get("PlayerStateData") or {}
     out_on = {i for e in ps.get("FleetExpeditions") or [] if isinstance(e, dict) for i in e.get("AllFrigateIndices") or []}
     out = []

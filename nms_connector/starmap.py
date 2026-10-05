@@ -103,6 +103,7 @@ class StarmapReader:
         return self.last_scan_at is None or now - self.last_scan_at >= self.SCAN_EVERY_S
 
     def scan(self, reader, current: int) -> dict[int, dict]:
+        """Read the galaxy map's star records around the current system (the seed table is built per region)."""
         started = time.perf_counter()
         region = current & 0xFFFFFFFFFF          # the region + galaxy, no system index
         if region != self._table_for:

@@ -114,18 +114,28 @@ class Texts:
     def item(self, item_id, text=None):
         return {"text": item_id, "icon": "x.png"}
 
+    def category(self, item_id):
+        return None
+
 
 def test_the_ships_table_explains_the_estimate_and_lists_the_primary_ships_technology():
     """The range cell's tooltip lists what adds up to it; damaged slots are counted, not listed as technology;
-    the primary ship's technology says what each part adds."""
+    every ship gets a technology sub-tab (primary first, keeping the old table id) saying what each part adds -
+    from the warp-range tables when the texts know no stat modifiers."""
     out = ships.ship_sections(ships.ships_from_save(save()), dict(ships.FALLBACK), Texts())
     table = out[0]
     assert table["rows"][0][0] == "Bang (primary)" and table["rows"][1][0] == "(unnamed Explorer)"
     assert "S-Class Hyperdrive Upgrade: 220-265 ly" in table["rows"][0][3]["hint"]
     assert table["rows"][1][-1] == "15 / 0 / 16 (2 damaged)"
-    tech = {r[0]["text"]: r[1:] for r in out[1]["rows"]}
-    assert tech["HYPERDRIVE"] == ["96 / 120", "100 ly warp range"] and tech["UP_HYP4#66014"][1] == "220-265 ly warp range"
-    assert tech["HDRIVEBOOST1"][1] == "opens red star systems" and tech["UP_HYP4#66014"][0] is None
+    tabs = out[1]["tabs"]
+    assert [t["label"] for t in tabs] == ["Bang (primary)", "(unnamed Explorer)"]
+    first = tabs[0]["sections"][0]
+    assert first["id"] == "primary-ship-tech" and "id" not in tabs[1]["sections"][0]
+    tech = {r[0]["text"]: r[1:] for r in first["rows"]}
+    assert tech["HYPERDRIVE"] == [None, "96 / 120", "100 ly warp range"]
+    assert tech["UP_HYP4#66014"][2] == "220-265 ly warp range" and tech["UP_HYP4#66014"][1] is None
+    assert tech["HDRIVEBOOST1"][2] == "opens red star systems"
+    assert [r[0]["text"] for r in tabs[1]["sections"][0]["rows"]] == ["HYPERDRIVE"]      # damaged slots left out
     assert ships.ship_sections([], dict(ships.FALLBACK), Texts())[0]["text"] == "No ships in this save."
 
 
