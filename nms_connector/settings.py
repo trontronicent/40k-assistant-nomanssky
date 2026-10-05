@@ -52,6 +52,22 @@ class PluginSettings:
         tmp.write_text(json.dumps(asdict(self), indent=2), encoding="utf-8")
         tmp.replace(path)
 
+    SWITCHES = {"single_context": ("Single context per question", "Helps saving VRAM")}
+
+    def set_switch(self, params: dict) -> str | None:
+        """One on/off setting from the app's overlay (``{id, value}``, untrusted); returns why it was refused."""
+        if not isinstance(params.get("id"), str) or params["id"] not in self.SWITCHES:
+            return "Unknown setting."
+        if not isinstance(params.get("value"), bool):
+            return "The value must be on or off."
+        setattr(self, params["id"], params["value"])
+        return None
+
+    def toggles(self, action: str) -> list[dict]:
+        """The on/off settings for the app's overlay (app 3.11.0 ``toggles``): clicking runs ``action``."""
+        return [{"id": key, "label": label, "hint": hint, "value": bool(getattr(self, key)), "action": action}
+                for key, (label, hint) in self.SWITCHES.items()]
+
     def update(self, params: dict) -> str | None:
         """Apply the settings form's values (untrusted); returns why they were refused, or None when applied."""
         codeword = " ".join(str(params.get("codeword") or "").split())

@@ -461,3 +461,27 @@ def test_the_plugins_overlay_passes_the_apps_check():
     out = normalize_overlay({"title": "No Man's Sky", "timers": [], "lines": [], "persona_id": PERSONA_ID,
                              "codeword": DEFAULT_CODEWORD}, "nomanssky", "x")
     assert out["persona_id"] == PERSONA_ID and out["codeword"] == DEFAULT_CODEWORD
+
+
+def test_single_context_is_a_switch_in_the_overlay_and_on_top_of_the_overview(tmp_path, monkeypatch):
+    """Asked for 2026-10-05: the setting was only in the last tab. The overlay now gets it as a switch (toggles,
+    app 3.11.0) whose click runs set_setting {id, value} - untrusted, checked - and the Overview starts with the
+    settings form (its own section id: the Settings tab keeps the other)."""
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    toggle, = plugin.overlay()["toggles"]
+    assert toggle == {"id": "single_context", "label": "Single context per question", "hint": "Helps saving VRAM",
+                      "value": False, "action": "set_setting"}
+    assert asyncio.run(plugin.action("set_setting", {"id": "single_context", "value": True}))["ok"]
+    assert plugin.settings.single_context is True and plugin.overlay()["toggles"][0]["value"] is True
+    assert asyncio.run(plugin.action("set_setting", {"id": "codeword", "value": True}))["ok"] is False
+    assert asyncio.run(plugin.action("set_setting", {"id": ["x"], "value": True}))["ok"] is False
+    assert asyncio.run(plugin.action("set_setting", {"id": "single_context", "value": "on"}))["ok"] is False
+    plugin.snapshot = {"exosuit": [], "exosuit_cargo": [], "storage": [], "bases": [], "saved_at": None, "units": 1,
+                       "nanites": 2, "quicksilver": 3, "health": 1, "shield": 1, "ship_health": 1, "play_time_s": 1,
+                       "location": {"galaxy": "Euclid", "portal": "x", "voxel": [0, 0, 0], "system_index": 1,
+                                    "planet_index": 0}, "current_mission": None, "ships": [], "frigates": 0,
+                       "expeditions": 0, "pets": 0, "difficulty": "Normal", "freighter": {"name": None, "inventory": []}}
+    first = plugin.page.overview(plugin.snapshot, plugin.context())[0]
+    assert first["id"] == "plugin-settings-overview" and first["type"] == "form"
+    assert plugin.page.settings_sections()[0]["id"] == "plugin-settings"

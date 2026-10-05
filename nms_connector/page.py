@@ -106,6 +106,8 @@ class ConnectorPage:
                                                 "once the connector has read a save file."})
             return out + ([where] if where else [])
         loc = snap["location"]
+        # The persona's settings first: easy to find (asked for 2026-10-05), also in the Settings tab.
+        out.append(self.settings_sections("plugin-settings-overview")[0])
         out.append(timers.timers_section(c.timers, getattr(c.ctx, "section_types", ()), time.time()))
         out.append({"type": "stats", "title": "Status", "items": [
             {"label": "Units", "value": fmt_int(snap["units"])},
@@ -227,10 +229,11 @@ class ConnectorPage:
         sections.append(planets_view.scan_log_section(ctx, c.history.scans))
         return sections
 
-    def settings_sections(self) -> list[dict]:
-        """The Settings tab: the persona's codeword and Single Context Per Question (settings.py)."""
+    def settings_sections(self, section_id: str = "plugin-settings") -> list[dict]:
+        """The persona's codeword and Single Context Per Question (settings.py): the Settings tab, and the top of
+        the Overview (`section_id` differs - ids are unique on a page)."""
         s = self.connector.settings
-        return [{"type": "form", "id": "plugin-settings", "title": "Plugin persona", "action": "save_settings",
+        return [{"type": "form", "id": section_id, "title": "Plugin persona settings", "action": "save_settings",
                  "submit_label": "Save",
                  "description": "How the No Man's Sky Plugin Persona is addressed and how much of the conversation it "
                                 "keeps. In the app's desktop overlay, switched to No Man's Sky (right-click -> Show), "

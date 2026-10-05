@@ -38,6 +38,7 @@ from .watcher import SaveWatcher
 
 POLL_S = 5
 SAVE_SETTINGS = "save_settings"   # the Settings tab's form
+SET_SETTING = "set_setting"       # one on/off setting from the app's overlay ({id, value})
 CAMERA_EVERY_S = 1         # PROTOTYPE star fixes: how often the galaxy map camera is sampled while the game runs
 MAPPING_RELEASE_API = "https://api.github.com/repos/monkeyman192/MBINCompiler/releases/latest"
 MAPPING_RECHECK_S = 24 * 3600
@@ -565,6 +566,13 @@ class NmsConnector:
             await self.ctx.run_blocking(self.settings.save, self.settings_path)
             return {"ok": True, "message": f"Settings saved: codeword \"{self.settings.codeword}\", single context per "
                                            f"question {'on' if self.settings.single_context else 'off'}."}
+        if action_id == SET_SETTING:
+            problem = self.settings.set_switch(params or {})
+            if problem:
+                return {"ok": False, "message": problem}
+            await self.ctx.run_blocking(self.settings.save, self.settings_path)
+            return {"ok": True, "message": f"Single context per question "
+                                           f"{'on' if self.settings.single_context else 'off'}."}
         if action_id == planets_view.NAME_FIX:
             return await self.ctx.run_blocking(self._name_fix, params or {})
         if action_id == "clear_history":

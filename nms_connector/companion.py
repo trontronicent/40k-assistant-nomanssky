@@ -172,8 +172,11 @@ class PluginCompanion:
             lines.append(f"You are in {planets_view._system_label(here, c.context().visit(here))}")
         if c.settlements:
             lines.append(f"Settlements: {c.describe.settlements()}")
+        settings = getattr(c, "settings", None)
         return {"title": "No Man's Sky", "timers": timers.visible(c.timers, now)[:20], "lines": lines,
-                "persona_id": PERSONA_ID, "codeword": getattr(getattr(c, "settings", None), "codeword", None)}
+                "persona_id": PERSONA_ID, "codeword": getattr(settings, "codeword", None),
+                # Switches in the overlay; clicking one runs the plugin's set_setting action (plugin.SET_SETTING).
+                "toggles": settings.toggles("set_setting") if settings is not None else []}
 
     def kind_lines(self, snap: dict, place_names: list[str] | None, ctx, name_of) -> list[str]:
         """Trade goods by kind (assistant.trade_kinds) with the game's base value, which economies buy the kind,
