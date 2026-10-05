@@ -1,7 +1,7 @@
 {
   "about": "Distances read by the player on the in-game galaxy map (LJ = Lichtjahre = light years), collected to find how the game places systems inside a region and how many light years one region (voxel) step is. Append new samples; keep the context (galaxy map open?, camera focus) - the gGalacticScale value is the map camera's focus, not necessarily the current system.",
   "known_positions_voxels": {
-    "note": "Positions in region units (1 unit = 400 LJ, confirmed by the centre distance). Only values read with the map camera locked on the star are trusted: with the map closed the value keeps the camera's last focus, not the current system.",
+    "note": "Positions in region units (1 unit = 400 LJ, confirmed by the centre distance). Only values read with the map camera locked on the star are trusted: with the map closed the value keeps the camera's last focus, not the current system. CAUTION 2026-10-05 14:30: the user saw the map's centre distance change with the viewport - the gGalacticScale value is the camera's position, so a 'locked' reading is a star's position only if the camera sits exactly on it; positions identified by matching the centre distance are camera positions.",
     "0x620002925e80": {
       "name": "Delta Sol (generated: Ziverkess)",
       "system_index": 98,
@@ -168,6 +168,38 @@
           "centre_ly": 718657
         }
       ]
+    },
+    {
+      "at": "2026-10-05 14:25-14:26",
+      "from": {
+        "name": "Occultimo Reat Kay (current position)"
+      },
+      "galaxy_map_open": true,
+      "distances": [
+        {
+          "to": "Yibrazh",
+          "ly": 251,
+          "centre_ly": 718568,
+          "logged_camera": [
+            -383.9045,
+            2.1069,
+            -1754.9198
+          ]
+        },
+        {
+          "to": "Emnikh VII",
+          "key": "0x2f0002925e80",
+          "system_index": 47,
+          "ly": 64,
+          "centre_ly": 718606,
+          "logged_camera": [
+            -383.9077,
+            2.0285,
+            -1755.0167
+          ]
+        }
+      ],
+      "note": "map distances are whole LJ (no decimals). Yibrazh's centre distance was 718,387 at 14:20 and 718,568 now: the earlier lock was on another point."
     }
   ],
   "findings": [
@@ -183,6 +215,8 @@
     "2026-10-05: Delta Sol's position read with the camera locked on it: (-383.6563, 2.2776, -1754.3949). Occultimo -> it = 0.5798 units = 232 LJ at 400 LJ/unit, exactly 4x the 58 LJ read from Delta Sol earlier - unexplained (local distances at 100 LJ/unit? or a misread?).",
     "2026-10-05: the centre distance shown for a locked star = |position| x 400 LJ to within 1 LJ (4/4 stars): the map's position is the star's, 1 unit = 400 LJ.",
     "2026-10-05: with the map closed gGalacticScale keeps the last camera focus - NOT the current system (Occultimo 'in space, map closed' read Delta-Sol-era focus). The plugin's position recording (positions.py) is therefore unreliable: its 2 recorded positions were both wrong.",
-    "2026-10-05: star-to-star map distances vs |delta| x 400: OC-DS 58 vs 120.6, DS-KM 19 vs 39.5, OC-KM 43 vs 83.6 (all ~/2.0: a similar triangle at ~194 LJ/unit), but OC-YB 251 vs 279.9 (/1.12). Per-axis scaling does not fit (negative weights). Unexplained: is the displayed star distance not euclid x 400, or is the Yibrazh position/reading off?"
+    "2026-10-05: star-to-star map distances vs |delta| x 400: OC-DS 58 vs 120.6, DS-KM 19 vs 39.5, OC-KM 43 vs 83.6 (all ~/2.0: a similar triangle at ~194 LJ/unit), but OC-YB 251 vs 279.9 (/1.12). Per-axis scaling does not fit (negative weights). Unexplained: is the displayed star distance not euclid x 400, or is the Yibrazh position/reading off?",
+    "2026-10-05 14:30: the map's 'distance to the heart' follows the viewport (camera), not the selected star - centre distance cannot identify a star, and the logged values are camera positions.",
+    "2026-10-05: no single observer point explains the 'from current position' readings (DS 58, YB 251, KM 43, EM 64) at 400 LJ/unit or any fitted scale - best fit misses Yibrazh by 103 LJ. So either the logged camera positions are not the stars, or the displayed distance is not euclid. Next: identify stars by the selected-star record (packed address), read the camera only when it sits on the star."
   ]
 }
