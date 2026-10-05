@@ -135,3 +135,12 @@ def test_tooltips_give_the_description_in_both_languages_and_what_a_technology_d
     assert blocks[:3] == ["Category: Upgrade", "Extends the jump.", "Deutsch: Verlängert den Sprung."]
     assert blocks[3].startswith("What it does:\n• Hyperdrive Range (Hyperantrieb-Reichweite) +220-265 ly (always)\nGets 2")
     assert texts.modifiers("FUEL1") == [] and planets_view.Texts(GameData()).modifiers("UP_HYP4") == []
+
+
+def test_a_trade_goods_tooltip_shows_its_base_value():
+    """The item database keeps the game's base value of products (0.10.0): the tooltip shows it after the
+    category, so the player sees what a stack is worth before an economy's price factor."""
+    class Data(GameData):
+        items = {"TRA_TECH4": {"en": "Autonomous Positioning Unit", "cat_en": "Trade Goods (Technology)", "value": 30000}}
+    blocks = planets_view.Texts(Data()).hint("TRA_TECH4").split("\n\n")
+    assert blocks[:2] == ["Category: Trade Goods (Technology)", "Base value: 30,000 units"]

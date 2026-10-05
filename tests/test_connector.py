@@ -396,3 +396,24 @@ def test_game_tables_load_once_per_build_and_report_fallbacks():
     class Install:
         build_id = "new"
     assert tables.needs_load(Install())
+
+
+def test_a_trade_goods_question_gets_the_kinds_with_value_and_buyer_and_no_equipment(tmp_path):
+    """The persona's data for "what kind of trade goods do I have the most aboard my ship" leads with the kinds of
+    the ship (base value, the economies that need them, the nearest known one); naming the ship alone does not
+    pull in its technology (that ran the block over the app's 8,000 characters)."""
+    plugin = create_plugin(FakeCtx(tmp_path))
+    plugin.snapshot = {"exosuit": [], "exosuit_cargo": [], "storage": [], "bases": [], "saved_at": None, "units": 1,
+                       "nanites": 2, "quicksilver": 3, "location": {"galaxy": "Euclid", "portal": "x"}, "current_mission": None,
+                       "ships": [{"name": "Raptor", "primary": True, "inventory": [["TRA_TECH4", 78, 100], ["TRA_TECH2", 69, 100]]}],
+                       "freighter": {"name": None, "inventory": []}}
+    plugin.ships = [{"name": "Raptor", "type": "Shuttle", "class": "A", "primary": True, "stats": {}, "index": 0,
+                     "technology": [{"id": "HYPERDRIVE", "charge": 1, "max": 1}]}]
+    items = {"TRA_TECH4": {"en": "Autonomous Positioning Unit", "value": 30000}, "TRA_TECH2": {"en": "Welding Soap", "value": 6000}}
+    plugin.gamedata.lookup = lambda item_id: items.get(item_id)
+    text = plugin.chat_context("what kind of trade goods do i have the most aboard my active ship?")["text"]
+    assert "Trade goods by kind in Starship 'Raptor' (primary)" in text
+    assert "- Technology: 147 units (Autonomous Positioning Unit 78, Welding Soap 69); base value 2,754,000 units" in text
+    assert "needed by" in text and "Power" in text
+    assert "Starship Raptor (primary): " not in text            # no equipment lines for a cargo question
+    assert plugin.companion.equipment_lines({"which", "upgrades", "ship"}, plugin.context().texts) != []

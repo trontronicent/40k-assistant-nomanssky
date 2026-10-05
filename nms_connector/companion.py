@@ -30,7 +30,9 @@ PERSONA_PROMPT = (
     "item ids in square brackets unless asked. If the block does not contain what was asked, say so plainly and "
     "suggest where to look in the game - never invent numbers. Mention when the data comes from an older save if it "
     "matters. Upgrade modules show the range their stats can have; the game keeps the exact values to itself, so "
-    "give the range and say so.\n\n"
+    "give the range and say so. For trade goods the block groups them by kind (Technology, Minerals, ...) with the "
+    "game's base value, what a buyer pays and the nearest known system that needs the kind: answer \"what kind\" and "
+    "\"where to sell\" questions from it, the most valuable kind first.\n\n"
     "For general No Man's Sky questions (recipes, mechanics, lore) use the Codex excerpts or web search results when "
     "you are given them and cite them as given; otherwise answer from your own knowledge and say that it is not from "
     "their save. The player's own numbers come only from the game data. Be concise and friendly; answer in the "
@@ -146,7 +148,35 @@ class PluginCompanion:
             return " ".join(hint.split("\n")) if hint else None
 
         return {"title": "No Man's Sky", "text": assistant.build_context(
-            question, snap, name_of, names_of, all_names, status, extra, planets_offering, item_notes)}
+            question, snap, name_of, names_of, all_names, status, extra, planets_offering, item_notes,
+            lambda place_names: self.kind_lines(snap, place_names, ctx, name_of))}
+
+    def kind_lines(self, snap: dict, place_names: list[str] | None, ctx, name_of) -> list[str]:
+        """Trade goods by kind (assistant.trade_kinds) with the game's base value, which economies buy the kind,
+        what that pays and the nearest known system of such an economy - the most valuable kind first."""
+        c = self.connector
+        kinds = assistant.trade_kinds(snap, place_names, lambda i: (c.gamedata.lookup(i) or {}).get("value"))
+        if not kinds:
+            return []
+        where = ", ".join(place_names) if place_names else "all your inventories"
+        out = [f"Trade goods by kind in {where} (base value = the game's value per unit; a system whose economy needs "
+               "the kind pays about the factor shown; the most valuable kind first):"]
+        for kind in kinds:
+            category = kind["category"]
+            buyers = [e for e, t in ctx.trading.items() if t.get("needs") == category]
+            low, high = ((ctx.trading[buyers[0]].get("buys_at") or (None, None))[:2]) if buyers else (None, None)
+            goods = ", ".join(f"{name_of(i)} {amount:,}" for i, amount in kind["goods"][:4])
+            line = f"- {trade.CATEGORY_NAMES.get(category, category)}: {kind['units']:,} units ({goods})"
+            if kind["value"]:
+                line += f"; base value {kind['value']:,} units"
+                if low and high:
+                    line += f", sold where needed about {kind['value'] * low:,.0f}-{kind['value'] * high:,.0f} units (x{low}-{high})"
+            if buyers:
+                nearest = ctx.nearest_economy(buyers)
+                line += (f"; needed by {', '.join(ctx.economy_name(e) or e for e in buyers)} economies - nearest known: "
+                         + (nearest or "none of your known systems yet"))
+            out.append(line)
+        return out
 
     def settlement_lines(self, words: set[str], now: float) -> list[str]:
         """Settlement details for a question about them (or naming one): stats as the screen shows them when read,
@@ -210,7 +240,9 @@ class PluginCompanion:
         multi-tools, exocraft, freighter, ships - all of them when it names none) with what each part does."""
         c = self.connector
         asked = {EQUIPMENT_WORDS[w] for w in words if w in EQUIPMENT_WORDS}
-        if not (words & TECH_WORDS or (asked and words & {"what", "was", "which", "welche", "does", "can"})):
+        # Only a question about equipment: "what is aboard my ship" names the ship but means its cargo (seen
+        # 2026-10-05: a trade-goods question got the ship's whole technology and ran over the 8,000-character limit).
+        if not words & TECH_WORDS:
             return []
         groups: list[tuple[str, list[dict]]] = []
         eq = c.equipment

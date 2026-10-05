@@ -444,3 +444,23 @@ def test_the_games_fill_ins_do_not_show_as_placeholders():
     assert _plain("%NAME%'s Genetic Material") == "…'s Genetic Material"
     assert _plain("A living, fertile egg, %READY%%EXTRA%  %MODIFIED%  Scans show %SIZE%.") == \
         "A living, fertile egg, … … Scans show …."
+
+
+def test_base_values_are_read_only_when_the_product_ids_check_out():
+    """GcProductData.BaseValue (0x194) beside the ID (0x150): read for every product, but only trusted when the
+    ids found at the fixed offset are the ids the calibrated parse found (a moved layout gives no values rather
+    than wrong prices); zero values are left out."""
+    from nms_connector import gamedata, mbin
+    def table(records):
+        root, start, size = 0x10, 0x20, 0x300
+        data = bytearray(start + size * len(records))       # no trailing data: the size comes from the length
+        struct.pack_into("<QI4s", data, root, start - root, len(records), mbin.MARK)
+        for k, (pid, value) in enumerate(records):
+            p = start + k * size
+            data[p + 0x150:p + 0x150 + len(pid)] = pid.encode()
+            struct.pack_into("<i", data, p + 0x194, value)
+        return bytes(data)
+    data = table([("TRA_TECH1", 1000), ("TRA_TECH4", 30000), ("FREEBIE", 0)])
+    assert gamedata.product_values(data, {"TRA_TECH1", "TRA_TECH4", "FREEBIE"}) == {"TRA_TECH1": 1000, "TRA_TECH4": 30000}
+    assert gamedata.product_values(data, {"SOMETHING", "ELSE"}) == {}
+    assert gamedata.product_values(b"short", {"X"}) == {}

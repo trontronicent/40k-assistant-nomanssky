@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **Trade goods by kind and their value**: the item database now holds each
+  product's base value from the game (trade goods 1,000 / 6,000 / 15,000 / 30,000
+  / 50,000 units by tier), shown in the tooltip. The persona groups trade goods by
+  kind for the inventory you ask about - "what kind of trade goods do I have the
+  most aboard my ship?" now gets e.g. *Technology: 233 units, base value 3,596,000,
+  about 5.0-6.5 million where needed, nearest buyer Zeta Sol* instead of the
+  largest single stack. A cargo question no longer pulls in the ship's technology.
+
 - **Star positions (prototype)**: exact distances from the galaxy map. Lock a star
   on the map twice from different directions: where the two lines of sight cross
   is its exact position (a *star fix*, *Systems → Star positions*). Name the fix

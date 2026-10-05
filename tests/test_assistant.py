@@ -88,3 +88,22 @@ def test_trade_goods_questions_list_every_trade_good_with_where_it_sells():
                                    item_notes=lambda i: "Sell at: Scientific economies." if i.startswith("TRA_") else None)
     assert "- Self-Repairing Heridium [TRA_ALLOY2]: 11 in total - Exosuit: 11" in text
     assert "  Sell at: Scientific economies." in text and "SCRAP_GOODS" not in text.split("Inventories:")[0]
+
+
+def test_trade_goods_are_grouped_by_kind_in_the_place_asked_most_valuable_first():
+    """Seen 2026-10-05: "what kind of trade goods do I have the most aboard my active ship?" got the largest
+    single stack. Goods are now summed per kind (category) over the places asked - here only the ship, not the
+    freighter - and ranked by base value x amount; unknown values count 0, other items are ignored."""
+    from nms_connector import assistant
+    snap = {"exosuit": [], "exosuit_cargo": [], "storage": [],
+            "ships": [{"name": "Raptor", "primary": True, "inventory": [["TRA_TECH4", 78, 100], ["TRA_TECH1", 32, 100],
+                                                                         ["TRA_MINERALS3", 66, 100], ["FUEL1", 9, 9]]}],
+            "freighter": {"name": None, "inventory": [["TRA_TECH1", 60, 100]]}}
+    values = {"TRA_TECH4": 30000, "TRA_TECH1": 1000, "TRA_MINERALS3": 15000}.get
+    ship = [p for p, _ in assistant.places(snap) if p.startswith("Starship")]
+    kinds = assistant.trade_kinds(snap, ship, values)
+    assert [(k["category"], k["units"], k["value"]) for k in kinds] == [("Tech", 110, 2_372_000), ("Mineral", 66, 990_000)]
+    assert kinds[0]["goods"] == [("TRA_TECH4", 78), ("TRA_TECH1", 32)]
+    everywhere = assistant.trade_kinds(snap, None, values)
+    assert everywhere[0]["units"] == 170
+    assert assistant.trade_kinds(snap, ship, lambda i: None)[0]["value"] == 0

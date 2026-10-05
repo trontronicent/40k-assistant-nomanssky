@@ -173,6 +173,8 @@ class Texts:
         blocks = []
         if self.category(item_id):
             blocks.append(f"Category: {self.category(item_id)}")
+        if entry.get("value"):
+            blocks.append(f"Base value: {entry['value']:,} units")
         if entry.get("desc_en"):
             blocks.append(entry["desc_en"])
         if entry.get("desc_local"):
@@ -285,6 +287,10 @@ class Context:
             lines.append(f"Cheap to buy at: {', '.join(self.economy_name(e) for e in sellers)} economies"
                          + (f" - nearest known: {known}." if known else "."))
         return "\n".join(lines) or None
+
+    def nearest_economy(self, economy_classes: list[str]) -> str | None:
+        """Public name of _nearest_economy (the persona's trade-goods lines use it)."""
+        return self._nearest_economy(economy_classes)
 
     def _nearest_economy(self, economy_classes: list[str]) -> str | None:
         """'Name - 1,200 ly away (Wealthy)' for the nearest known system with one of these economies."""

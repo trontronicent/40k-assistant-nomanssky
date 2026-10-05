@@ -16,6 +16,7 @@ import io
 import json
 import re
 import shutil
+import struct
 import time
 from pathlib import Path
 
@@ -23,12 +24,14 @@ from . import mbin, techstats, trade
 from .game_install import GameInstall, language_label
 from .hgpak import PakError, PakSet, ZstdUnavailable
 
-CACHE_FORMAT = 4                 # 2: item categories and descriptions (0.9.0); 3-4: upgrade module texts, fill-ins (0.10.0)
+CACHE_FORMAT = 5                 # 2: categories, descriptions (0.9.0); 3-4: upgrade texts, fill-ins; 5: base values (0.10.0)
 DESC_CHARS = 600
 ICON_PX = 64
 TABLE_DIR = "metadata/reality/tables/"
 # Tables that hold everything an inventory slot can contain; first one wins an id clash.
 PROC_TABLE = "nms_reality_gcproceduraltechnologytable"
+PRODUCT_TABLE = "nms_reality_gcproducttable"
+PRODUCT_ID_AT, PRODUCT_VALUE_AT = 0x150, 0x194  # GcProductData ID / BaseValue (libMBIN 7.04; checked by the ids, below)
 ITEM_TABLES = ("nms_reality_gcproducttable", "nms_reality_gcsubstancetable", "nms_reality_gctechnologytable",
                "nms_reality_gcproceduraltechnologytable", "nms_basepartproducts",
                "nms_modularcustomisationproducts")
@@ -113,6 +116,7 @@ def build_items(paks: PakSet, language: str) -> dict[str, dict]:
     tables (category = the subtitle the game shows under an item's name; *_local only when it differs)."""
     records: dict[str, mbin.ItemRecord] = {}
     upgrade_texts: dict[str, tuple[str, str]] = {}   # procedural upgrades: (description key, upgraded tech's name key)
+    product_data = b""
     for table in ITEM_TABLES:
         try:
             data = paks.read(f"{TABLE_DIR}{table}.mbin")
@@ -120,6 +124,8 @@ def build_items(paks: PakSet, language: str) -> dict[str, dict]:
             continue  # a table renamed by a game update: the others still work
         if table == PROC_TABLE:
             upgrade_texts = techstats.procedural_texts(data)
+        if table == PRODUCT_TABLE:
+            product_data = data
         try:
             parsed = mbin.parse_item_table(data)
         except mbin.MbinError:
@@ -144,6 +150,7 @@ def build_items(paks: PakSet, language: str) -> dict[str, dict]:
                 merged.setdefault(key, text)
         strings[lang] = merged
 
+    values = product_values(product_data, set(records)) if product_data else {}
     items: dict[str, dict] = {}
     for key, record in records.items():
         icon = record.icon or (records[record.template].icon if record.template in records else "")
@@ -156,10 +163,36 @@ def build_items(paks: PakSet, language: str) -> dict[str, dict]:
                 local = _plain(strings[language].get(text_key)) if language != "english" else None
                 if local and local != en:
                     entry[f"{field}_local"] = local
+        if key in values:
+            entry["value"] = values[key]
         if key in upgrade_texts and "desc_en" not in entry:
             _add_upgrade_texts(entry, records.get(record.template), upgrade_texts[key], strings, language)
         items[key] = entry
     return items
+
+
+def product_values(data: bytes, known_ids: set[str]) -> dict[str, int]:
+    """{product id: base value in units} from the product table (GcProductData.BaseValue - what a trade good, a
+    product or a curiosity is worth before an economy's price factor: trade goods 1,000 / 6,000 / 15,000 / 30,000
+    / 50,000 by tier, read 2026-10-05). The fixed offsets are trusted only when the ids found there are the ids the
+    calibrated table parse found (>= 90 %) and the values are plausible; else {} (no values rather than wrong ones)."""
+    try:
+        start, count = mbin.root_list(data)
+        size = mbin.record_size(data, start, count)
+        out = {}
+        for k in range(count):
+            p = start + k * size
+            pid = mbin.fixed_str(data, p + PRODUCT_ID_AT, 0x10)
+            if pid:
+                value, = struct.unpack_from("<i", data, p + PRODUCT_VALUE_AT)
+                out[pid] = value
+    except (struct.error, mbin.MbinError, IndexError):
+        return {}
+    if not out or sum(1 for i in out if i in known_ids) < 0.9 * len(out):
+        return {}
+    if not all(0 <= v <= 100_000_000 for v in out.values()) or out.get("TRA_TECH1", 1) <= 0:
+        return {}
+    return {i: v for i, v in out.items() if v > 0}
 
 
 def _add_upgrade_texts(entry: dict, template: mbin.ItemRecord | None, keys: tuple[str, str],

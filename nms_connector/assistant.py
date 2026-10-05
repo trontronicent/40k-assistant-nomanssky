@@ -149,12 +149,38 @@ def places_asked(question: str, snap: dict) -> list[str]:
     return out
 
 
+def trade_kinds(snap: dict, place_names: list[str] | None, value_of) -> list[dict]:
+    """Trade goods grouped by kind (trade.category_of: Technology, Minerals, ...) over the given inventories (all
+    when None): [{category, units, value, goods: [(id, amount)]}], the most valuable kind first. `value_of(id)` is
+    the game's base value per unit (None when unknown: counts 0). Seen 2026-10-05: "what kind of trade goods do I
+    have the most aboard my ship?" got the single largest stack - a kind is the sum of all its goods."""
+    from .trade import category_of
+    kinds: dict[str, dict] = {}
+    for place, rows in places(snap):
+        if place_names is not None and place not in place_names:
+            continue
+        for item_id, amount, _maximum in rows:
+            category = category_of(item_id)
+            if category is None or not amount:
+                continue
+            kind = kinds.setdefault(category, {"category": category, "units": 0, "value": 0, "goods": {}})
+            kind["units"] += int(amount)
+            kind["value"] += int(amount) * (value_of(item_id) or 0)
+            kind["goods"][item_id] = kind["goods"].get(item_id, 0) + int(amount)
+    out = sorted(kinds.values(), key=lambda k: (-k["value"], -k["units"]))
+    for kind in out:
+        kind["goods"] = sorted(kind["goods"].items(), key=lambda g: -g[1])
+    return out
+
+
 def build_context(question: str, snap: dict | None, name_of, names_of, all_names: dict[str, list[str]],
-                  status_lines: list[str], extra_lines: list[str], planets_offering=None, item_notes=None) -> str:
+                  status_lines: list[str], extra_lines: list[str], planets_offering=None, item_notes=None,
+                  kind_lines=None) -> str:
     """The data text for one question. `name_of(id)` -> display name, `names_of(id)` -> [English, local],
     `all_names` = every item the game knows (id -> names), `status_lines`/`extra_lines` ready-made lines,
     `planets_offering(id)` -> ["Planet (System, distance)", ...] or None, `item_notes(id)` -> a line for an item
-    (where a trade good sells) or None."""
+    (where a trade good sells) or None, `kind_lines(place names or None)` -> lines on the trade goods grouped by kind
+    with their value and where each kind sells (asked for every trade-goods question)."""
     if not snap:
         return "No save has been read yet, so there is no game data."
     out = list(status_lines)
@@ -164,18 +190,27 @@ def build_context(question: str, snap: dict | None, name_of, names_of, all_names
     if TRADE_GOODS_RE.search(question or ""):
         matched = list(dict.fromkeys([i for i in have if i.startswith("TRA_")] + [m for m in matched if m.startswith("TRA_")]))
     # Named items you do not have: whole names of every item the game knows (not word matches - too broad).
+    if kind_lines and TRADE_GOODS_RE.search(question or ""):
+        lines = kind_lines(places_asked(question, snap) or None)
+        if lines:
+            out.append("")
+            out += lines
     q_text = " " + " ".join(_words(question)) + " "
     missing = [i for i, names in all_names.items() if i not in have and any(
         len(n) >= MIN_WORD and f" {' '.join(_words(n))} " in q_text for n in names if n)][:5]
     if matched or missing:
         out.append("")
         out.append("Items the question names (totals across all your inventories, as of the last save):")
+        noted: dict[str, str] = {}      # a trade good's sell note is the same for its whole kind: once each
         for item_id in matched[:MAX_ITEMS]:
             entry = have[item_id]
             where = "; ".join(f"{place}: {_fmt(amount)}" for place, amount in entry["places"])
             out.append(f"- {name_of(item_id)} [{item_id}]: {_fmt(entry['total'])} in total - {where}")
             note = item_notes(item_id) if item_notes else None
-            if note:
+            if note and note in noted:
+                out.append(f"  sells like {noted[note]} (above)")
+            elif note:
+                noted[note] = name_of(item_id)
                 out.append(f"  {note}")
             nearest = planets_offering(item_id) if planets_offering else None
             if nearest:
