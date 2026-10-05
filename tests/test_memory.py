@@ -481,7 +481,7 @@ def test_tables_show_the_current_system_and_every_visited_system(tmp_path):
     assert systems["rows"][1][0] == "System 007302925E80" and systems["rows"][1][3] is None
     assert systems["row_action"] == "open_system" and systems["row_keys"] == [f"{SYSTEM_98:x}", f"{SYSTEM_115:x}"]
     assert systems["selected_key"] == f"{SYSTEM_98:x}" and system_map["id"] == "system-map"
-    planets = tabs["tabs"][2]["sections"][0]
+    planets = tabs["tabs"][2]["sections"][-1]          # after the search form
     assert planets["title"] == "Visited planets with resources (1)" and planets["rows"][0][0] == "Delta Sol"
     assert len(planets["columns"]) == 12 and planets["rows"][0][8] == "Nitrogen (Stickstoff)"
 
@@ -549,7 +549,7 @@ def test_tables_explain_when_the_game_is_not_running(tmp_path):
     assert visited["sections"][0]["title"] == "System map: Delta Sol" and visited["sections"][1]["title"] == "Visited systems (2)"
     clicked = planets_view.systems_tabs(ctx, SYSTEM_115)["tabs"][1]["sections"]
     assert clicked[0]["title"] == "System map: System 007302925E80" and clicked[1]["selected_key"] == f"{SYSTEM_115:x}"
-    assert "every system you visit" in planets["sections"][0]["empty"]
+    assert "every system you visit" in planets["sections"][-1]["empty"]
 
 
 # --------------------------------------------------------------------------- position without the player state

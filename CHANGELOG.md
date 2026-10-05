@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **Planet search**: *Systems → Planets* has a search field - find recorded planets
+  by what they are like (type, weather, resources, plants, gas, flora, fauna,
+  sentinels, name) in English or the game's language: *sengend heiß* finds the
+  "Sengend heißer Planet"s, *heiss* also finds *heißer*, umlauts and ß need not be
+  typed exactly. Results are nearest first and open the system map. The persona
+  answers planet questions the same way ("Wo gibt es sengend heiße Planeten?").
+
 ## 0.10.0 — 2026-10-05
 
 - **Trade goods by kind and their value**: the item database now holds each

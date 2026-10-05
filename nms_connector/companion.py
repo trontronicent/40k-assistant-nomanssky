@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 import time
 
-from . import assistant, galaxy, planets_view, settlements, timers, trade
+from . import assistant, galaxy, planet_search, planets_view, settlements, timers, trade
 
 PERSONA_PROMPT = (
     "You are the No Man's Sky Plugin Persona, the player's companion for No Man's Sky. With every message you "
@@ -32,7 +32,8 @@ PERSONA_PROMPT = (
     "matters. Upgrade modules show the range their stats can have; the game keeps the exact values to itself, so "
     "give the range and say so. For trade goods the block groups them by kind (Technology, Minerals, ...) with the "
     "game's base value, what a buyer pays and the nearest known system that needs the kind: answer \"what kind\" and "
-    "\"where to sell\" questions from it, the most valuable kind first.\n\n"
+    "\"where to sell\" questions from it, the most valuable kind first. For a question about planets (\"where are "
+    "scorching hot planets?\") the block lists the recorded planets that match it, nearest first.\n\n"
     "For general No Man's Sky questions (recipes, mechanics, lore) use the Codex excerpts or web search results when "
     "you are given them and cite them as given; otherwise answer from your own knowledge and say that it is not from "
     "their save. The player's own numbers come only from the game data. Be concise and friendly; answer in the "
@@ -61,6 +62,9 @@ EQUIPMENT_WORDS = {
 TECH_WORDS = {"upgrade", "upgrades", "module", "modules", "modul", "module", "technology", "technologies", "technologie",
               "technologien", "tech", "equipment", "ausrüstung", "installed", "installiert", "stats", "werte",
               "modifiers", "bonus", "boni", "slot", "slots"}
+# A question about planets ("wo gibt es sengend heiße Planeten?"): the recorded planets that match its other words.
+PLANET_WORDS = {"planet", "planets", "planeten", "welt", "welten", "world", "worlds", "mond", "monde", "moon", "moons"}
+MAX_PLANETS = 8
 MAX_TECH_LINES = 40
 MAX_TECH_CHARS = 5000     # the app cuts the whole game-data block at 8,000 characters
 
@@ -141,6 +145,7 @@ class PluginCompanion:
         extra += self.settlement_lines(words, now)
         extra += self.economy_lines(question, ctx, here)
         extra += self.equipment_lines(words, ctx.texts)
+        extra += self.planet_lines(question, words, ctx)
         all_names = {i: [n for n in (e.get("en"), e.get("local")) if n] for i, e in (c.gamedata.items or {}).items()}
 
         def item_notes(item_id):
@@ -233,6 +238,28 @@ class PluginCompanion:
                 listed.append(f"{planets_view._system_label(k, ctx.visit(k))} ({e.get('wealth')}, {dist}"
                               + (", predicted" if e.get("predicted") else "") + ")")
             out.append(f"Nearest {ctx.economy_name(econ)} systems: " + "; ".join(listed))
+        return out
+
+    def planet_lines(self, question: str, words: set[str], ctx) -> list[str]:
+        """For a question about planets: the recorded planets that match most of its other words (type, weather,
+        resources, flora, fauna, sentinels, name - English or the game's language), nearest first, with all they
+        are known for (planet_search)."""
+        if not {planet_search.fold(w) for w in words} & PLANET_WORDS:
+            return []
+        index = planets_view.planet_index(ctx)
+        wanted, found = index.best(question, MAX_PLANETS)
+        if not wanted:
+            return []
+        if not found:
+            return [f"No recorded planet matches {', '.join(wanted)} ({len(index.entries)} planets recorded - planets "
+                    "are recorded while you play with the game running)."]
+        out = [f"Recorded planets matching {', '.join(found[0][1])} (of the words {', '.join(wanted)}; nearest first; "
+               f"{len(index.entries)} planets recorded in all):"]
+        for entry, _matched in found:
+            row = [planet_search._cell_text(c) for c in entry["row"]]
+            facts = [f"{label}: {value}" for label, value in zip(planets_view.PLANET_COLUMNS[1:], row[1:]) if value]
+            out.append(f"- {row[0]} in {entry['system_label']} ({index.distance_text(entry['system'])}): "
+                       + "; ".join(facts))
         return out
 
     def equipment_lines(self, words: set[str], texts) -> list[str]:

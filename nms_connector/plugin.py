@@ -23,7 +23,7 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from . import equipment, frigates, galaxy, memory, planets_view, positions, route, saves, settlements, ships, starmap, timers, trade
+from . import equipment, frigates, galaxy, memory, planet_search, planets_view, positions, route, saves, settlements, ships, starmap, timers, trade
 from .companion import PluginCompanion
 from .describe import StateText
 from .game_install import GameInstall, find_game
@@ -106,6 +106,7 @@ class NmsConnector:
         self.equipment: equipment.Equipment | None = None   # exosuit, multi-tools, exocraft, freighter technology
         self.frigates: list[dict] = []            # your frigates (frigates.py)
         self.galaxy_colors = "kind"               # how the galaxy map colours systems (planets_view.COLOR_MODES)
+        self.planet_query = ""                    # Systems -> Planets search (planet_search)
         self.snapshot_file: str | None = None
         self.decoded_at: str | None = None
         self.decode_seconds: float | None = None
@@ -545,6 +546,14 @@ class NmsConnector:
                 return {"ok": False, "message": self.live.error or "No Man's Sky is not running."}
             return {"ok": True, "message": f"Read {self.live.last_scan_planets} planet(s) from the game in "
                                            f"{self.live.last_scan_seconds} s."}
+        if action_id == planets_view.SEARCH_PLANETS:
+            # Untrusted form value: a string, cut to the field's length.
+            self.planet_query = str((params or {}).get("query") or "").strip()[:planet_search.MAX_QUERY_CHARS]
+            if not self.planet_query:
+                return {"ok": True, "message": "Planet search cleared."}
+            found = len(planets_view.planet_index(self.context()).search(self.planet_query))
+            return {"ok": True, "focus": planets_view.PLANET_SEARCH_ID,
+                    "message": f"{found} planet(s) match \"{self.planet_query}\"."}
         if action_id == planets_view.NAME_FIX:
             return await self.ctx.run_blocking(self._name_fix, params or {})
         if action_id == "clear_history":

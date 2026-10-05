@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from . import galaxy, positions, route, starmap, trade
+from . import galaxy, planet_search, positions, route, starmap, trade
 from .summary import address_portal, galaxy_name, unpack_address
 
 # GcPlanetInfo.SentinelsPerDifficulty is indexed by the ground combat timer setting.
@@ -57,6 +57,8 @@ ROUTE_WIP_NOTE = ("Work in progress: the route planner is very much work in prog
                   "guide and check the jumps on the in-game galaxy map.")
 POINT_COLORS = {"resources": "#5fbf6a", "save": "#8fa3b8", "bases": "#7ad7ff"}
 SYSTEM_MAP_ID = "system-map"
+SEARCH_PLANETS = "search_planets"         # action: search the recorded planets by their texts
+PLANET_SEARCH_ID = "planet-search"
 NAME_FIX = "name_star_fix"               # PROTOTYPE action: name (or forget) a star fix
 STAR_FIX_ID = "star-fixes"
 CURRENT_MAP_ID = "current-map"
@@ -580,6 +582,37 @@ def visited_systems_sections(ctx: Context, selected: int | None) -> list[dict]:
     return out
 
 
+def planet_index(ctx: Context) -> planet_search.PlanetIndex:
+    """The recorded planets, searchable by their texts (planet_search)."""
+    return planet_search.PlanetIndex(ctx, _planet_row, _system_label)
+
+
+def planet_search_sections(ctx: Context, query: str | None) -> list[dict]:
+    """Systems -> Planets: the search form and, for a query, the matching planets (nearest first, clickable)."""
+    query = (query or "").strip()
+    form = {"type": "form", "id": "planet-search-form", "title": "Search planets", "action": SEARCH_PLANETS,
+            "submit_label": "Search",
+            "description": "Find planets by what they are like: type, weather, resources, plants, gas, flora, fauna, "
+                           "sentinels or name - in English or the game's language, e.g. \"sengend heiß\", \"toxic\", "
+                           "\"Kupfer\". Every word must match; a word also finds longer ones (\"heiss\" finds "
+                           "\"heißer\"). An empty search clears it.",
+            "fields": [{"id": "query", "label": "Search", "type": "text", "max_length": planet_search.MAX_QUERY_CHARS,
+                        "value": query, "placeholder": "e.g. sengend heiß",
+                        "hint": "Words of the planet's type, weather, resources, flora, fauna, sentinels or name."}]}
+    if not query:
+        return [form]
+    index = planet_index(ctx)
+    found = index.search(query)
+    rows = [[e["system_label"], index.distance_text(e["system"])] + e["row"] for e, _ in found]
+    return [form, {"type": "table", "id": PLANET_SEARCH_ID,
+                   "title": f"Planets matching \"{query}\" ({len(rows)})",
+                   "columns": ["System", "Distance"] + PLANET_COLUMNS, "rows": rows,
+                   "row_keys": [system_key_text(e["system"]) for e, _ in found], "row_action": OPEN_SYSTEM,
+                   "row_hint": "Open this planet's system map",
+                   "empty": "No recorded planet matches every word. Planets are recorded while you play with the game "
+                            "running; try fewer or shorter words."}]
+
+
 def visited_planets_section(ctx: Context) -> dict:
     """Systems -> Planets: every planet with recorded resources, by system."""
     planet_rows = []
@@ -981,7 +1014,7 @@ def star_fix_sections(ctx: Context) -> list[dict]:
 
 
 def systems_tabs(ctx: Context, selected: int | None, route_state: dict | None = None,
-                 ship_range: dict | None = None, color_by: str = "kind") -> dict:
+                 ship_range: dict | None = None, color_by: str = "kind", planet_query: str | None = None) -> dict:
     """The Systems tab's sub-tabs: current system, visited systems (with the map), planets, galaxy, trade, route
     and the star positions found on the galaxy map (prototype)."""
     planets = visited_planets_section(ctx)
@@ -989,7 +1022,8 @@ def systems_tabs(ctx: Context, selected: int | None, route_state: dict | None = 
         {"id": "current", "label": "Current system", "sections": live_notices(ctx.live) + current_system_sections(ctx)},
         {"id": "visited", "label": "Visited systems", "badge": len(ctx.keys()),
          "sections": visited_systems_sections(ctx, selected)},
-        {"id": "planets", "label": "Planets", "badge": len(planets["rows"]), "sections": [planets]},
+        {"id": "planets", "label": "Planets", "badge": len(planets["rows"]),
+         "sections": planet_search_sections(ctx, planet_query) + [planets]},
         {"id": "galaxy", "label": "Galaxy", "sections": galaxy_sections(ctx, selected, color_by, route_state)},
         {"id": "trade", "label": "Trade", "badge": len(ctx.economies) or None, "sections": trade_sections(ctx)},
         {"id": "route", "label": "Route", "sections": route_sections(ctx, route_state, ship_range)},

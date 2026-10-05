@@ -264,7 +264,7 @@ class ConnectorPage:
             {"id": "overview", "label": "Overview", "sections": self.overview(snap, ctx)},
             {"id": "systems", "label": "Systems", "badge": len(ctx.keys()) or None,
              "sections": [planets_view.systems_tabs(ctx, c.selected_system, c.route_state, c.primary_range(),
-                                                    c.galaxy_colors)]},
+                                                    c.galaxy_colors, c.planet_query)]},
             {"id": "inventory", "label": "Inventory", "sections": self.inventories(snap, ctx)},
             {"id": "fleet", "label": "Ships & bases", "sections": self.fleet(snap, ctx)},
             {"id": "settlements", "label": "Settlements", "badge": len(c.settlements) or None,

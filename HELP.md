@@ -21,7 +21,7 @@ Open it from **Plugins → No Man's Sky** in the header. The buttons at the top:
 The tabs:
 
 - **Overview** - **timers** (when your settlement buildings are finished and your frigate expeditions return), units, nanites, quicksilver, health, where you were at the last save, where you are now, your fleet and companions: the **primary ship** with its estimated warp range and the star colours it reaches, your **settlements** at a glance (construction, a decision waiting), the **freighter** with its warp range, and the current mission in the game's words.
-- **Systems** - *Current system* (live from the game, with a map), *Visited systems* (every system from your save; click one to see its map), *Planets* (every planet whose resources were read), *Galaxy* (the galaxy map and the nearest planet with each resource) and *Trade* (economies and trade routes), *Route* (the route planner) and *Star positions (prototype)* (exact positions of stars you lock on the galaxy map).
+- **Systems** - *Current system* (live from the game, with a map), *Visited systems* (every system from your save; click one to see its map), *Planets* (every planet whose resources were read, with a **search**: type what a planet is like - *sengend heiß*, *toxic*, *Ammoniak* - in English or the game's language), *Galaxy* (the galaxy map and the nearest planet with each resource) and *Trade* (economies and trade routes), *Route* (the route planner) and *Star positions (prototype)* (exact positions of stars you lock on the galaxy map).
 - **Inventory** - exosuit, starship, freighter, **storage containers** (0-9, numbered as in the game) and **Equipment**, each item with its icon, its name in English and in the game's language, and its **category**. Hover an item's name for its description (in English and in the game's language) and its **base value** (what the game says one unit is worth); **trade goods** also tell which economies pay well for them, the nearest such system you know (or that you have not found one yet) and where they are cheap to buy. Planet resources have the same tooltip. See *Equipment* below.
 - **Ships & bases** - your ships (type, class, estimated **warp range**, the star colours they can reach, base stats, slots), **every ship's technology** (one tab per ship) and your bases with portal addresses. See *Ships* below.
 - **Settlements** - the economy of each settlement you run: see *Settlements* below.
@@ -47,6 +47,9 @@ and ask about your game:
   sell them?* - your trade goods grouped by kind (Technology, Minerals, ...) in
   the inventory you name, with the game's base value, about what a buyer pays and
   the nearest known system whose economy needs that kind, the most valuable first.
+- *Wo gibt es sengend heiße Planeten?* / *Which planets have toxic rain?* - the
+  recorded planets that match (type, weather, resources, flora, fauna, sentinels),
+  nearest first.
 - *Which upgrades does my multi-tool have?* - your installed technology (exosuit,
   multi-tools, exocraft, freighter, ships) with what each part does.
 
