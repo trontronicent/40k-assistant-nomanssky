@@ -223,13 +223,14 @@ class PlanetHistory:
         del self.scans[:-self.MAX_SCANS]
         return changed
 
-    def record_economies(self, found: dict[int, dict], now: str) -> int:
-        """Store star attributes read from memory; returns how many systems are new or changed."""
+    def record_economies(self, found: dict[int, dict], now: str, source: str | None = None) -> int:
+        """Store star attributes read from memory; returns how many systems are new or changed. `source` says
+        where they were read ("galaxy map": a star record traced through its planets' seeds, starmap.py)."""
         changed = 0
         for key, attrs in found.items():
-            entry = {**attrs, "read_at": now}
+            entry = {**attrs, "read_at": now, **({"source": source} if source else {})}
             old = self.economies.get(key)
-            if old is None or {k: v for k, v in old.items() if k != "read_at"} != attrs:
+            if old is None or {k: v for k, v in old.items() if k not in ("read_at", "source")} != attrs:
                 changed += 1
             self.economies[key] = entry
         return changed

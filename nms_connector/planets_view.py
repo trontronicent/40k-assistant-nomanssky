@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from . import galaxy, route, trade
+from . import galaxy, route, starmap, trade
 from .summary import address_portal, galaxy_name, unpack_address
 
 # GcPlanetInfo.SentinelsPerDifficulty is indexed by the ground combat timer setting.
@@ -224,8 +224,14 @@ class Context:
         self.bases = bases or []
         # Where distances are measured from: the system you are in, else where you were at the last save.
         self.origin = live.current_system if getattr(live, "current_system", None) is not None else origin
-        self.economies = getattr(history, "economies", {}) or {}
         self.system_names = getattr(history, "system_names", {}) or {}
+        # Economies read in the game (visits, the galaxy map's star records), else the game's own generation's
+        # prediction for every system you know (starmap.predicted, marked "predicted").
+        self.recorded_economies = getattr(history, "economies", {}) or {}
+        self.economies = dict(self.recorded_economies)
+        for key in self.keys() | set(self.system_names):
+            if key not in self.economies:
+                self.economies[key] = starmap.predicted(key)
         self.trading = getattr(gamedata, "trading", None) or trade.FALLBACK
         self.trading_source = getattr(gamedata, "trading_source", "built-in")
         self.texts.trade_hint = self.trade_hint
@@ -271,7 +277,8 @@ class Context:
         where = ("you are there" if key == self.origin else galaxy.distance_text(galaxy.distance_ly(self.origin, key)))\
             if self.origin is not None and galaxy.distance_ly(self.origin, key) is not None else "distance unknown"
         wealth = self.economies[key].get("wealth")
-        return f"{_system_label(key, self.visit(key))} - {where}" + (f" ({wealth})" if wealth else "")
+        mark = ", predicted" if self.economies[key].get("predicted") else ""
+        return f"{_system_label(key, self.visit(key))} - {where}" + (f" ({wealth}{mark})" if wealth else "")
 
     # --- economy texts (the game's names, English and game language)
 
@@ -294,7 +301,7 @@ class Context:
         e = self.economies.get(key)
         if not e:
             return None
-        return f"{self.economy_name(e.get('economy'))} ({e.get('wealth')})"
+        return f"{self.economy_name(e.get('economy'))} ({e.get('wealth')})" + (" - predicted" if e.get("predicted") else "")
 
     def goods_text(self, category: str | None) -> str | None:
         if not category:
@@ -310,8 +317,11 @@ class Context:
         t = self.trading.get(e.get("economy"), {})
         lo, hi = (t.get("sells_at") or (None, None))
         blo, bhi = (t.get("buys_at") or (None, None))
+        source = ("predicted by the game's generation rules (not read yet - very likely right)" if e.get("predicted")
+                  else "read from the game's galaxy map" if e.get("source") == "galaxy map" else "read in the game")
         return [
             {"label": "Economy", "value": self.economy_name(e.get("economy"))},
+            {"label": "Source", "value": source},
             {"label": "Wealth", "value": e.get("wealth")},
             {"label": "Conflict", "value": self.conflict_name(e.get("conflict"))},
             {"label": "Dominant race", "value": e.get("race")},
@@ -570,7 +580,7 @@ def _galaxy_point(key: int, ctx: Context, color_by: str = "kind") -> dict:
                  {"label": "Your bases here", "value": ", ".join(bases) or None},
                  {"label": "Last seen / discovered", "value": _last_seen(key, ctx) or None},
              ]}
-    only_seen = key not in ctx.keys() and key not in ctx.economies
+    only_seen = key not in ctx.keys() and key not in ctx.recorded_economies
     if only_seen:
         point["items"].insert(0, {"label": "Known from", "value": "the game's galaxy map around you (not visited)"})
     economy = ctx.economies.get(key) or {}
@@ -689,7 +699,8 @@ def trade_sections(ctx: Context) -> list[dict]:
         e = ctx.economies[key]
         t = ctx.trading.get(e.get("economy"), {})
         dist = galaxy.distance_ly(ctx.origin, key) if ctx.origin is not None else None
-        rows.append([_system_label(key, ctx.visit(key)), ctx.economy_name(e.get("economy")), e.get("wealth"),
+        rows.append([_system_label(key, ctx.visit(key)),
+                     ctx.economy_name(e.get("economy")) + (" (predicted)" if e.get("predicted") else ""), e.get("wealth"),
                      ctx.conflict_name(e.get("conflict")), e.get("race"),
                      trade.CATEGORY_NAMES.get(t.get("sells"), t.get("sells")),
                      trade.CATEGORY_NAMES.get(t.get("needs"), t.get("needs")),
@@ -707,7 +718,8 @@ def trade_sections(ctx: Context) -> list[dict]:
         def place(key):
             if key is None:
                 return None
-            return f"{_system_label(key, ctx.visit(key))} ({ctx.economy_name(ctx.economies[key].get('economy'))})"
+            e = ctx.economies[key]
+            return f"{_system_label(key, ctx.visit(key))} ({ctx.economy_name(e.get('economy'))}" + (", predicted)" if e.get("predicted") else ")")
         sellers = [e for e, t in ctx.trading.items() if t.get("sells") == r["category"]]
         buyers = [e for e, t in ctx.trading.items() if t.get("needs") == r["category"]]
         route_rows.append([

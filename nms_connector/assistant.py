@@ -10,6 +10,13 @@ question names - by their English name, their name in the game's language or the
 or as a word of a longer one ("Activated Copper") - the total across every inventory with the amount per place,
 and the nearest recorded planets that offer it. Items the question names that you do not have are reported as 0.
 Without a named item, a question about your inventory gets the largest stacks in all.
+
+Improved after the chat of 2026-10-05 (session 72389932): "what is in my ship inventory?" only got stack counts -
+a question naming a place (ship, exosuit, freighter, storage container N) now gets that inventory's contents;
+"what trade goods do I have?" found only "Suspicious Packet (Goods)" through the word "goods" - "trade goods"
+(also "Handelsware", "trade commodities") now lists every trade good (ids TRA_*); and "where should I sell them?"
+got nothing - each trade good now carries ``item_notes`` (which economies pay well and the nearest known system of
+one, predicted ones marked).
 """
 
 from __future__ import annotations
@@ -31,6 +38,18 @@ STOPWORDS = {
 }
 INVENTORY_WORDS = {"inventory", "inventories", "items", "inventar", "carry", "carrying", "storage", "lager", "haben",
                    "have", "own", "besitze"}
+# Words naming an inventory -> which places (by the start of their name) a question means.
+PLACE_WORDS = {
+    "ship": ("Starship",), "starship": ("Starship",), "schiff": ("Starship",), "raumschiff": ("Starship",),
+    "ships": ("Starship",), "starships": ("Starship",), "schiffe": ("Starship",), "raumschiffe": ("Starship",),
+    "exosuit": ("Exosuit",), "suit": ("Exosuit",), "anzug": ("Exosuit",), "exo": ("Exosuit",),
+    "freighter": ("Freighter",), "frachter": ("Freighter",),
+    "storage": ("Storage Container", "Other storage"), "container": ("Storage Container",),
+    "containers": ("Storage Container",), "lager": ("Storage Container", "Other storage"),
+    "behälter": ("Storage Container",), "chest": ("Storage Container",),
+}
+TRADE_GOODS_RE = re.compile(r"trade ?goods?|trade commodit|handelsware|handelsgüter|handelsgut|commodit", re.I)
+MAX_PLACE_ROWS = 60
 MAX_ITEMS = 12
 TOP_STACKS = 25
 NEAREST_PLANETS = 3
@@ -44,7 +63,9 @@ def places(snap: dict) -> list[tuple[str, list]]:
     """(place name, rows) for every inventory of the snapshot, as the game names them."""
     out = [("Exosuit", snap.get("exosuit") or []), ("Exosuit cargo", snap.get("exosuit_cargo") or [])]
     for ship in snap.get("ships") or []:
-        out.append((f"Starship '{ship['name']}'" + (" (primary)" if ship.get("primary") else ""), ship.get("inventory") or []))
+        # Unnamed ships are told apart by their type (several are "(unnamed)").
+        named = ship["name"] if ship.get("name") and ship["name"] != "(unnamed)" else f"unnamed {ship.get('class') or 'ship'}"
+        out.append((f"Starship '{named}'" + (" (primary)" if ship.get("primary") else ""), ship.get("inventory") or []))
     freighter = snap.get("freighter") or {}
     out.append((f"Freighter '{freighter['name']}'" if freighter.get("name") else "Freighter", freighter.get("inventory") or []))
     for chest in snap.get("storage") or []:
@@ -57,11 +78,16 @@ def places(snap: dict) -> list[tuple[str, list]]:
     return out
 
 
+ITEM_ID_RE = re.compile(r"^[A-Za-z0-9_#-]{2,40}$")     # the save holds the odd corrupt id: left out
+
+
 def holdings(snap: dict) -> dict[str, dict]:
     """{item id: {total, places: [(place, amount)]}} across every inventory."""
     out: dict[str, dict] = {}
     for place, rows in places(snap):
         for item_id, amount, _maximum in rows:
+            if not ITEM_ID_RE.match(str(item_id)):
+                continue
             entry = out.setdefault(item_id, {"total": 0, "places": []})
             entry["total"] += int(amount or 0)
             entry["places"].append((place, int(amount or 0)))
@@ -96,17 +122,47 @@ def _fmt(n: int) -> str:
     return f"{n:,}"
 
 
+def places_asked(question: str, snap: dict) -> list[str]:
+    """The inventories a question names: "ship" -> the starships (the primary one first), "storage container 3"
+    -> that container only, "exosuit" -> exosuit and its cargo."""
+    words = _words(question)
+    wanted = set()
+    for w in words:
+        wanted.update(PLACE_WORDS.get(w, ()))
+    if not wanted:
+        return []
+    # "ship" means the one you fly; "ships" all of them.
+    primary_only = "Starship" in wanted and not ({"ships", "schiffe", "starships", "raumschiffe"} & set(words))
+    numbers = {int(w) for w in words if w.isdigit() and int(w) < 10}
+    out = []
+    for place, rows in places(snap):
+        if not rows or not any(place.startswith(p) for p in wanted):
+            continue
+        if primary_only and place.startswith("Starship") and "(primary)" not in place:
+            continue
+        if place.startswith("Storage Container") and numbers and not any(place.startswith(f"Storage Container {n}")
+                                                                          and not place[len(f"Storage Container {n}"):][:1].isdigit()
+                                                                          for n in numbers):
+            continue
+        out.append(place)
+    out.sort(key=lambda p: (not p.startswith("Starship") or "(primary)" not in p,))
+    return out
+
+
 def build_context(question: str, snap: dict | None, name_of, names_of, all_names: dict[str, list[str]],
-                  status_lines: list[str], extra_lines: list[str], planets_offering=None) -> str:
+                  status_lines: list[str], extra_lines: list[str], planets_offering=None, item_notes=None) -> str:
     """The data text for one question. `name_of(id)` -> display name, `names_of(id)` -> [English, local],
     `all_names` = every item the game knows (id -> names), `status_lines`/`extra_lines` ready-made lines,
-    `planets_offering(id)` -> ["Planet (System, distance)", ...] or None."""
+    `planets_offering(id)` -> ["Planet (System, distance)", ...] or None, `item_notes(id)` -> a line for an item
+    (where a trade good sells) or None."""
     if not snap:
         return "No save has been read yet, so there is no game data."
     out = list(status_lines)
     have = holdings(snap)
     owned_names = {item_id: names_of(item_id) for item_id in have}
     matched = match_items(question, owned_names)
+    if TRADE_GOODS_RE.search(question or ""):
+        matched = list(dict.fromkeys([i for i in have if i.startswith("TRA_")] + [m for m in matched if m.startswith("TRA_")]))
     # Named items you do not have: whole names of every item the game knows (not word matches - too broad).
     q_text = " " + " ".join(_words(question)) + " "
     missing = [i for i, names in all_names.items() if i not in have and any(
@@ -118,6 +174,9 @@ def build_context(question: str, snap: dict | None, name_of, names_of, all_names
             entry = have[item_id]
             where = "; ".join(f"{place}: {_fmt(amount)}" for place, amount in entry["places"])
             out.append(f"- {name_of(item_id)} [{item_id}]: {_fmt(entry['total'])} in total - {where}")
+            note = item_notes(item_id) if item_notes else None
+            if note:
+                out.append(f"  {note}")
             nearest = planets_offering(item_id) if planets_offering else None
             if nearest:
                 out.append(f"  found on: {'; '.join(nearest[:NEAREST_PLANETS])}")
@@ -128,13 +187,24 @@ def build_context(question: str, snap: dict | None, name_of, names_of, all_names
             nearest = planets_offering(item_id) if planets_offering else None
             if nearest:
                 out.append(f"  found on: {'; '.join(nearest[:NEAREST_PLANETS])}")
-    elif INVENTORY_WORDS & set(_words(question)):
+    asked = places_asked(question, snap) if not (matched or missing) else []   # named items answer it already
+    if asked:
+        for place, rows in places(snap):
+            if place not in asked:
+                continue
+            out.append("")
+            out.append(f"Contents of {place} ({len(rows)} stacks):")
+            for item_id, amount, maximum in [r for r in rows if ITEM_ID_RE.match(str(r[0]))][:MAX_PLACE_ROWS]:
+                note = item_notes(item_id) if item_notes and item_id.startswith("TRA_") else None
+                out.append(f"- {name_of(item_id)} [{item_id}]: {_fmt(int(amount or 0))}" + (f" - {note}" if note else ""))
+    elif not (matched or missing) and INVENTORY_WORDS & set(_words(question)):
         out.append("")
         out.append(f"Your largest stacks in all (top {TOP_STACKS}, totals across all inventories):")
         for item_id, entry in sorted(have.items(), key=lambda kv: -kv[1]["total"])[:TOP_STACKS]:
             out.append(f"- {name_of(item_id)} [{item_id}]: {_fmt(entry['total'])}")
     out.append("")
-    out.append("Inventories: " + "; ".join(f"{place} ({len(rows)} stacks)" for place, rows in places(snap) if rows))
+    counts = [(place, sum(1 for r in rows if ITEM_ID_RE.match(str(r[0])))) for place, rows in places(snap)]
+    out.append("Inventories: " + "; ".join(f"{place} ({n} stacks)" for place, n in counts if n))
     out += extra_lines
     return "\n".join(out)
 

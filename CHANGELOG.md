@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **Economies from the galaxy map**: with the galaxy map open the game holds the
+  economy, wealth, conflict, race and star colour of the stars around you; the
+  plugin reads them every few minutes (~6 s in the background) and traces each
+  back to its system through its planets' seeds. Every other known system gets a
+  **prediction** from the game's generation rules (ported from nms_namegen, MIT),
+  marked *predicted* - so trade routes, the galaxy map's economy and star colours
+  and the route planner cover far more systems.
+- **The plugin persona answers more**: the contents of an inventory you name
+  ("what is in my ship?"), every trade good ("what trade goods do I have?") with
+  where it sells and the nearest system that buys it, your settlement's state
+  (stats, production, waiting decision, finished construction), and the nearest
+  systems of an economy ("nearest scientific system?"). A finished construction
+  no longer shows as "in construction".
 - **Exact system positions**: the game shows where your current system lies
   inside its region (a render parameter, `gGalacticScale`); the plugin records it
   for every system you visit with the game running. Distances between two such

@@ -343,3 +343,18 @@ def test_the_plugin_brings_its_persona_and_answers_chat_questions_from_the_save(
     out = plugin.chat_context("how much copper do I have")
     assert out["title"] == "No Man's Sky"
     assert "Units 1, Nanites 2, Quicksilver 3" in out["text"] and "[YELLOW2]: 5 in total - Exosuit: 5" in out["text"]
+
+
+def test_settlement_and_economy_questions_get_their_details(tmp_path):
+    """"How is my settlement doing?" got one line that contradicted the timer ("Farm in construction" while the
+    timer said done). A settlement question now gets population, production, the waiting decision and the
+    construction as finished; an economy question the nearest systems of that economy (predicted ones marked)."""
+    plugin = create_plugin(FakeCtx(tmp_path))
+    plugin.settlements = [{"name": "Kay City", "population": 20, "race": "Explorers", "seed": 1, "production": [],
+                           "pending": "StrangerVisit", "last_judgement": 0, "building": "Farm", "perks": ["a"]}]
+    plugin.timers = [{"key": "settlement.kay.27", "label": "Kay City: Farm built", "ends_at": 100.0, "started_at": 1.0}]
+    lines = plugin._settlement_lines({"how", "is", "my", "settlement"}, 200.0)
+    assert lines[0] == "Settlement Kay City: population 20 (Explorers)"
+    assert "  a decision is waiting: Stranger visit" in lines and "  construction: Kay City: Farm built - finished at" in lines[2]
+    assert plugin._settlement_lines({"copper"}, 200.0) == []
+    assert plugin._settlements_text().startswith("Kay City: Farm finished, a decision is waiting")

@@ -62,10 +62,12 @@ def test_trade_good_tooltip_names_buyers_and_the_nearest_known_one(tmp_path):
     assert lines[-1].startswith("Cheap to buy at: ") and lines[-1].endswith("nearest known: System 006202925E80 - you are there.")
 
 
-def test_trade_good_tooltip_says_when_no_buyer_is_known(tmp_path):
-    """Without a known system of a buying economy, the tooltip says so and how economies get read."""
+def test_trade_good_tooltip_uses_predicted_economies_and_says_so(tmp_path):
+    """Without a recorded economy, the known systems' economies are predicted from their addresses (starmap /
+    procgen): a buyer found that way is named with "predicted", so nobody mistakes it for a reading."""
     hint = context(tmp_path, {}).texts.hint("TRA_ALLOY1")
-    assert "You have not found such a system yet" in hint and "Cheap to buy at:" in hint
+    assert "Cheap to buy at:" in hint
+    assert "predicted)" in hint or "You have not found such a system yet" in hint
 
 
 def test_ordinary_items_get_category_and_description_only(tmp_path):

@@ -17,7 +17,7 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from . import assistant, equipment, frigates, galaxy, memory, planets_view, positions, route, saves, settlements, ships, timers, trade
+from . import assistant, equipment, frigates, galaxy, memory, planets_view, positions, route, saves, settlements, ships, starmap, timers, trade
 from .game_install import GameInstall, find_game
 from .gamedata import GameData
 from .history import PlanetHistory, visits_from_save
@@ -123,6 +123,7 @@ class NmsConnector:
         self.history = PlanetHistory(self.data_dir / "planet_history.json")
         galaxy.set_positions(self.history.positions)
         self.positions = positions.PositionTracker()   # exact position of the current system (game memory)
+        self.starmap = starmap.StarmapReader()        # the galaxy map's star records around you (game memory)
         self.live = LiveMemory(self.history)
         self.visits: dict[int, dict] = {}
         self.anchor: bytes | None = None
@@ -354,6 +355,16 @@ class NmsConnector:
                 await self.ctx.run_blocking(self._track_position, now)
             except OSError as exc:      # the game closed mid-read
                 self.ctx.logger.debug("[NMS] Position not read: %s", exc)
+        if self.live.reader is not None and self.live.status == "ok" and self.live.current_system is not None                 and self.starmap.due(now):
+            try:
+                found = await self.ctx.run_blocking(self.starmap.scan, self.live.reader, self.live.current_system)
+                changed = self.history.record_economies(found, datetime.now().isoformat(timespec="seconds"), "galaxy map")
+                if changed:
+                    await self.ctx.run_blocking(self.history.save)
+                self.ctx.logger.info("[NMS] Galaxy map: %d star records read (%d new or changed) in %s s",
+                                     len(found), changed, self.starmap.last_scan_seconds)
+            except OSError as exc:      # the game closed mid-read
+                self.ctx.logger.debug("[NMS] Galaxy map not read: %s", exc)
         seeds = [s["seed"] for s in self.settlements if s.get("seed")]
         # The settlement screen's values exist only while it is open: search for them in your system only.
         here = self.live.current_system if self.live.current_system is not None else self.save_system
@@ -642,9 +653,74 @@ class NmsConnector:
         out_on = [f for f in self.frigates if f["on_expedition"]]
         if self.frigates:
             extra.append(f"Frigates: {len(self.frigates)} ({len(out_on)} out on an expedition)")
+        words = set(re.findall(r"[\w']+", (question or "").lower()))
+        extra += self._settlement_lines(words, now)
+        extra += self._economy_lines(question, ctx, here)
         all_names = {i: [n for n in (e.get("en"), e.get("local")) if n] for i, e in (self.gamedata.items or {}).items()}
-        text = assistant.build_context(question, snap, name_of, names_of, all_names, status, extra, planets_offering)
+
+        def item_notes(item_id):
+            hint = ctx.trade_hint(item_id)        # trade goods: who pays well, the nearest known such system
+            return " ".join(hint.split("\n")) if hint else None
+
+        text = assistant.build_context(question, snap, name_of, names_of, all_names, status, extra, planets_offering,
+                                       item_notes)
         return {"title": "No Man's Sky", "text": text}
+
+    SETTLEMENT_WORDS = {"settlement", "settlements", "siedlung", "siedlungen", "overseer", "aufseher", "colony", "town"}
+    ECONOMY_WORDS = {"economy", "economies", "wirtschaft", "trade", "sell", "buy", "verkaufen", "kaufen", "handel"}
+
+    def _settlement_lines(self, words: set[str], now: float) -> list[str]:
+        """Settlement details for a question about them (or naming one): stats as the screen shows them when read,
+        production, perks, the waiting decision, the construction."""
+        names = {s["name"].lower() for s in self.settlements}
+        if not (words & self.SETTLEMENT_WORDS or any(n.split()[0] in words for n in names if n)):
+            return []
+        tables = self.settlement_tables or settlements.FALLBACK
+        out = []
+        for s in self.settlements:
+            out.append(f"Settlement {s['name']}: population {s['population']} ({s['race'] or 'unknown race'})")
+            reading = self.settlement_live.values.get(s.get("seed"))
+            if reading:
+                shown = [f"{settlements.STAT_LABELS[st]} {settlements.shown(st, v, tables, s['population'])}"
+                         for st, v in zip(settlements.STATS, reading["stats"]) if st not in ("Sentinels", "Debt")]
+                out.append(f"  as its screen showed at {timers.clock(reading['at'])}: " + ", ".join(shown))
+            if s["production"]:
+                out.append("  production: " + "; ".join(f"{self.gamedata.lookup(p['item']) and self.gamedata.lookup(p['item']).get('en') or p['item']}"
+                                                        f" {p['amount']} of {p['cap']}" for p in s["production"]))
+            if s["pending"] and s["pending"] != "None":
+                out.append(f"  a decision is waiting: {settlements._words(s['pending'])}")
+            elif s["last_judgement"]:
+                lo, hi = tables["judgement_wait"]
+                out.append(f"  next decision between {timers.clock(s['last_judgement'] + lo)} and {timers.clock(s['last_judgement'] + hi)}")
+            build = next((t for t in self.timers if t["key"].startswith("settlement.") and s["name"] in t["label"]), None)
+            if build:
+                out.append(f"  construction: {build['label']} - " + (f"finished at {timers.clock(build['ends_at'])}"
+                           if build["ends_at"] <= now else f"ends {timers.clock(build['ends_at'])}"))
+            out.append(f"  perks: {len(s['perks'])} (details in the plugin's Settlements tab)")
+        return out
+
+    def _economy_lines(self, question: str, ctx, here) -> list[str]:
+        """For a question about economies or trading: the nearest known systems of each economy it names (all
+        economies when it names none), read or predicted from the game's generation rules (marked)."""
+        q = (question or "").lower()
+        named = [e for e in trade.ECONOMY_FALLBACK_NAMES
+                 if any(n and n.lower() in q for n in (trade.ECONOMY_FALLBACK_NAMES[e], ctx.economy_name(e), e))]
+        if not named and not (self.ECONOMY_WORDS & set(re.findall(r"[\w']+", q))):
+            return []
+        out = [f"Economy of your current system: {ctx.economy_summary(here) or 'unknown'}"] if here is not None else []
+        for econ in named or list(trade.ECONOMY_FALLBACK_NAMES):
+            keys = [k for k, e in ctx.economies.items() if e.get("economy") == econ and galaxy.galaxy_of(k) == galaxy.galaxy_of(here or k)]
+            keys.sort(key=lambda k: (galaxy.distance_ly(here, k) or 0) if here is not None else 0)
+            if not keys:
+                continue
+            listed = []
+            for k in keys[:3 if not named else 6]:
+                e = ctx.economies[k]
+                dist = galaxy.distance_text(galaxy.distance_ly(here, k), k == here) if here is not None else "?"
+                listed.append(f"{planets_view._system_label(k, ctx.visit(k))} ({e.get('wealth')}, {dist}"
+                              + (", predicted" if e.get("predicted") else "") + ")")
+            out.append(f"Nearest {ctx.economy_name(econ)} systems: " + "; ".join(listed))
+        return out
 
     def _primary_ship_text(self) -> str:
         """'Bang (Fighter, class C) - warp range ~320-365 ly, red and green stars' (details in Ships & bases)."""
@@ -668,8 +744,14 @@ class NmsConnector:
         if not self.settlements:
             return "none"
         parts = []
+        now = time.time()
         for s in self.settlements:
-            bits = [f"{s['building']} in construction"] if s.get("building") else []
+            build = next((t for t in self.timers if t["key"].startswith("settlement.") and s["name"] in t["label"]), None)
+            # The save keeps the building after it is finished (until you claim it): the timer tells which.
+            if build and build["ends_at"] <= now:
+                bits = [f"{s['building'] or 'construction'} finished"]
+            else:
+                bits = [f"{s['building']} in construction"] if s.get("building") else []
             if s.get("pending") and s["pending"] != "None":
                 bits.append("a decision is waiting")
             parts.append(f"{s['name']}: {', '.join(bits)}" if bits else s["name"])

@@ -58,3 +58,33 @@ def test_items_you_do_not_have_are_reported_as_zero_and_inventory_questions_list
     top = build("what is in my inventory")
     assert "Your largest stacks in all" in top and top.index("Cobalt") < top.index("Copper (Kupfer) [YELLOW2]")
     assert assistant.build_context("x", None, str, list, {}, [], []) == "No save has been read yet, so there is no game data."
+
+
+def test_a_question_naming_a_place_gets_that_inventorys_contents():
+    """Seen in the chat of 2026-10-05: "what is in my ship inventory?" got only stack counts. Now a place in the
+    question lists its contents - "ship" the one you fly, "storage container 7" only that container - and the odd
+    corrupt id in a save is left out."""
+    snap = snapshot()
+    snap["ships"].append({"name": "(unnamed)", "class": "Hauler", "primary": False, "inventory": [["\ufffd\ufffd2#00", 1, 1]]})
+    text = assistant.build_context("What is in my ship inventory?", snap, lambda i: NAMES.get(i, [i])[0],
+                                   lambda i: NAMES.get(i, [i]), NAMES, [], [])
+    assert "Contents of Starship 'Bang' (primary) (1 stacks):" in text and "- Ferrite Dust [LAND1]: 300" in text
+    assert "unnamed Hauler" not in text and "\ufffd" not in text
+    container = assistant.build_context("show storage container 7", snapshot(), lambda i: NAMES[i][0],
+                                        lambda i: NAMES[i], NAMES, [], [])
+    assert "Contents of Storage Container 7" in container and "Contents of Storage Container 0" not in container
+    assert assistant.places_asked("all my ships", snap)[0] == "Starship 'Bang' (primary)"
+
+
+def test_trade_goods_questions_list_every_trade_good_with_where_it_sells():
+    """"What trade goods do I have?" matched only "Suspicious Packet (Goods)" by the word "goods" and missed
+    Self-Repairing Heridium and Nanotube Crate: now every trade good (TRA_*) is listed with item_notes - where it
+    sells - and a goods item that is no trade good is not."""
+    snap = snapshot()
+    snap["exosuit"] += [["TRA_ALLOY2", 11, 50], ["SCRAP_GOODS", 2, 10]]
+    names = dict(NAMES, TRA_ALLOY2=["Self-Repairing Heridium", "Heridium"], SCRAP_GOODS=["Suspicious Packet (Goods)", "Paket"])
+    text = assistant.build_context("What trade goods do I have and where should I sell them?", snap,
+                                   lambda i: names[i][0], lambda i: names[i], names, [], [],
+                                   item_notes=lambda i: "Sell at: Scientific economies." if i.startswith("TRA_") else None)
+    assert "- Self-Repairing Heridium [TRA_ALLOY2]: 11 in total - Exosuit: 11" in text
+    assert "  Sell at: Scientific economies." in text and "SCRAP_GOODS" not in text.split("Inventories:")[0]

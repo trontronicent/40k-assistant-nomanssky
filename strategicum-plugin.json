@@ -28,6 +28,11 @@
       "url": "https://github.com/monkeyman192/HGPAKtool"
     },
     {
+      "name": "Stuart Coyle, had.sh and GoodGuysFree (nms_namegen)",
+      "for": "the game's system generation rules (planet seeds, star colour, economy predictions), ported in procgen.py (MIT)",
+      "url": "https://github.com/hadsh/nms_namegen"
+    },
+    {
       "name": "Hello Games",
       "for": "No Man's Sky; item names and icons are read from your own installation and never redistributed"
     },

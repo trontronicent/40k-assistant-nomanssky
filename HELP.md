@@ -173,10 +173,15 @@ their region's point.
 
 Every system has an economy (Mining, Technology, Trading, Manufacturing,
 Advanced Materials, Scientific or Power Generation), a wealth level, a
-conflict level and a dominant race. The plugin reads them from the game's
-galaxy map data while you are in a system with the game running, and keeps
-them. Systems you visited before this version show theirs after your next
-visit.
+conflict level and a dominant race. The plugin knows them in three ways:
+
+- **read while you visit** a system with the game running;
+- **read from the galaxy map**: with the map open (and the Economy Scanner
+  installed) the game holds the details of the stars around you - the plugin
+  reads them every few minutes and keeps them, for systems you never visited;
+- **predicted** for every other system you know, from the game's own
+  generation rules (they reproduce the game's planet seeds exactly and got all
+  systems read so far right). Predicted values are marked *predicted*.
 
 Each economy sells one kind of trade goods cheaply and pays well for another;
 the plugin reads this from the game's trading table. You see it:
