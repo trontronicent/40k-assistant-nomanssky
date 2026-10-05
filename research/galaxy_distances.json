@@ -1,7 +1,7 @@
 {
   "about": "Distances read by the player on the in-game galaxy map (LJ = Lichtjahre = light years), collected to find how the game places systems inside a region and how many light years one region (voxel) step is. Append new samples; keep the context (galaxy map open?, camera focus) - the gGalacticScale value is the map camera's focus, not necessarily the current system.",
   "known_positions_voxels": {
-    "note": "Exact positions recorded by positions.py (gGalacticScale value, map closed, 30 s in the system): position / 100 in region (voxel) units.",
+    "note": "Positions in region units (1 unit = 400 LJ, confirmed by the centre distance). Only values read with the map camera locked on the star are trusted: with the map closed the value keeps the camera's last focus, not the current system.",
     "0x620002925e80": {
       "name": "Delta Sol (generated: Ziverkess)",
       "system_index": 98,
@@ -11,30 +11,59 @@
         -1754.373
       ],
       "position": [
-        -383.6563,
-        2.2776,
-        -1754.3949
+        -383.8178,
+        1.9244,
+        -1754.8914
       ],
-      "how": "2026-10-05 14:17: map camera locked on it from Occultimo; the selected-star record named system 0x62. The plugin's recorded value differs: suspected to be Yibrazh's (map open on arrival with the camera on Yibrazh)."
+      "how": "2026-10-05 14:18:27, camera locked on Delta Sol from Occultimo; centre 718,550 LJ read = |position| x 400 (718,550).",
+      "superseded": [
+        [
+          -383.6563,
+          2.2776,
+          -1754.3949
+        ],
+        "14:17, a hovered/previous focus, not Delta Sol (centre 718,342)"
+      ]
     },
     "0x170002925e80": {
       "name": "Yibrazh",
       "system_index": 23,
-      "position": [
+      "position_recorded_by_plugin": [
         -383.733,
         2.078,
         -1754.141
-      ]
+      ],
+      "position": [
+        -383.8451,
+        2.1786,
+        -1754.4683
+      ],
+      "how": "2026-10-05 14:20:02, camera locked on Yibrazh; centre 718,387 LJ read = 718,387 computed. (14:19:37 gave (-383.7673, 2.2306, -1754.4977), centre 718,392 - while moving?)"
     },
     "0xd60002925e80": {
       "name": "Occultimo Reat Kay (generated: Rodskovdo)",
       "system_index": 214,
-      "position": [
+      "how": "2026-10-05 14:22:39, camera locked on Occultimo; centre 718,657 LJ read, 718,658 computed. The earlier 'map closed' value (-383.6093, 1.8819, -1754.8161) was the camera's last focus, not Occultimo.",
+      "position_map_closed_wrong": [
         -383.6093,
         1.8819,
         -1754.8161
       ],
-      "how": "2026-10-05, in the system, in space, map closed, 5 identical readings; planet records said system 214. Not recorded by the plugin: positions.inside_region refuses it (y 1.88 < region 2)."
+      "position": [
+        -383.9862,
+        1.9995,
+        -1755.1298
+      ]
+    },
+    "0x730002925e80": {
+      "name": "Kayanis Majoris VIII (generated: Ebedyn VIII)",
+      "system_index": 115,
+      "position": [
+        -383.8899,
+        1.9277,
+        -1754.9589
+      ],
+      "how": "2026-10-05 14:21:06, camera locked; centre 718,582 LJ read, 718,583 computed (14:20:59: (-383.8701, 1.9266, -1754.9774), 718,588)."
     }
   },
   "samples": [
@@ -103,6 +132,42 @@
           "ly": 251
         }
       ]
+    },
+    {
+      "at": "2026-10-05 14:18-14:23",
+      "from": {
+        "name": "Occultimo Reat Kay",
+        "key": "0xd60002925e80",
+        "system_index": 214
+      },
+      "galaxy_map_open": true,
+      "method": "camera locked on each star; positions logged by focus_logger, matched by centre distance",
+      "distances": [
+        {
+          "to": "Delta Sol",
+          "ly": 58,
+          "centre_ly": 718550
+        },
+        {
+          "to": "Yibrazh",
+          "ly": 251,
+          "centre_ly": 718387
+        },
+        {
+          "to": "Kayanis Majoris VIII",
+          "ly": 43,
+          "centre_ly": 718582
+        },
+        {
+          "to": "Mibayev V",
+          "ly": null,
+          "note": "not found on the map this time"
+        },
+        {
+          "to": "Occultimo Reat Kay (itself)",
+          "centre_ly": 718657
+        }
+      ]
     }
   ],
   "findings": [
@@ -115,6 +180,9 @@
     "2026-10-05: a system can lie outside [region, region+1) of its own region (Occultimo y = 1.88 in region y = 2): positions.inside_region is too strict, and region cells are not simply floor(position).",
     "2026-10-05: centre distance 718,470 LJ for Occultimo vs |position| x 400 = 718,503 LJ (0.005 %): one position unit = one region = 400 LJ; the 92.3 LJ/unit estimate is wrong.",
     "2026-10-05: Occultimo -> Yibrazh read 251 LJ = Occultimo -> the plugin's 'Delta Sol' value x 400 (251.2); Occultimo -> plugin's 'Yibrazh' value = 286 LJ. Suspected swap/staleness of recorded positions.",
-    "2026-10-05: Delta Sol's position read with the camera locked on it: (-383.6563, 2.2776, -1754.3949). Occultimo -> it = 0.5798 units = 232 LJ at 400 LJ/unit, exactly 4x the 58 LJ read from Delta Sol earlier - unexplained (local distances at 100 LJ/unit? or a misread?)."
+    "2026-10-05: Delta Sol's position read with the camera locked on it: (-383.6563, 2.2776, -1754.3949). Occultimo -> it = 0.5798 units = 232 LJ at 400 LJ/unit, exactly 4x the 58 LJ read from Delta Sol earlier - unexplained (local distances at 100 LJ/unit? or a misread?).",
+    "2026-10-05: the centre distance shown for a locked star = |position| x 400 LJ to within 1 LJ (4/4 stars): the map's position is the star's, 1 unit = 400 LJ.",
+    "2026-10-05: with the map closed gGalacticScale keeps the last camera focus - NOT the current system (Occultimo 'in space, map closed' read Delta-Sol-era focus). The plugin's position recording (positions.py) is therefore unreliable: its 2 recorded positions were both wrong.",
+    "2026-10-05: star-to-star map distances vs |delta| x 400: OC-DS 58 vs 120.6, DS-KM 19 vs 39.5, OC-KM 43 vs 83.6 (all ~/2.0: a similar triangle at ~194 LJ/unit), but OC-YB 251 vs 279.9 (/1.12). Per-axis scaling does not fit (negative weights). Unexplained: is the displayed star distance not euclid x 400, or is the Yibrazh position/reading off?"
   ]
 }
