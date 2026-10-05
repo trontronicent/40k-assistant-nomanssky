@@ -1,0 +1,29 @@
+{
+  "about": "Distances read by the player on the in-game galaxy map (LJ = Lichtjahre = light years), collected to find how the game places systems inside a region and how many light years one region (voxel) step is. Append new samples; keep the context (galaxy map open?, camera focus) - the gGalacticScale value is the map camera's focus, not necessarily the current system.",
+  "known_positions_voxels": {
+    "note": "Exact positions recorded by positions.py (gGalacticScale value, map closed, 30 s in the system): position / 100 in region (voxel) units.",
+    "0x620002925e80": {"name": "Delta Sol (generated: Ziverkess)", "system_index": 98, "position": [-383.5249, 2.319, -1754.373]},
+    "0x170002925e80": {"name": "Yibrazh", "system_index": 23, "position": [-383.733, 2.078, -1754.141]}
+  },
+  "samples": [
+    {
+      "at": "2026-10-05",
+      "from": {"name": "Delta Sol", "key": "0x620002925e80", "portal": "006202925E80", "system_index": 98},
+      "galaxy_map_open": true,
+      "camera_focus_voxels": [-383.6093, 1.8819, -1754.8161],
+      "camera_focus_note": "read once while the map was open; which star (if any) was selected is not known - Mibayev V's map label record was the only filled one, so probably that one",
+      "distances": [
+        {"to": "Kayanis Majoris VIII", "key": "0x730002925e80", "portal": "007302925E80", "system_index": 115, "generated_name": "Ebedyn VIII", "ly": 19},
+        {"to": "Mibayev V", "key": "0x720002925e80", "portal": "007202925E80", "system_index": 114, "generated_name": null, "ly": 24,
+         "how_identified": "not in the save or history (never visited); its galaxy-map label record in memory (name, 'GAL_TITLE_VISIT' text, floats -33.462 / 26.843 / 1.0 at +0x40, packed address 0x0000720002925E80 at +0x50) names system 0x72"},
+        {"to": "Occultimo Reat Kay", "key": "0xd60002925e80", "portal": "00D602925E80", "system_index": 214, "generated_name": "Rodskovdo", "ly": 58}
+      ]
+    }
+  ],
+  "findings": [
+    "2026-10-05: all four systems are in one region (-384, 2, -1755): the plugin's region-based distance can only say '< 400 ly' for them.",
+    "2026-10-05: system index differences 17, 16, 116 give 19, 24, 58 ly - not monotone, so the system index does not place a system linearly.",
+    "2026-10-05: Delta Sol -> Yibrazh is 0.394 voxel by the recorded positions = 158 ly if a voxel is 400 ly. The in-game distance between them would calibrate the scale.",
+    "2026-10-05: Delta Sol -> camera focus = 0.628 voxel. If the camera sat on Kayanis / Mibayev / Occultimo, a voxel would be 30 / 38 / 92 ly - inconsistent with each other and with 400, so the focus was probably on none of them (or the map camera has an offset)."
+  ]
+}
