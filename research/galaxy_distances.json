@@ -5,11 +5,17 @@
     "0x620002925e80": {
       "name": "Delta Sol (generated: Ziverkess)",
       "system_index": 98,
-      "position": [
+      "position_recorded_by_plugin": [
         -383.5249,
         2.319,
         -1754.373
-      ]
+      ],
+      "position": [
+        -383.6563,
+        2.2776,
+        -1754.3949
+      ],
+      "how": "2026-10-05 14:17: map camera locked on it from Occultimo; the selected-star record named system 0x62. The plugin's recorded value differs: suspected to be Yibrazh's (map open on arrival with the camera on Yibrazh)."
     },
     "0x170002925e80": {
       "name": "Yibrazh",
@@ -74,6 +80,29 @@
           "ly": 58
         }
       ]
+    },
+    {
+      "at": "2026-10-05",
+      "from": {
+        "name": "Occultimo Reat Kay",
+        "key": "0xd60002925e80",
+        "system_index": 214
+      },
+      "galaxy_map_open": true,
+      "camera_locked_on": "Occultimo Reat Kay",
+      "distances": [
+        {
+          "to": "galaxy centre (Euklid)",
+          "ly": 718470,
+          "note": "camera locked on Occultimo; the shown centre distance follows the camera"
+        },
+        {
+          "to": "Yibrazh",
+          "key": "0x170002925e80",
+          "system_index": 23,
+          "ly": 251
+        }
+      ]
     }
   ],
   "findings": [
@@ -83,6 +112,9 @@
     "2026-10-05: Delta Sol -> camera focus = 0.628 voxel. If the camera sat on Kayanis / Mibayev / Occultimo, a voxel would be 30 / 38 / 92 ly - inconsistent with each other and with 400, so the focus was probably on none of them (or the map camera has an offset).",
     "2026-10-05: with the map open, gGalacticScale = the selected star's position (Occultimo's value, read from Delta Sol, matched its own value read in the system).",
     "2026-10-05: Delta Sol <-> Occultimo = 0.6281 units = 58 LJ in the game -> 92.3 LJ per unit (one sample). Predictions to check: Delta Sol -> Yibrazh 36 LJ, Occultimo -> Yibrazh 66 LJ, galaxy centre 165,868 LJ (vs 718,503 at 400 LJ/unit).",
-    "2026-10-05: a system can lie outside [region, region+1) of its own region (Occultimo y = 1.88 in region y = 2): positions.inside_region is too strict, and region cells are not simply floor(position)."
+    "2026-10-05: a system can lie outside [region, region+1) of its own region (Occultimo y = 1.88 in region y = 2): positions.inside_region is too strict, and region cells are not simply floor(position).",
+    "2026-10-05: centre distance 718,470 LJ for Occultimo vs |position| x 400 = 718,503 LJ (0.005 %): one position unit = one region = 400 LJ; the 92.3 LJ/unit estimate is wrong.",
+    "2026-10-05: Occultimo -> Yibrazh read 251 LJ = Occultimo -> the plugin's 'Delta Sol' value x 400 (251.2); Occultimo -> plugin's 'Yibrazh' value = 286 LJ. Suspected swap/staleness of recorded positions.",
+    "2026-10-05: Delta Sol's position read with the camera locked on it: (-383.6563, 2.2776, -1754.3949). Occultimo -> it = 0.5798 units = 232 LJ at 400 LJ/unit, exactly 4x the 58 LJ read from Delta Sol earlier - unexplained (local distances at 100 LJ/unit? or a misread?)."
   ]
 }
