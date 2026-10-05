@@ -200,6 +200,65 @@
         }
       ],
       "note": "map distances are whole LJ (no decimals). Yibrazh's centre distance was 718,387 at 14:20 and 718,568 now: the earlier lock was on another point."
+    },
+    {
+      "at": "2026-10-05 14:30-14:34",
+      "method": "user locked Delta Sol 3x and Kayanis 3x from different viewpoints; centre distance read at each lock",
+      "locks": {
+        "Delta Sol": [
+          {
+            "centre_ly": 718599,
+            "eye": [
+              -383.6235,
+              1.9198,
+              -1755.0602
+            ]
+          },
+          {
+            "centre_ly": 718572,
+            "eye": [
+              -383.6212,
+              1.8882,
+              -1754.9915
+            ]
+          },
+          {
+            "centre_ly": 718555,
+            "eye": [
+              -383.6447,
+              1.894,
+              -1754.9421
+            ]
+          }
+        ],
+        "Kayanis Majoris VIII": [
+          {
+            "centre_ly": 718553,
+            "eye": [
+              -383.7295,
+              1.9156,
+              -1754.9202
+            ]
+          },
+          {
+            "centre_ly": 718591,
+            "eye": [
+              -383.9054,
+              1.9242,
+              -1754.9786
+            ]
+          },
+          {
+            "centre_ly": 718652,
+            "eye": [
+              -383.5768,
+              1.9266,
+              -1755.2061
+            ]
+          }
+        ]
+      },
+      "note": "each reading matched the end of one logged camera flight to <= 1 LJ; the flights are not straight and the 3 end points of a star are 30-130 LJ apart (different zoom/orbit)."
     }
   ],
   "findings": [
@@ -219,6 +278,8 @@
     "2026-10-05 14:30: the map's 'distance to the heart' follows the viewport (camera), not the selected star - centre distance cannot identify a star, and the logged values are camera positions.",
     "2026-10-05: no single observer point explains the 'from current position' readings (DS 58, YB 251, KM 43, EM 64) at 400 LJ/unit or any fitted scale - best fit misses Yibrazh by 103 LJ. So either the logged camera positions are not the stars, or the displayed distance is not euclid. Next: identify stars by the selected-star record (packed address), read the camera only when it sits on the star.",
     "2026-10-05 14:35: user: locking zooms the camera toward the star; rotating changes the centre distance; the viewport differs each time. So gGalacticScale = the camera EYE position (orbiting the locked star at a zoom radius), not the star. All 'locked' positions logged today are eye positions = star + offset.",
-    "2026-10-05: neighbouring galaxy-shader parameters: gTracePDX, gTracePDY (camera basis), gGoalCenterDir (= normalize(-eye): direction to the core), gInterest, gScreen, gIterations, gSunCore*, gBG* - no look-at target. Plan: orbit fit - while orbiting a locked star the eye stays on a sphere whose centre is the star (orbit_logger logs every change; needs horizontal AND vertical rotation, else only a circle)."
+    "2026-10-05: neighbouring galaxy-shader parameters: gTracePDX, gTracePDY (camera basis), gGoalCenterDir (= normalize(-eye): direction to the core), gInterest, gScreen, gIterations, gSunCore*, gBG* - no look-at target. Plan: orbit fit - while orbiting a locked star the eye stays on a sphere whose centre is the star (orbit_logger logs every change; needs horizontal AND vertical rotation, else only a circle).",
+    "2026-10-05: the user cannot rotate a locked camera (manual rotation moves it). Lock flights are curved; lock end points of one star differ by up to 130 LJ: end points are not star positions.",
+    "2026-10-05: camera block in memory = gTracePDX (screen right half-axis), gTracePDY (screen down half-axis; |PDX|/|PDY| = 1.773 = gScreen aspect 2240/1264, dot ~ 0), gGoalCenterDir, gGalacticScale (eye, x100). Viewing direction = normalize(cross(PDX, PDY)) (sign to be checked). A locked star is at the screen centre: star on the line eye + t * forward; two locks from different directions -> line intersection = star. ray_logger logs eye + PDX + PDY."
   ]
 }
