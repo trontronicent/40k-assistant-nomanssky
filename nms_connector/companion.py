@@ -40,6 +40,9 @@ PERSONA_PROMPT = (
     "language the player writes in."
 )
 
+PERSONA_SLUG = "companion"
+PERSONA_ID = f"plugin-nomanssky-{PERSONA_SLUG}"     # the app's reserved id: plugin-<plugin id>-<slug>
+
 # What the plugin page asks while linking the persona to a model (app 3.10.0, plugins/personas.normalize_setup).
 PERSONA_SETUP = {
     "knowledge": {"ask": True, "suggest": "No Man's Sky", "mode": "auto",
@@ -78,7 +81,7 @@ class PluginCompanion:
     def personas(self) -> list[dict]:
         """The persona this plugin brings (the app stores it once; the user links it to a model)."""
         return [{
-            "slug": "companion", "name": "No Man's Sky Plugin Persona",
+            "slug": PERSONA_SLUG, "name": "No Man's Sky Plugin Persona",
             "personality": "Helpful, precise with numbers, a seasoned traveller of the Euclid galaxy.",
             "speech_style": "Short and clear; totals first, then where things are.",
             "background": "Brought by the No Man's Sky plugin: answers from your live game data - inventories, "
@@ -154,7 +157,23 @@ class PluginCompanion:
 
         return {"title": "No Man's Sky", "text": assistant.build_context(
             question, snap, name_of, names_of, all_names, status, extra, planets_offering, item_notes,
-            lambda place_names: self.kind_lines(snap, place_names, ctx, name_of))}
+            lambda place_names: self.kind_lines(snap, place_names, ctx, name_of)),
+            # The Settings tab's "Single Context Per Question": this plugin's persona gets no earlier turns (3.11.0).
+            "single_context": bool(getattr(getattr(c, "settings", None), "single_context", False))}
+
+    def overlay(self) -> dict:
+        """The desktop overlay in this plugin's mode (app 3.11.0): the running timers, where you are, the persona
+        and its codeword (Settings tab). The overlay counts the timers down itself."""
+        c = self.connector
+        now = time.time()
+        here = c.here()
+        lines = []
+        if here is not None:
+            lines.append(f"You are in {planets_view._system_label(here, c.context().visit(here))}")
+        if c.settlements:
+            lines.append(f"Settlements: {c.describe.settlements()}")
+        return {"title": "No Man's Sky", "timers": timers.visible(c.timers, now)[:20], "lines": lines,
+                "persona_id": PERSONA_ID, "codeword": getattr(getattr(c, "settings", None), "codeword", None)}
 
     def kind_lines(self, snap: dict, place_names: list[str] | None, ctx, name_of) -> list[str]:
         """Trade goods by kind (assistant.trade_kinds) with the game's base value, which economies buy the kind,

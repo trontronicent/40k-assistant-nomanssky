@@ -26,6 +26,7 @@ The tabs:
 - **Ships & bases** - your ships (type, class, estimated **warp range**, the star colours they can reach, base stats, slots), **every ship's technology** (one tab per ship) and your bases with portal addresses. See *Ships* below.
 - **Settlements** - the economy of each settlement you run: see *Settlements* below.
 - **Saves & source** - how often the game saves, the recent save writes, where the data comes from and the last memory scans.
+- **Settings** - the plugin persona's **codeword** and **Single Context Per Question**: see *Settings and the overlay* below.
 
 ## The plugin persona
 
@@ -70,6 +71,26 @@ Its answers are as fresh as the game's last save (and the live position while
 the game runs). **Change** on the card picks another model, library or search
 setting; the persona editor changes its prompt and voice; other personas can
 draw on the same data under *Intel → Plugin Data*.
+
+## Settings and the overlay
+
+The **Settings** tab (needs the 40k Assistant 3.11.0):
+
+- **Codeword** - the word that starts a spoken question to the No Man's Sky Plugin
+  Persona in Live Comms' Codeword mode, for example *"Atlas, how much copper do I
+  have?"* (default *Atlas*). Choose a word you rarely say otherwise.
+- **Single Context Per Question** (*Helps saving VRAM*) - the persona answers each
+  question on its own, without the earlier turns of the conversation. Its game data
+  is fresh with every question anyway, and the model needs less video memory while
+  the game runs. Follow-ups such as *check again* still work: the plugin gets your
+  previous question with them.
+
+**The desktop overlay**: right-click the app's overlay → **Show** → **No Man's Sky**.
+It then shows your timers counting down, where you are, your settlements and - while
+the app talks to the plugin persona - its context and latest replies. The buttons
+**Codeword** (with the codeword from the Settings tab) and **Live call** switch the
+open app tab to the plugin persona and start Live Comms, so you can ask by voice
+without leaving the game; **Off** stops listening.
 
 ## Timers
 

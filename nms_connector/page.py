@@ -227,6 +227,27 @@ class ConnectorPage:
         sections.append(planets_view.scan_log_section(ctx, c.history.scans))
         return sections
 
+    def settings_sections(self) -> list[dict]:
+        """The Settings tab: the persona's codeword and Single Context Per Question (settings.py)."""
+        s = self.connector.settings
+        return [{"type": "form", "id": "plugin-settings", "title": "Plugin persona", "action": "save_settings",
+                 "submit_label": "Save",
+                 "description": "How the No Man's Sky Plugin Persona is addressed and how much of the conversation it "
+                                "keeps. In the app's desktop overlay, switched to No Man's Sky (right-click -> Show), "
+                                "the Codeword and Live call buttons start talking to it by voice.",
+                 "fields": [
+                     {"id": "codeword", "label": "Codeword", "type": "text", "max_length": 40, "value": s.codeword,
+                      "placeholder": "e.g. Atlas",
+                      "hint": "The word that starts a spoken question to the persona in Live Comms' Codeword mode, "
+                              "e.g. \"Atlas, how much copper do I have?\". The overlay's Codeword button sets it in "
+                              "the app. Choose a word you rarely say otherwise."},
+                     {"id": "single_context", "label": "Single Context Per Question", "type": "checkbox",
+                      "value": s.single_context, "hint": "Helps saving VRAM"}]},
+                {"type": "text", "text": "Single Context Per Question: the persona answers each question on its own, "
+                                         "without the earlier turns of the conversation. Its game data is fresh with "
+                                         "every question, so little is lost, and the model needs less video memory "
+                                         "while the game runs (needs the 40k Assistant 3.11.0)."}]
+
     def notices(self) -> list[dict]:
         """What is missing or wrong, above the tabs."""
         c = self.connector
@@ -271,6 +292,7 @@ class ConnectorPage:
              "sections": settlements.settlement_sections(c.settlements, c.tables.settlement_rules,
                                                          ctx.texts, time.time(), c.settlement_live.values)},
             {"id": "saves", "label": "Saves & source", "sections": self.saves(snap, ctx)},
+            {"id": "settings", "label": "Settings", "sections": self.settings_sections()},
         ]})
         return {
             "title": "No Man's Sky",

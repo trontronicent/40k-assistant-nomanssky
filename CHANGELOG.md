@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- **In the app's desktop overlay** (needs the 40k Assistant 3.11.0): right-click the
+  overlay → Show → No Man's Sky shows the timers counting down, where you are, your
+  settlements and the plugin persona's context, with buttons to talk to the persona
+  by voice (Codeword / Live call).
+- **Settings tab**: the plugin persona's **codeword** for Live Comms, and **Single
+  Context Per Question** (*Helps saving VRAM*): the persona answers each question
+  without the earlier turns.
+
 - **Planet search**: *Systems → Planets* has a search field - find recorded planets
   by what they are like (type, weather, resources, plants, gas, flora, fauna,
   sentinels, name) in English or the game's language: *sengend heiß* finds the

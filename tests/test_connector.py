@@ -238,7 +238,7 @@ def test_plugin_reads_saves_read_only_and_builds_a_view(tmp_path, monkeypatch):
 
     plugin, view, result = asyncio.run(scenario())
     main = section(view, type="tabs", id="main")
-    assert [t["label"] for t in main["tabs"]] == ["Overview", "Systems", "Inventory", "Ships & bases", "Settlements", "Saves & source"]
+    assert [t["label"] for t in main["tabs"]] == ["Overview", "Systems", "Inventory", "Ships & bases", "Settlements", "Saves & source", "Settings"]
     titles = [s.get("title") for s in all_sections(view["sections"])]
     assert "Status" in titles and "Location (at the last save)" in titles and "Exosuit inventory" in titles
     assert "Status" in [s.get("title") for s in main["tabs"][0]["sections"]]
@@ -417,3 +417,47 @@ def test_a_trade_goods_question_gets_the_kinds_with_value_and_buyer_and_no_equip
     assert "needed by" in text and "Power" in text
     assert "Starship Raptor (primary): " not in text            # no equipment lines for a cargo question
     assert plugin.companion.equipment_lines({"which", "upgrades", "ship"}, plugin.context().texts) != []
+
+
+def test_settings_are_checked_saved_and_reach_the_chat_data_and_the_overlay(tmp_path, monkeypatch):
+    """The Settings tab's form: the codeword (1-40 letters, spaces, hyphens, apostrophes) and Single Context Per
+    Question (a bool) are untrusted input, saved to settings.json and loaded again; the chat data carries
+    single_context (the app then keeps only the current question for this persona) and the overlay the codeword."""
+    from nms_connector.settings import PluginSettings
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    assert plugin.settings == PluginSettings() and plugin.chat_context("hi").get("single_context") in (None, False)
+    bad = asyncio.run(plugin.action("save_settings", {"codeword": "<script>", "single_context": True}))
+    assert bad["ok"] is False and "codeword" in bad["message"]
+    assert asyncio.run(plugin.action("save_settings", {"codeword": "Atlas", "single_context": "yes"}))["ok"] is False
+    ok = asyncio.run(plugin.action("save_settings", {"codeword": "  Nada  Prime ", "single_context": True}))
+    assert ok["ok"] and plugin.settings.codeword == "Nada Prime"
+    assert PluginSettings.load(plugin.settings_path) == PluginSettings(single_context=True, codeword="Nada Prime")
+    plugin.snapshot = {"exosuit": [], "exosuit_cargo": [], "storage": [], "bases": [], "saved_at": None, "units": 1,
+                       "nanites": 2, "quicksilver": 3, "location": {"galaxy": "Euclid", "portal": "x"}, "current_mission": None,
+                       "ships": [], "freighter": {"name": None, "inventory": []}}
+    assert plugin.chat_context("how much copper")["single_context"] is True
+    overlay = plugin.overlay()
+    assert overlay["codeword"] == "Nada Prime" and overlay["persona_id"] == "plugin-nomanssky-companion"
+    assert overlay["title"] == "No Man's Sky" and isinstance(overlay["timers"], list)
+    form = plugin.page.settings_sections()[0]
+    fields = {f["id"]: f for f in form["fields"]}
+    assert fields["single_context"]["hint"] == "Helps saving VRAM" and fields["single_context"]["value"] is True
+    (tmp_path / "data" / "settings.json").write_text("not json")
+    assert PluginSettings.load(tmp_path / "data" / "settings.json") == PluginSettings()
+
+
+def test_the_plugins_overlay_passes_the_apps_check():
+    """The plugin's overlay() is what the app accepts (plugins/overlay.normalize_overlay, app 3.11.0): its persona is
+    its own reserved id and its codeword fits the app's rule, so neither is dropped."""
+    import sys as _sys
+    _sys.path.insert(0, r"J:\40k-assistant")
+    try:
+        from src.plugins.overlay import normalize_overlay
+    except ImportError:
+        pytest.skip("the app is not next to the plugin")
+    from nms_connector.companion import PERSONA_ID
+    from nms_connector.settings import DEFAULT_CODEWORD
+    out = normalize_overlay({"title": "No Man's Sky", "timers": [], "lines": [], "persona_id": PERSONA_ID,
+                             "codeword": DEFAULT_CODEWORD}, "nomanssky", "x")
+    assert out["persona_id"] == PERSONA_ID and out["codeword"] == DEFAULT_CODEWORD

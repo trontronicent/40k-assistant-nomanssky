@@ -31,11 +31,13 @@ from .gamedata import GameData
 from .history import PlanetHistory, visits_from_save
 from .live import LiveMemory
 from .page import ConnectorPage
+from .settings import PluginSettings
 from .summary import mission_text_keys, summarize
 from .tables import GameTables
 from .watcher import SaveWatcher
 
 POLL_S = 5
+SAVE_SETTINGS = "save_settings"   # the Settings tab's form
 CAMERA_EVERY_S = 1         # PROTOTYPE star fixes: how often the galaxy map camera is sampled while the game runs
 MAPPING_RELEASE_API = "https://api.github.com/repos/monkeyman192/MBINCompiler/releases/latest"
 MAPPING_RECHECK_S = 24 * 3600
@@ -107,6 +109,8 @@ class NmsConnector:
         self.frigates: list[dict] = []            # your frigates (frigates.py)
         self.galaxy_colors = "kind"               # how the galaxy map colours systems (planets_view.COLOR_MODES)
         self.planet_query = ""                    # Systems -> Planets search (planet_search)
+        self.settings_path = self.data_dir / "settings.json"
+        self.settings = PluginSettings.load(self.settings_path)   # Settings tab: single context, codeword
         self.snapshot_file: str | None = None
         self.decoded_at: str | None = None
         self.decode_seconds: float | None = None
@@ -554,6 +558,13 @@ class NmsConnector:
             found = len(planets_view.planet_index(self.context()).search(self.planet_query))
             return {"ok": True, "focus": planets_view.PLANET_SEARCH_ID,
                     "message": f"{found} planet(s) match \"{self.planet_query}\"."}
+        if action_id == SAVE_SETTINGS:
+            problem = self.settings.update(params or {})
+            if problem:
+                return {"ok": False, "message": problem}
+            await self.ctx.run_blocking(self.settings.save, self.settings_path)
+            return {"ok": True, "message": f"Settings saved: codeword \"{self.settings.codeword}\", single context per "
+                                           f"question {'on' if self.settings.single_context else 'off'}."}
         if action_id == planets_view.NAME_FIX:
             return await self.ctx.run_blocking(self._name_fix, params or {})
         if action_id == "clear_history":
@@ -575,3 +586,7 @@ class NmsConnector:
     def chat_context(self, question: str) -> dict:
         """The game data for one chat reply of a persona that draws on this plugin (see companion.py)."""
         return self.companion.chat_context(question)
+
+    def overlay(self) -> dict:
+        """What the app's desktop overlay shows in this plugin's mode (see companion.py; app 3.11.0)."""
+        return self.companion.overlay()
