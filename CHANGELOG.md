@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.10.0 — 2026-10-05
 
 - **Trade goods by kind and their value**: the item database now holds each
   product's base value from the game (trade goods 1,000 / 6,000 / 15,000 / 30,000
