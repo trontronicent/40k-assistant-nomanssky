@@ -70,6 +70,45 @@
         -1754.9589
       ],
       "how": "2026-10-05 14:21:06, camera locked; centre 718,582 LJ read, 718,583 computed (14:20:59: (-383.8701, 1.9266, -1754.9774), 718,588)."
+    },
+    "0xb50002925e80": {
+      "name": "Agestr",
+      "system_index": 181,
+      "position_from_rays": [
+        -383.8855,
+        1.9423,
+        -1754.9807
+      ],
+      "how_rays": "2026-10-05 14:44:18/14:44:36/14:45:00 locks (centre 718,579 / 718,648 / 718,622): 3 rays meet within 0.0 LJ"
+    },
+    "0xe00002925e80": {
+      "name": "Minogra",
+      "system_index": 224,
+      "position_from_rays": [
+        -384.0295,
+        1.9187,
+        -1754.9602
+      ],
+      "how_rays": "2026-10-05 14:45:19/14:45:34 locks (718,614 / 718,567): 2 rays meet within 0.0 LJ"
+    },
+    "0xea0002925e80": {
+      "name": "Skazov XVII",
+      "system_index": 234,
+      "position_from_rays": [
+        -384.0375,
+        1.9696,
+        -1755.0965
+      ],
+      "how_rays": "2026-10-05 14:45:53/14:46:13 locks (718,601 / 718,592): 2 rays meet within 0.0 LJ"
+    },
+    "unknown:Kayana XIV": {
+      "name": "Kayana XIV (address unknown: not among the generated names read)",
+      "position_from_rays": [
+        -384.1492,
+        1.8498,
+        -1755.1169
+      ],
+      "how_rays": "2026-10-05 14:43:19/14:43:49 locks (718,630 / 718,668): 2 rays meet within 0.0 LJ"
     }
   },
   "samples": [
@@ -265,6 +304,45 @@
         ]
       },
       "note": "each reading matched the end of one logged camera flight to <= 1 LJ; the flights are not straight and the 3 end points of a star are 30-130 LJ apart (different zoom/orbit)."
+    },
+    {
+      "at": "2026-10-05 14:43-14:46",
+      "from": {
+        "name": "Delta Sol (physically there)",
+        "key": "0x620002925e80",
+        "position_from_rays": [
+          -383.7669,
+          1.886,
+          -1755.0291
+        ]
+      },
+      "galaxy_map_open": true,
+      "method": "view-ray intersection of 2-3 locks per star",
+      "distances": [
+        {
+          "to": "Kayana XIV",
+          "ly": 157,
+          "computed_ly": 157.6
+        },
+        {
+          "to": "Agestr",
+          "key": "0xb50002925e80",
+          "ly": 56,
+          "computed_ly": 56.0
+        },
+        {
+          "to": "Minogra",
+          "key": "0xe00002925e80",
+          "ly": 109,
+          "computed_ly": 109.4
+        },
+        {
+          "to": "Skazov XVII",
+          "key": "0xea0002925e80",
+          "ly": 116,
+          "computed_ly": 116.5
+        }
+      ]
     }
   ],
   "findings": [
@@ -287,6 +365,9 @@
     "2026-10-05: neighbouring galaxy-shader parameters: gTracePDX, gTracePDY (camera basis), gGoalCenterDir (= normalize(-eye): direction to the core), gInterest, gScreen, gIterations, gSunCore*, gBG* - no look-at target. Plan: orbit fit - while orbiting a locked star the eye stays on a sphere whose centre is the star (orbit_logger logs every change; needs horizontal AND vertical rotation, else only a circle).",
     "2026-10-05: the user cannot rotate a locked camera (manual rotation moves it). Lock flights are curved; lock end points of one star differ by up to 130 LJ: end points are not star positions.",
     "2026-10-05: camera block in memory = gTracePDX (screen right half-axis), gTracePDY (screen down half-axis; |PDX|/|PDY| = 1.773 = gScreen aspect 2240/1264, dot ~ 0), gGoalCenterDir, gGalacticScale (eye, x100). Viewing direction = normalize(cross(PDX, PDY)) (sign to be checked). A locked star is at the screen centre: star on the line eye + t * forward; two locks from different directions -> line intersection = star. ray_logger logs eye + PDX + PDY.",
-    "2026-10-05 14:38: view-ray intersection works: Delta Sol = (-383.7669, 1.8860, -1755.0291), 4 rays within 0.2 LJ. Of all 464 camera samples 14:37-14:38 (flights and manual rotation mixed), 26% pass within 1 LJ (median 3.1 LJ): only the settled lock ends are reliable rays."
+    "2026-10-05 14:38: view-ray intersection works: Delta Sol = (-383.7669, 1.8860, -1755.0291), 4 rays within 0.2 LJ. Of all 464 camera samples 14:37-14:38 (flights and manual rotation mixed), 26% pass within 1 LJ (median 3.1 LJ): only the settled lock ends are reliable rays.",
+    "2026-10-05 14:46: SOLVED for 4/4 stars: the map distance = floor(|star_a - star_b| x 400) LJ (157.6->157, 109.4->109, 116.5->116, 56.0->56), with star positions from view-ray intersection and 'current position' = the star of the system you are in. 1 unit = 400 LJ for star-to-star distances as for the centre distance.",
+    "2026-10-05: the earlier unexplained ratios (~2, 1.12, 0.4) came from using camera eye positions as star positions. Discard every position not marked position_from_rays.",
+    "2026-10-05: to automate in the plugin: log lock ends (eye + normalize(cross(gTracePDX, gTracePDY))), intersect rays of one star (misses ~0 LJ when they belong together; >1 LJ = different stars), and identify the star - the open problem (the map label record with the packed address was stale; Kayana XIV's address is unknown)."
   ]
 }
