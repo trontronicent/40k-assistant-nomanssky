@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.12.0 — 2026-10-05
+
+- **A default voice**: the No Man's Sky Plugin Persona now speaks with the app's
+  *Cogitator AI (Male)* voice - calm, British, with a light ship-computer effect
+  (needs the 40k Assistant 3.12.0; older versions keep their voice). An existing
+  persona gets it unless you chose a voice yourself. Other AI voices to pick in the
+  persona editor: *Cogitator AI (Female)*, and German *Cogitator AI (Male) [GERMAN]*
+  / *Cogitator AI (Female) [GERMAN]*.
+
 ## 0.11.0 — 2026-10-05
 
 - **In the app's desktop overlay** (needs the 40k Assistant 3.11.0): right-click the

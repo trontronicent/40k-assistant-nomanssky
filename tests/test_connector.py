@@ -335,6 +335,7 @@ def test_the_plugin_brings_its_persona_and_answers_chat_questions_from_the_save(
     persona, = plugin.personas()
     assert persona["slug"] == "companion" and persona["name"] == "No Man's Sky Plugin Persona"
     assert "[GAME DATA: No Man's Sky]" in persona["system_prompt"] and persona["temperature"] == 0.3
+    assert persona["voice"] == "ai-male"            # app 3.12.0: the persona's default voice
     assert plugin.chat_context("how much copper")["text"] == "No save has been read yet, so there is no game data."
     plugin.snapshot = {"exosuit": [["YELLOW2", 5, 250]], "exosuit_cargo": [], "ships": [], "storage": [],
                        "freighter": {"name": None, "inventory": []}, "bases": [], "saved_at": None, "units": 1,

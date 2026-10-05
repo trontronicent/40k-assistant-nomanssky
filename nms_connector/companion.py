@@ -41,6 +41,7 @@ PERSONA_PROMPT = (
 )
 
 PERSONA_SLUG = "companion"
+PERSONA_VOICE = "ai-male"     # the app's voice key: Cogitator AI (Male), Kokoro bm_george
 PERSONA_ID = f"plugin-nomanssky-{PERSONA_SLUG}"     # the app's reserved id: plugin-<plugin id>-<slug>
 
 # What the plugin page asks while linking the persona to a model (app 3.10.0, plugins/personas.normalize_setup).
@@ -87,6 +88,9 @@ class PluginCompanion:
             "background": "Brought by the No Man's Sky plugin: answers from your live game data - inventories, "
                           "ships, equipment, settlements, frigates, timers and location.",
             "system_prompt": PERSONA_PROMPT, "temperature": 0.3, "setup": PERSONA_SETUP,
+            # Default voice (app 3.12.0, ignored by older apps): the app's calm British ship-AI voice with its light
+            # "ai" effect. The user can pick another one in the persona editor - e.g. ai-male-de for German.
+            "voice": PERSONA_VOICE,
         }]
 
     def chat_context(self, question: str) -> dict:

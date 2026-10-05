@@ -54,6 +54,12 @@ and ask about your game:
 - *Which upgrades does my multi-tool have?* - your installed technology (exosuit,
   multi-tools, exocraft, freighter, ships) with what each part does.
 
+**Its voice** (40k Assistant 3.12.0): the persona speaks with *Cogitator AI
+(Male)* - a calm, British ship-computer voice. Pick another voice in the persona
+editor if you like: *Cogitator AI (Female)*, or for German answers *Cogitator AI
+(Male) [GERMAN]* / *Cogitator AI (Female) [GERMAN]*. A voice you chose yourself
+is kept when the plugin updates.
+
 While linking it, the card also asks two things (app 3.10.0):
 
 - **Codex knowledge** - a Codex library the persona draws on for recipes,
@@ -74,7 +80,7 @@ draw on the same data under *Intel → Plugin Data*.
 
 ## Settings and the overlay
 
-The **Settings** tab (needs the 40k Assistant 3.11.0):
+The **Settings** tab - the same form is at the top of the **Overview** tab (needs the 40k Assistant 3.11.0):
 
 - **Codeword** - the word that starts a spoken question to the No Man's Sky Plugin
   Persona in Live Comms' Codeword mode, for example *"Atlas, how much copper do I
@@ -90,7 +96,9 @@ It then shows your timers counting down, where you are, your settlements and - w
 the app talks to the plugin persona - its context and latest replies. The buttons
 **Codeword** (with the codeword from the Settings tab) and **Live call** switch the
 open app tab to the plugin persona and start Live Comms, so you can ask by voice
-without leaving the game; **Off** stops listening.
+without leaving the game; **Off** stops listening. Above the buttons the overlay shows
+the switch **Single context per question** (*Helps saving VRAM*): click it (☐ off /
+☑ on) or tick it in the right-click menu - it is the same setting as on the page.
 
 ## Timers
 
