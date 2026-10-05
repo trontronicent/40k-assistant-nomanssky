@@ -23,7 +23,13 @@
           -1754.3949
         ],
         "14:17, a hovered/previous focus, not Delta Sol (centre 718,342)"
-      ]
+      ],
+      "position_from_rays": [
+        -383.7669,
+        1.886,
+        -1755.0291
+      ],
+      "how_rays": "2026-10-05 14:37-14:38: 4 locks from different directions (centre readings 718,636 / 718,609 / 718,517 / 718,550 matched to flight ends); intersection of the 4 view rays (eye + t * normalize(cross(PDX, PDY))): every ray within 0.2 LJ. Trust this one."
     },
     "0x170002925e80": {
       "name": "Yibrazh",
@@ -280,6 +286,7 @@
     "2026-10-05 14:35: user: locking zooms the camera toward the star; rotating changes the centre distance; the viewport differs each time. So gGalacticScale = the camera EYE position (orbiting the locked star at a zoom radius), not the star. All 'locked' positions logged today are eye positions = star + offset.",
     "2026-10-05: neighbouring galaxy-shader parameters: gTracePDX, gTracePDY (camera basis), gGoalCenterDir (= normalize(-eye): direction to the core), gInterest, gScreen, gIterations, gSunCore*, gBG* - no look-at target. Plan: orbit fit - while orbiting a locked star the eye stays on a sphere whose centre is the star (orbit_logger logs every change; needs horizontal AND vertical rotation, else only a circle).",
     "2026-10-05: the user cannot rotate a locked camera (manual rotation moves it). Lock flights are curved; lock end points of one star differ by up to 130 LJ: end points are not star positions.",
-    "2026-10-05: camera block in memory = gTracePDX (screen right half-axis), gTracePDY (screen down half-axis; |PDX|/|PDY| = 1.773 = gScreen aspect 2240/1264, dot ~ 0), gGoalCenterDir, gGalacticScale (eye, x100). Viewing direction = normalize(cross(PDX, PDY)) (sign to be checked). A locked star is at the screen centre: star on the line eye + t * forward; two locks from different directions -> line intersection = star. ray_logger logs eye + PDX + PDY."
+    "2026-10-05: camera block in memory = gTracePDX (screen right half-axis), gTracePDY (screen down half-axis; |PDX|/|PDY| = 1.773 = gScreen aspect 2240/1264, dot ~ 0), gGoalCenterDir, gGalacticScale (eye, x100). Viewing direction = normalize(cross(PDX, PDY)) (sign to be checked). A locked star is at the screen centre: star on the line eye + t * forward; two locks from different directions -> line intersection = star. ray_logger logs eye + PDX + PDY.",
+    "2026-10-05 14:38: view-ray intersection works: Delta Sol = (-383.7669, 1.8860, -1755.0291), 4 rays within 0.2 LJ. 26% of all camera samples during the user's manual rotation also pass within 1 LJ (median 3.11 LJ): the map keeps the selected star at the screen centre."
   ]
 }
