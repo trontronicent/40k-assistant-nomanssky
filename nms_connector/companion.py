@@ -73,6 +73,12 @@ MAX_TECH_LINES = 40
 MAX_TECH_CHARS = 5000     # the app cuts the whole game-data block at 8,000 characters
 
 
+# The overlay's areas (app 3.12.0): (id, title, shown by default). The user ticks them on or off in the overlay.
+OVERLAY_AREAS = [("timers", "Timers", True), ("location", "Where you are", True),
+                 ("settlements", "Settlements", True), ("mission", "Current mission", False),
+                 ("currencies", "Currencies", False), ("ships", "Ships", False), ("frigates", "Frigates", False)]
+
+
 class PluginCompanion:
     """The persona and its chat data, for one connector (whose state is read on every call)."""
 
@@ -167,20 +173,96 @@ class PluginCompanion:
 
     def overlay(self) -> dict:
         """The desktop overlay in this plugin's mode (app 3.11.0): the running timers, where you are, the persona
-        and its codeword (Settings tab). The overlay counts the timers down itself."""
+        and its codeword (Settings tab). The overlay counts the timers down itself.
+
+        App 3.12.0 draws ``areas`` instead: named blocks (OVERLAY_AREAS) the user ticks on or off in the overlay's
+        right-click menu - the overlay keeps that choice, the plugin only says which are on by default. The flat
+        ``timers``/``lines`` stay for older apps, which ignore ``areas``."""
         c = self.connector
         now = time.time()
-        here = c.here()
-        lines = []
-        if here is not None:
-            lines.append(f"You are in {planets_view._system_label(here, c.context().visit(here))}")
+        shown_timers = timers.visible(c.timers, now)[:20]
+        here = self.where_lines()
+        lines = here[:1]
         if c.settlements:
             lines.append(f"Settlements: {c.describe.settlements()}")
         settings = getattr(c, "settings", None)
-        return {"title": "No Man's Sky", "timers": timers.visible(c.timers, now)[:20], "lines": lines,
+        content = {"timers": shown_timers, "location": here, "settlements": self.settlement_overlay_lines(now),
+                   "mission": self.mission_lines(), "currencies": self.currency_lines(), "ships": self.ship_lines(),
+                   "frigates": self.frigate_lines()}
+        areas = []
+        for area_id, title, default_on in OVERLAY_AREAS:
+            data = content[area_id]
+            areas.append({"id": area_id, "title": title, "default_on": default_on,
+                          "timers": data if area_id == "timers" else [], "lines": [] if area_id == "timers" else data})
+        return {"title": "No Man's Sky", "timers": shown_timers, "lines": lines, "areas": areas,
                 "persona_id": PERSONA_ID, "codeword": getattr(settings, "codeword", None),
                 # Switches in the overlay; clicking one runs the plugin's set_setting action (plugin.SET_SETTING).
                 "toggles": settings.toggles("set_setting") if settings is not None else []}
+
+    def where_lines(self) -> list[str]:
+        """Overlay area *Where you are*: the system (live from the game, else the save's) and its galaxy."""
+        c = self.connector
+        here = c.here()
+        if here is None:
+            return []
+        out = [f"You are in {planets_view._system_label(here, c.context().visit(here))}"]
+        galaxy_name = ((c.snapshot or {}).get("location") or {}).get("galaxy")
+        if galaxy_name:
+            out.append(f"Galaxy: {galaxy_name}")
+        return out
+
+    def settlement_overlay_lines(self, now: float) -> list[str]:
+        """Overlay area *Settlements*: one line per settlement - population, a waiting decision or the window of
+        the next one (the game draws its moment inside JudgementWaitTimeMin..Max), the construction."""
+        c = self.connector
+        if not c.settlements:
+            return []
+        lo, hi = c.tables.settlement_rules["judgement_wait"]
+        out = []
+        for s in c.settlements:
+            bits = [f"{s['population']} inhabitants"]
+            if s["pending"] and s["pending"] != "None":
+                bits.append(f"decision waiting ({settlements._words(s['pending'])})")
+            elif s["last_judgement"]:
+                start, end = s["last_judgement"] + lo, s["last_judgement"] + hi
+                bits.append("next decision any time now" if end <= now else
+                            f"next decision {timers.clock(max(start, now))}-{timers.clock(end)}")
+            if s.get("building"):
+                bits.append(f"{s['building']} in construction")
+            out.append(f"{s['name']}: " + ", ".join(bits))
+        return out
+
+    def mission_lines(self) -> list[str]:
+        """Overlay area *Current mission*: the mission as the game describes it."""
+        mission = (self.connector.snapshot or {}).get("current_mission")
+        return [self.connector.describe.mission(mission)] if mission else []
+
+    def currency_lines(self) -> list[str]:
+        """Overlay area *Currencies*: Units, Nanites and Quicksilver from the newest save."""
+        snap = self.connector.snapshot
+        if not snap:
+            return []
+        return [f"Units {snap.get('units') or 0:,}", f"Nanites {snap.get('nanites') or 0:,}",
+                f"Quicksilver {snap.get('quicksilver') or 0:,}"]
+
+    def ship_lines(self) -> list[str]:
+        """Overlay area *Ships*: the primary ship with its warp range estimate, and the freighter."""
+        c = self.connector
+        out = []
+        if any(s.get("primary") for s in c.ships):
+            out.append(f"Ship: {c.describe.primary_ship()}")
+        freighter = ((c.snapshot or {}).get("freighter") or {})
+        if c.freighter or freighter.get("name"):
+            out.append(f"Freighter: {c.describe.freighter(freighter.get('name'))}")
+        return out
+
+    def frigate_lines(self) -> list[str]:
+        """Overlay area *Frigates*: the fleet and how many are out (their return is in *Timers*)."""
+        frigates = self.connector.frigates
+        if not frigates:
+            return []
+        out_on = sum(1 for f in frigates if f["on_expedition"])
+        return [f"{len(frigates)} frigates, {out_on} out on an expedition"]
 
     def kind_lines(self, snap: dict, place_names: list[str] | None, ctx, name_of) -> list[str]:
         """Trade goods by kind (assistant.trade_kinds) with the game's base value, which economies buy the kind,

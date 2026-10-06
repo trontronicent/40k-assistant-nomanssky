@@ -8,6 +8,11 @@
   persona gets it unless you chose a voice yourself. Other AI voices to pick in the
   persona editor: *Cogitator AI (Female)*, and German *Cogitator AI (Male) [GERMAN]*
   / *Cogitator AI (Female) [GERMAN]*.
+- **Overlay areas**: the desktop overlay shows the plugin's data in areas you tick
+  on or off in its right-click menu (*Areas*, needs the 40k Assistant 3.12.0):
+  *Timers*, *Where you are* and *Settlements* at first, and *Current mission*,
+  *Currencies*, *Ships* and *Frigates* to add. The settlements area tells when the
+  next decision can come. Older app versions keep the single block.
 
 ## 0.11.0 — 2026-10-05
 

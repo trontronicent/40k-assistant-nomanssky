@@ -464,6 +464,47 @@ def test_the_plugins_overlay_passes_the_apps_check():
     assert out["persona_id"] == PERSONA_ID and out["codeword"] == DEFAULT_CODEWORD
 
 
+def test_the_overlay_offers_areas_the_user_switches_in_the_app(tmp_path, monkeypatch):
+    """Asked for 2026-10-06: the overlay's data comes as areas (app 3.12.0) the user ticks on or off in the overlay -
+    timers, where you are and settlements shown by default, mission, currencies, ships and frigates not. Each area
+    carries its data (a settlement line with the window of the next decision), the flat timers/lines stay for
+    older apps, and the app's check keeps every area."""
+    import time as _time
+    from nms_connector.companion import OVERLAY_AREAS
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    now = _time.time()
+    plugin.snapshot = {"exosuit": [], "exosuit_cargo": [], "storage": [], "bases": [], "saved_at": None,
+                       "units": 1234, "nanites": 2, "quicksilver": 3, "location": {"galaxy": "Euclid", "portal": "x"},
+                       "current_mission": None, "ships": [], "freighter": {"name": None, "inventory": []}}
+    plugin.settlements = [{"name": "Kay City", "uid": "k", "seed": 1, "population": 21, "pending": "None",
+                           "last_judgement": int(now) - 600, "building": None, "production": [], "perks": [],
+                           "stats": [], "race": None, "system": None}]
+    plugin.frigates = [{"on_expedition": True}, {"on_expedition": False}]
+    plugin.timers = [{"key": "frigate.1", "label": "Expedition back", "started_at": int(now), "ends_at": int(now) + 600}]
+    overlay = plugin.overlay()
+    areas = {a["id"]: a for a in overlay["areas"]}
+    assert [a["id"] for a in overlay["areas"]] == [i for i, _, _ in OVERLAY_AREAS]
+    assert [a["id"] for a in overlay["areas"] if a["default_on"]] == ["timers", "location", "settlements"]
+    assert [t["key"] for t in areas["timers"]["timers"]] == ["frigate.1"] and areas["timers"]["lines"] == []
+    kay, = areas["settlements"]["lines"]
+    assert kay.startswith("Kay City: 21 inhabitants, next decision ")
+    assert areas["currencies"]["lines"][0] == "Units 1,234"
+    assert areas["frigates"]["lines"] == ["2 frigates, 1 out on an expedition"]
+    assert areas["mission"]["lines"] == [] and overlay["timers"] == areas["timers"]["timers"]
+    plugin.settlements[0]["pending"] = "StrangerVisit"
+    assert "decision waiting (Stranger visit)" in plugin.overlay()["areas"][2]["lines"][0]
+    import sys as _sys
+    _sys.path.insert(0, r"J: k-assistant")
+    try:
+        from src.plugins.overlay import normalize_overlay
+    except ImportError:
+        pytest.skip("the app is not next to the plugin")
+    checked = normalize_overlay(overlay, "nomanssky", "x")
+    assert [a["id"] for a in checked["areas"]] == [a["id"] for a in overlay["areas"]]
+    assert checked["areas"][2]["lines"] == areas["settlements"]["lines"]
+
+
 def test_single_context_is_a_switch_in_the_overlay_and_on_top_of_the_overview(tmp_path, monkeypatch):
     """Asked for 2026-10-05: the setting was only in the last tab. The overlay now gets it as a switch (toggles,
     app 3.11.0) whose click runs set_setting {id, value} - untrusted, checked - and the Overview starts with the
