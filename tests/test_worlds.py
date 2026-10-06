@@ -108,3 +108,33 @@ def test_world_documents_carry_names_weathers_facts_and_resources():
     assert "Ammonia (Ammoniak)" in toxic and "Atmosphere harvester gas: Nitrogen (Stickstoff)" in toxic
     assert "(extreme weather - storms)" in toxic
     assert worlds.load(None).error == "game installation not found"
+
+
+def test_the_persona_is_told_how_many_planets_match_when_the_list_is_cut():
+    """Live test 2026-10-06: with 11 toxic planets and only the nearest 8 listed, the model answered "8 giftige
+    Planeten". The first line now states the total and that only the nearest are listed."""
+    from nms_connector import companion
+    ctx = _Ctx(book().biome_words())
+    ctx.recorded = {1: [{"name": f"Gift {i}", "biome": "Toxic"} for i in range(companion.MAX_PLANETS + 3)]}
+
+    class Conn:
+        tables = None
+    comp = companion.PluginCompanion(Conn())
+    from nms_connector import planets_view
+    original = planets_view.planet_index
+    planets_view.planet_index = lambda c: planet_search.PlanetIndex(c, lambda t, p, v, s: [p["name"], p["biome"]],
+                                                                    lambda k, v: "Sol")
+    try:
+        lines = comp.planet_lines("Welche giftigen Planeten kenne ich?", {"welche", "giftigen", "planeten"}, ctx)
+    finally:
+        planets_view.planet_index = original
+    assert lines[0].startswith(f"{companion.MAX_PLANETS + 3} recorded planets match giftigen")
+    assert lines[0].endswith(f"the nearest {companion.MAX_PLANETS} of them:") and len(lines) == companion.MAX_PLANETS + 1
+
+
+def test_world_documents_open_with_a_german_sentence():
+    """The Codex's meaning-based lookup embeds a document's first passage: the airless document says in German,
+    near the top, that a 'stickige Welt' is a world without atmosphere (not sticky)."""
+    dead = book().documents({}.get)["Worlds/Airless (dead) worlds (stickig - airless).md"]
+    head = dead.split("## ", 1)[0]
+    assert "Deutsch: Eine stickige Welt" in head and "nicht klebrig" in head

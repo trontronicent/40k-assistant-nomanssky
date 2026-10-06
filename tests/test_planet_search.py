@@ -102,7 +102,7 @@ def test_the_persona_gets_the_planets_a_question_describes(tmp_path):
     companion = PluginCompanion(None)
     ctx = context(tmp_path)
     lines = companion.planet_lines("Wo gibt es sengend heiße Planeten?", {"wo", "gibt", "es", "sengend", "heiße", "planeten"}, ctx)
-    assert lines[0].startswith("Recorded planets matching sengend, heisse")
+    assert lines[0].startswith("2 recorded planets match sengend, heisse") and lines[0].endswith("nearest first:")
     assert lines[1].startswith("- Anzak in Delta Sol (this system): Type: Scorched Planet (Sengend heißer Planet)")
     assert len(lines) == 3
     assert companion.planet_lines("wie viel Kupfer habe ich", {"wie", "viel", "kupfer", "habe", "ich"}, ctx) == []

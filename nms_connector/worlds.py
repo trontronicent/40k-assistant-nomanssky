@@ -92,6 +92,33 @@ WORLD_TYPES = (
               "giant planets of gas"),
 )
 
+# The opening sentence of each world document in German, worded like a question would be ("eine stickige Welt"):
+# the Codex's meaning-based lookup embeds the first passage, and "stickige Welt" found "Honied Throat-Sticker"
+# (sticky ~ sticker) instead of the airless worlds until the document said it in German (live test 2026-10-06).
+GERMAN_SUMMARIES = {
+    "dead": "Eine stickige Welt (stickiger, toter, leerer oder unbelebter Planet) ist im Spiel eine Welt ohne "
+            "Atmosphäre: kein Wetter, keine Stürme, keine gewöhnlichen Pflanzen oder Tiere, geringe Schwerkraft - "
+            "\"stickig\" bedeutet hier luftleer (englisch airless), nicht klebrig.",
+    "lush": "Eine grüne, üppige Welt (grüner, regnerischer oder fruchtbarer Planet) hat mildes Klima und viel "
+            "Pflanzen- und Tierleben.",
+    "toxic": "Eine giftige Welt (giftiger, ätzender, fauliger oder schädlicher Planet) hat giftige Luft und giftigen "
+             "Regen: der Giftschutz des Anzugs wird verbraucht.",
+    "scorched": "Eine sengend heiße Welt (sengend heißer, verbrannter oder brütend heißer Planet) ist extrem heiß: "
+                "der Hitzeschutz wird verbraucht.",
+    "frozen": "Eine gefrorene Welt (gefrorener, eisiger, arktischer Planet) ist extrem kalt: der Kälteschutz wird "
+              "verbraucht.",
+    "radioactive": "Eine verstrahlte Welt (radioaktiver oder verstrahlter Planet) hat starke Strahlung: der "
+                   "Strahlenschutz wird verbraucht.",
+    "barren": "Eine unwirtliche Welt (unwirtlicher, Wüsten- oder felsiger Planet) ist trocken und staubig, mit "
+              "wenig Leben.",
+    "swamp": "Eine sumpfige Welt (Sumpf-, Marschland- oder Dampf-Planet) ist feucht und neblig.",
+    "lava": "Eine vulkanische Welt (Lava- oder vulkanischer Planet) hat Lava und große Hitze.",
+    "water": "Eine Ozeanwelt ist fast ganz von Wasser bedeckt.",
+    "exotic": "Eine ungewöhnliche (exotische) Welt hat seltsames Gelände - Blasen, Säulen, Glitches, farbige "
+              "Himmel - und eigene Namen wie Planet des Lichts.",
+    "gasgiant": "Ein Gasriese ist ein riesiger Planet aus Gas.",
+}
+
 # Researched where the game files say nothing (2026-10-06, No Man's Sky community wiki via web search).
 FACTS = {
     "dead": {
@@ -259,6 +286,8 @@ class WorldBook:
                                            [wt.id, *wt.biomes, *( [local_title] if local_title else [])]) + "]",
                      f"# {GENERATED_MARK} - edits are overwritten when the documents are generated again", "---", "",
                      f"# {title}", "", f"{wt.summary[0].upper() + wt.summary[1:]}.", ""]
+            if GERMAN_SUMMARIES.get(wt.id):
+                lines += [f"Deutsch: {GERMAN_SUMMARIES[wt.id]}", ""]
             if climate:
                 lines += [f"The game's word for this climate: **{climate['en']}**"
                           + (f" (German: **{climate['local']}**)" if climate.get("local") else "") + ".", ""]

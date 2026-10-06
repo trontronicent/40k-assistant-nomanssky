@@ -405,15 +405,19 @@ class PluginCompanion:
         if not {planet_search.fold(w) for w in words} & PLANET_WORDS:
             return []
         index = planets_view.planet_index(ctx)
-        wanted, found = index.best(question, MAX_PLANETS)
+        wanted, found = index.best(question, None)
         if not wanted:
             return []
         if not found:
             return [f"No recorded planet matches {', '.join(wanted)} ({len(index.entries)} planets recorded - planets "
                     "are recorded while you play with the game running)."]
-        out = [f"Recorded planets matching {', '.join(found[0][1])} (of the words {', '.join(wanted)}; nearest first; "
-               f"{len(index.entries)} planets recorded in all):"]
-        for entry, _matched in found:
+        # The total first: with only the nearest MAX_PLANETS listed, the model counted the list ("8 giftige Planeten"
+        # for 11 - live test 2026-10-06).
+        shown = found[:MAX_PLANETS]
+        out = [f"{len(found)} recorded planets match {', '.join(found[0][1])} (of the words {', '.join(wanted)}; "
+               f"{len(index.entries)} planets recorded in all)"
+               + (f"; the nearest {len(shown)} of them:" if len(found) > len(shown) else "; nearest first:")]
+        for entry, _matched in shown:
             row = [planet_search._cell_text(c) for c in entry["row"]]
             facts = [f"{label}: {value}" for label, value in zip(planets_view.PLANET_COLUMNS[1:], row[1:]) if value]
             out.append(f"- {row[0]} in {entry['system_label']} ({index.distance_text(entry['system'])}): "

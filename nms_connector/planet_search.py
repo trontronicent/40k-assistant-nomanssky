@@ -117,9 +117,9 @@ class PlanetIndex:
         found = [(e, wanted) for e in self.entries if all(self._matches(t, e["words"]) for t in wanted)]
         return self._ranked(found)
 
-    def best(self, question: str, limit: int = 8) -> tuple[list[str], list[tuple[dict, list[str]]]]:
-        """(search words, planets matching most of them, nearest first) for a chat question; ([], []) when the
-        question names nothing a planet could be searched by."""
+    def best(self, question: str, limit: int | None = 8) -> tuple[list[str], list[tuple[dict, list[str]]]]:
+        """(search words, planets matching most of them, nearest first; all of them with limit None) for a chat
+        question; ([], []) when the question names nothing a planet could be searched by."""
         wanted = terms(question, drop_question_words=True)
         if not wanted:
             return [], []
@@ -131,7 +131,8 @@ class PlanetIndex:
         if not found:
             return wanted, []
         top = max(len(m) for _, m in found)
-        return wanted, self._ranked([f for f in found if len(f[1]) == top])[:limit]
+        ranked = self._ranked([f for f in found if len(f[1]) == top])
+        return wanted, ranked if limit is None else ranked[:limit]
 
     def distance_text(self, key) -> str:
         if self.ctx.origin is None:
