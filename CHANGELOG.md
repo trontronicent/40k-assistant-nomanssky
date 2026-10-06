@@ -17,6 +17,14 @@
   overlay's *Codex search* box and press Enter to find them in the Codex libraries
   attached to the plugin persona - exact words, no AI, so recipes and item names are
   found instantly while you play.
+- **Recipes from the game's files**: asked how to get an item (*Wie bekomme ich
+  Ammoniak?*), the persona now gets where it comes from, every refiner recipe that
+  makes it (with the refiner size) and its crafting recipe - read from the installed
+  game, not from the web.
+- **Item documents for the Codex**: `tools/codex_recipes.py` writes one document per
+  item (1,182) into the *No Man's Sky* Codex library - where it comes from, every
+  refiner, cooking and crafting recipe and what it is used for, English with German
+  names - so the Codex search finds e.g. *Ammoniak* with all its recipes.
 
 ## 0.11.0 — 2026-10-05
 

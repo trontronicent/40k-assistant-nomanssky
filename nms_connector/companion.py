@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 import time
 
-from . import assistant, galaxy, planet_search, planets_view, settlements, timers, trade
+from . import assistant, galaxy, planet_search, planets_view, recipes, settlements, timers, trade
 
 PERSONA_PROMPT = (
     "You are the No Man's Sky Plugin Persona, the player's companion for No Man's Sky. With every message you "
@@ -67,6 +67,14 @@ TECH_WORDS = {"upgrade", "upgrades", "module", "modules", "modul", "module", "te
               "technologien", "tech", "equipment", "ausrüstung", "installed", "installiert", "stats", "werte",
               "modifiers", "bonus", "boni", "slot", "slots"}
 # A question about planets ("wo gibt es sengend heiße Planeten?"): the recorded planets that match its other words.
+# A question about getting an item: its recipes and where it comes from are added (recipe_lines).
+RECIPE_WORDS = {"recipe", "recipes", "refine", "refiner", "refining", "craft", "crafting", "make", "made", "produce",
+                "obtain", "get", "find", "where", "mine", "mining", "harvest", "extract", "farm", "source",
+                "rezept", "rezepte", "raffinerie", "raffinieren", "herstellen", "herstellung", "bauen", "machen",
+                "bekommen", "finden", "wo", "abbauen", "gewinnen", "erzeugen", "farmen", "woher"}
+MAX_RECIPE_ITEMS = 3
+MAX_RECIPES_PER_ITEM = 6
+
 PLANET_WORDS = {"planet", "planets", "planeten", "welt", "welten", "world", "worlds", "mond", "monde", "moon", "moons"}
 MAX_PLANETS = 8
 MAX_TECH_LINES = 40
@@ -159,6 +167,7 @@ class PluginCompanion:
         extra += self.economy_lines(question, ctx, here)
         extra += self.equipment_lines(words, ctx.texts)
         extra += self.planet_lines(question, words, ctx)
+        extra += self.recipe_lines(question, words)
         all_names = {i: [n for n in (e.get("en"), e.get("local")) if n] for i, e in (c.gamedata.items or {}).items()}
 
         def item_notes(item_id):
@@ -292,6 +301,36 @@ class PluginCompanion:
                 line += (f"; needed by {', '.join(ctx.economy_name(e) or e for e in buyers)} economies - nearest known: "
                          + (nearest or "none of your known systems yet"))
             out.append(line)
+        return out
+
+    def recipe_lines(self, question: str, words: set[str]) -> list[str]:
+        """For a question about getting an item ("Wie bekomme ich Ammoniak?", "how to make Sulphurine"): per named
+        item (<= MAX_RECIPE_ITEMS) where it comes from (the game's description), the refiner recipes that make it
+        (<= MAX_RECIPES_PER_ITEM, best yield first) and its crafting recipe - from the game's own recipe table."""
+        c = self.connector
+        book = getattr(c.tables, "recipes", None)
+        if not (words & RECIPE_WORDS) or book is None or not book.recipes:
+            return []
+        names = {i: [n for n in (e.get("en"), e.get("local")) if n] for i, e in (c.gamedata.items or {}).items()}
+        lookup = c.gamedata.lookup
+        out = []
+        for item in assistant.match_items(question, names)[:MAX_RECIPE_ITEMS]:
+            refined = book.made_by(item)
+            crafted = book.crafting.get(item)
+            entry = lookup(item) or {}
+            if not (refined or crafted or entry.get("desc_en")):
+                continue
+            out.append(f"How to get {recipes.item_label(lookup, item)} (from the game's files):")
+            if entry.get("desc_en"):
+                out.append("  where it comes from: " + " ".join(entry["desc_en"].split()))
+            for r in refined[:MAX_RECIPES_PER_ITEM]:
+                out.append("  refiner: " + recipes.recipe_line(lookup, r))
+            if len(refined) > MAX_RECIPES_PER_ITEM:
+                out.append(f"  ... {len(refined) - MAX_RECIPES_PER_ITEM} more refiner recipes")
+            if crafted:
+                out.append("  crafted from: " + " + ".join(f"{a} {recipes.item_label(lookup, i)}" for i, a in crafted))
+            if not (refined or crafted):
+                out.append("  no refiner or crafting recipe makes it: it is gathered only")
         return out
 
     def settlement_lines(self, words: set[str], now: float) -> list[str]:

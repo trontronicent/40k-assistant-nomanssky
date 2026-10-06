@@ -10,7 +10,7 @@ Blocking (file reads); the connector calls ``load`` through ``ctx.run_blocking``
 
 from __future__ import annotations
 
-from . import frigates, settlements, ships, techstats, timers
+from . import frigates, recipes, settlements, ships, techstats, timers
 
 
 class GameTables:
@@ -24,6 +24,7 @@ class GameTables:
         self.ships: dict | None = None              # warp-range bonuses (ships.tables_from)
         self.settlements: dict | None = None        # stat limits, judgement windows, perks
         self.tech = techstats.TechStats()           # what every technology does
+        self.recipes = recipes.RecipeBook()         # refiner/cooking recipes and crafting requirements
 
     def needs_load(self, install) -> bool:
         """True before the first load and after a game update (another build id)."""
@@ -38,14 +39,16 @@ class GameTables:
         self.tech = techstats.load(install)
         self.ships = ships.load_tables(install, self.tech)
         self.settlements = settlements.load_tables(install)
+        self.recipes = recipes.load(install)
         self.loaded = True
         warnings = []
         for label, table in (("Timer durations: built-in values", self.timers),
                              ("Frigate trait names unavailable", self.frigate_traits),
                              ("Warp range values: built-in", self.ships),
                              ("Settlement tables: built-in values", self.settlements),
-                             ("Technology stats unavailable", self.tech)):
-            error = table.error if isinstance(table, techstats.TechStats) else table.get("error")
+                             ("Technology stats unavailable", self.tech),
+                             ("Recipes unavailable", self.recipes)):
+            error = table.error if isinstance(table, (techstats.TechStats, recipes.RecipeBook)) else table.get("error")
             if error:
                 warnings.append(f"{label} ({error})")
         return warnings
