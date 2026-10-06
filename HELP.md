@@ -122,8 +122,8 @@ The **Settings** tab - the same form is at the top of the **Overview** tab (need
 **The desktop overlay**: right-click the app's overlay → **Show** → **No Man's Sky**.
 It then shows your data in **areas** and - while the app talks to the plugin persona -
 its context and latest replies. Right-click the overlay to tick areas on or off under
-**Areas** (the overlay remembers your choice): **Timers**, **Where you are** (system and
-galaxy) and **Settlements** (inhabitants, a waiting decision or when the next one can
+**Areas** (the overlay remembers your choice): **Timers**, **Where you are** (system, the
+planet you are on when known, galaxy) and **Settlements** (inhabitants, a waiting decision or when the next one can
 come, a construction) are shown at first; **Current mission**, **Currencies** (Units,
 Nanites, Quicksilver), **Ships** (primary ship with its warp range, freighter) and
 **Frigates** are there to tick on (needs the 40k Assistant 3.12.0; older versions show
