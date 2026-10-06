@@ -251,9 +251,10 @@ def _sentinel(planet: dict, sentinel_index: int):
 
 
 def _planet_row(texts: Texts, planet: dict, visit: dict | None, sentinel_index: int, system_cell=None) -> list:
+    """A planet's PLANET_COLUMNS cells; `system_cell` goes right after the name (the Planets tab's System column)."""
     info = planet.get("info") or {}
-    row = [] if system_cell is None else [system_cell]
-    row += [_planet_name(planet, visit), texts.description(info) or planet.get("biome"), texts.key(info.get("weather")),
+    row = [_planet_name(planet, visit)] + ([] if system_cell is None else [system_cell])
+    row += [texts.description(info) or planet.get("biome"), texts.key(info.get("weather")),
             texts.item(planet.get("common")), texts.item(planet.get("uncommon")), texts.item(planet.get("rare")),
             texts.items(planet.get("extra")), texts.item(planet_gas(planet)), texts.key(info.get("flora"), info.get("fauna")),
             texts.key(info.get("fauna"), info.get("flora")), texts.key(_sentinel(planet, sentinel_index))]
@@ -626,10 +627,11 @@ def planet_search_sections(ctx: Context, query: str | None) -> list[dict]:
         return [form]
     index = planet_index(ctx)
     found = index.search(query)
-    rows = [[e["system_label"], index.distance_text(e["system"])] + e["row"] for e, _ in found]
+    # The planet first: on a phone the app shows each row as a card titled by its first cell.
+    rows = [e["row"][:1] + [e["system_label"], index.distance_text(e["system"])] + e["row"][1:] for e, _ in found]
     return [form, {"type": "table", "id": PLANET_SEARCH_ID,
                    "title": f"Planets matching \"{query}\" ({len(rows)})",
-                   "columns": ["System", "Distance"] + PLANET_COLUMNS, "rows": rows,
+                   "columns": PLANET_COLUMNS[:1] + ["System", "Distance"] + PLANET_COLUMNS[1:], "rows": rows,
                    "row_keys": [system_key_text(e["system"]) for e, _ in found], "row_action": OPEN_SYSTEM,
                    "row_hint": "Open this planet's system map",
                    "empty": "No recorded planet matches every word. Planets are recorded while you play with the game "
@@ -644,9 +646,10 @@ def visited_planets_section(ctx: Context) -> dict:
         label = _system_label(key, visit)
         for planet in planets:
             planet_rows.append(_planet_row(ctx.texts, planet, visit, ctx.sentinel_index, system_cell=label))
-    planet_rows.sort(key=lambda r: (str(r[0]), str(r[1])))
+    planet_rows.sort(key=lambda r: (str(r[1]), str(r[0])))      # grouped by system, then by planet
+    # The planet first (System second): on a phone the app shows each row as a card titled by its first cell.
     return {"type": "table", "title": f"Visited planets with resources ({len(planet_rows)})",
-            "columns": ["System"] + PLANET_COLUMNS, "rows": planet_rows,
+            "columns": PLANET_COLUMNS[:1] + ["System"] + PLANET_COLUMNS[1:], "rows": planet_rows,
             "empty": "No planets recorded yet. Resources are read from the game's memory while you play, so "
                      "every system you visit from now on appears here."}
 

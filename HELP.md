@@ -18,6 +18,8 @@ Open it from **Plugins → No Man's Sky** in the header. The buttons at the top:
 - **Re-read item names** - read item names and icons from the game files again, for example after changing the game's language in Steam.
 - **Clear save history** - forget the recorded save writes.
 
+On a phone every table of three or more columns is shown as a list of cards (the first column as title, every other column as label and value) with a **Sort by** control above it, and the buttons above scroll sideways in one row.
+
 The tabs:
 
 - **Overview** - **timers** (when your settlement buildings are finished and your frigate expeditions return), units, nanites, quicksilver, health, where you were at the last save, where you are now, your fleet and companions: the **primary ship** with its estimated warp range and the star colours it reaches, your **settlements** at a glance (construction, a decision waiting), the **freighter** with its warp range, and the current mission in the game's words.

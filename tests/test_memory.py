@@ -482,7 +482,8 @@ def test_tables_show_the_current_system_and_every_visited_system(tmp_path):
     assert systems["row_action"] == "open_system" and systems["row_keys"] == [f"{SYSTEM_98:x}", f"{SYSTEM_115:x}"]
     assert systems["selected_key"] == f"{SYSTEM_98:x}" and system_map["id"] == "system-map"
     planets = tabs["tabs"][2]["sections"][-1]          # after the search form
-    assert planets["title"] == "Visited planets with resources (1)" and planets["rows"][0][0] == "Delta Sol"
+    assert planets["title"] == "Visited planets with resources (1)" and planets["rows"][0][1] == "Delta Sol"
+    assert planets["columns"][:2] == ["Planet", "System"]   # the planet titles the row's card on a phone
     assert len(planets["columns"]) == 12 and planets["rows"][0][8] == "Nitrogen (Stickstoff)"
 
 

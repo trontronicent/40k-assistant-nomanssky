@@ -5,6 +5,9 @@
 Needs the 40k Assistant 3.12.0 (the plugin now declares its data format, which older
 versions do not accept).
 
+- **Planets tables start with the planet**: *Visited planets with resources* and the
+  planet search list the planet first, then its system (still grouped by system). On a
+  phone the app shows each row as a card titled by its first column - now the planet.
 - **A default voice**: the No Man's Sky Plugin Persona speaks with the app's
   *Cogitator AI (Male)* voice - calm, British, with a light ship-computer effect. An
   existing persona gets it unless you chose a voice yourself. Other AI voices to pick

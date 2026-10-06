@@ -69,14 +69,16 @@ def test_the_search_matches_every_word_in_either_language_nearest_first(tmp_path
 
 
 def test_the_planets_tab_has_a_search_form_and_clickable_results(tmp_path):
-    """Systems -> Planets: a search form; with a query a table of the matches (system, distance, the planet's
-    columns) whose rows open the system map."""
+    """Systems -> Planets: a search form; with a query a table of the matches (planet, system, distance, the
+    planet's other columns - the planet first, since a phone shows each row as a card titled by its first cell)
+    whose rows open the system map."""
     ctx = context(tmp_path)
     assert [s["type"] for s in planets_view.planet_search_sections(ctx, "")] == ["form"]
     form, table = planets_view.planet_search_sections(ctx, "sengend heiß")
     assert form["fields"][0]["value"] == "sengend heiß" and form["action"] == planets_view.SEARCH_PLANETS
     assert table["id"] == planets_view.PLANET_SEARCH_ID and table["row_action"] == planets_view.OPEN_SYSTEM
-    assert table["row_keys"] == [f"{HERE:x}", f"{NEAR:x}"] and table["rows"][0][:3] == ["Delta Sol", "this system", "Anzak"]
+    assert table["row_keys"] == [f"{HERE:x}", f"{NEAR:x}"] and table["rows"][0][:3] == ["Anzak", "Delta Sol", "this system"]
+    assert table["columns"][:3] == ["Planet", "System", "Distance"]
     tabs = planets_view.systems_tabs(ctx, None, planet_query="toxic")
     planets_tab = next(t for t in tabs["tabs"] if t["id"] == "planets")
     assert [s["type"] for s in planets_tab["sections"]] == ["form", "table", "table"]
