@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from . import galaxy, planet_search, positions, route, starmap, trade
+from . import galaxy, planet_search, positions, starmap, trade
 from .summary import address_portal, galaxy_name, unpack_address
 
 # GcPlanetInfo.SentinelsPerDifficulty is indexed by the ground combat timer setting.
@@ -79,7 +79,7 @@ def info_keys(planets) -> set[str]:
     keys: set[str] = set()
     for p in planets:
         info = p.get("info") or {}
-        for key, value in info.items():
+        for value in info.values():
             keys.update(v for v in (value if isinstance(value, list) else [value]) if v)
         keys.update(e for e in p.get("extra") or [] if isinstance(e, str) and HINT_KEY_RE.match(e))
     return keys

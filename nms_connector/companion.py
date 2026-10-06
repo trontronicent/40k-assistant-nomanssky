@@ -71,7 +71,7 @@ EQUIPMENT_WORDS = {
     "colossus": "exocraft", "pilgrim": "exocraft", "nomad": "exocraft", "freighter": "freighter", "frachter": "freighter",
     "ship": "ships", "starship": "ships", "schiff": "ships", "raumschiff": "ships",
 }
-TECH_WORDS = {"upgrade", "upgrades", "module", "modules", "modul", "module", "technology", "technologies", "technologie",
+TECH_WORDS = {"upgrade", "upgrades", "module", "modules", "modul", "technology", "technologies", "technologie",
               "technologien", "tech", "equipment", "ausrüstung", "installed", "installiert", "stats", "werte",
               "modifiers", "bonus", "boni", "slot", "slots"}
 # A question about planets ("wo gibt es sengend heiße Planeten?"): the recorded planets that match its other words.

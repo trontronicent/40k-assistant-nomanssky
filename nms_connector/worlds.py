@@ -279,7 +279,7 @@ class WorldBook:
         langs = ["english"] + ([self.language] if self.language and self.language not in ("english", "usenglish") else [])
         for language in langs:
             local = language != "english"
-            h = lambda key, **v: game_terms.heading(key, language, **v)        # noqa: E731
+            h = lambda key, language=language, **v: game_terms.heading(key, language, **v)   # noqa: E731
             folder = f"{_label(language)}/{h('worlds')}"
             for wt in WORLD_TYPES:
                 w = self.worlds.get(wt.id) or {}

@@ -34,7 +34,7 @@ QUESTION_WORDS = {
     "wo", "gibt", "welche", "welcher", "welches", "finde", "such", "suche", "zeig", "zeige", "liste", "mit", "habe",
     "kenne", "bekannt", "bekannte", "naechste", "naechsten", "nahe", "beste", "gute", "einen", "eine", "einem",
     "einer", "der", "die", "das", "den", "dem", "und", "fuer", "sind", "ist", "kann", "ich", "mir", "mich", "meine",
-    "mein", "you", "your", "there", "ein", "auf", "von", "bei", "nach", "how", "wie", "viele", "many", "all", "alle",
+    "mein", "you", "your", "ein", "auf", "von", "bei", "nach", "how", "wie", "viele", "many", "all", "alle",
     # "Habe ich bereits eine stickige Welt entdeckt?" - asking whether, not what the planet is like (2026-10-06)
     "bereits", "schon", "entdeckt", "entdecken", "besucht", "gefunden", "jemals", "irgendeine", "irgendwo", "hab",
     "discovered", "visited", "already", "ever", "found", "been", "seen", "gesehen", "kennst", "hast",

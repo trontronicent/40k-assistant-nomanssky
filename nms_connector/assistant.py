@@ -34,7 +34,7 @@ STOPWORDS = {
     "stack", "stacks", "storage", "container", "containers", "ship", "ships", "starship", "freighter", "exosuit",
     "viel", "viele", "habe", "habt", "wieviel", "wo", "welche", "welcher", "meine", "mein", "insgesamt", "alle",
     "gibt", "noch", "auch", "bitte", "zeig", "zeige", "liste", "inventar", "lager", "frachter", "raumschiff",
-    "anzug", "habe", "haben", "kann", "finde", "finden", "brauche",
+    "anzug", "haben", "kann", "finde", "finden", "brauche",
 }
 INVENTORY_WORDS = {"inventory", "inventories", "items", "inventar", "carry", "carrying", "storage", "lager", "haben",
                    "have", "own", "besitze"}
@@ -229,7 +229,7 @@ def build_context(question: str, snap: dict | None, name_of, names_of, all_names
                 continue
             out.append("")
             out.append(f"Contents of {place} ({len(rows)} stacks):")
-            for item_id, amount, maximum in [r for r in rows if ITEM_ID_RE.match(str(r[0]))][:MAX_PLACE_ROWS]:
+            for item_id, amount, _maximum in [r for r in rows if ITEM_ID_RE.match(str(r[0]))][:MAX_PLACE_ROWS]:
                 note = item_notes(item_id) if item_notes and item_id.startswith("TRA_") else None
                 out.append(f"- {name_of(item_id)} [{item_id}]: {_fmt(int(amount or 0))}" + (f" - {note}" if note else ""))
     elif not (matched or missing) and INVENTORY_WORDS & set(_words(question)):
