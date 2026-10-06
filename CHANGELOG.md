@@ -20,6 +20,8 @@ versions do not accept).
 - **Recipes from the game's files**: asked how to get an item (*Wie bekomme ich
   Ammoniak?*), the persona gets where it comes from, every refiner recipe that makes it
   (with the refiner it needs) and its crafting recipe - read from the installed game.
+- **Item tooltips say how to get an item**: on the plugin page, hovering an item shows
+  its best refiner recipes (with the refiner they need) and its crafting recipe.
 - **World types in German**: *stickige Welt* is understood as the game means it - an
   **airless** world, not a "sticky" one. The persona gets the game's own meaning of
   world words, finds every planet of that kind (also under the game's other names for

@@ -366,6 +366,8 @@ class NmsConnector:
             for warning in await self.ctx.run_blocking(self.tables.load, self.install):
                 self.ctx.logger.warning("[NMS] %s", warning)
             self.gamedata.tech = self.tables.tech       # Texts.modifiers: what each technology does
+            self.gamedata.recipes = self.tables.recipes     # Texts.how_to_get: an item tooltip's recipes
+            self.gamedata.terms = self.tables.terms
             await self._ensure_texts()
         if self.install is None or (self.gamedata.matches(self.install) and not force):
             return

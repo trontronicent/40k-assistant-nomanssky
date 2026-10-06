@@ -225,3 +225,19 @@ def test_the_codex_tool_finds_the_item_cache_installed_or_beside_a_checkout(tmp_
     app_cache.parent.mkdir(parents=True)
     app_cache.write_text("{}")
     assert recipes.default_items_path(checkout) == app_cache.resolve()
+
+
+def test_item_tooltips_say_how_to_get_the_item():
+    """The plugin page's item tooltip gets a 'How to get it:' block from the game's recipe table: the best refiner
+    recipes with the refiner they need (at most HOW_TO_GET_RECIPES, the rest pointed to the Codex) and the
+    crafting recipe; nothing without a recipe book."""
+    from types import SimpleNamespace
+    from nms_connector import planets_view
+    gd = SimpleNamespace(lookup=ITEMS.get, recipes=book(), terms=None)
+    texts = SimpleNamespace(gamedata=gd)
+    how = planets_view.Texts.how_to_get(texts, "TOXIC1", limit=1)
+    assert how.startswith("How to get it:\n• 1 Nitrogen + 1 Di-hydrogen → 1 Ammonia · Medium Refiner or larger")
+    assert "… 1 more refiner recipe (Codex" in how
+    anti = planets_view.Texts.how_to_get(texts, "ANTIMATTER")
+    assert anti == "How to get it:\n• Crafted from 25 Chromatic Metal + 20 Condensed Carbon"
+    assert planets_view.Texts.how_to_get(SimpleNamespace(gamedata=SimpleNamespace(lookup=ITEMS.get)), "TOXIC1") is None

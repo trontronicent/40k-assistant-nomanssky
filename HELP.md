@@ -72,6 +72,10 @@ While linking it, the card also asks two things (app 3.10.0):
   Turbo-Opt mode; *Before every reply* works with any model but makes every
   reply wait for a search; *Off*.
 
+**Recipes in the tooltips.** Hover an item on the plugin page (inventories, storage,
+planets): besides its category and description the tooltip shows **How to get it** - its
+best refiner recipes with the refiner they need, and its crafting recipe.
+
 **Recipes from the game itself.** Ask how to get an item - *Wie bekomme ich
 Ammoniak?*, *how do I make Sulphurine?*, *where do I find copper?* - and the persona
 gets, from the game's own files, where it comes from (the game's description: which

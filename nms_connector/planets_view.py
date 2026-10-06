@@ -57,6 +57,7 @@ ROUTE_WIP_NOTE = ("Work in progress: the route planner is very much work in prog
                   "guide and check the jumps on the in-game galaxy map.")
 POINT_COLORS = {"resources": "#5fbf6a", "save": "#8fa3b8", "bases": "#7ad7ff"}
 SYSTEM_MAP_ID = "system-map"
+HOW_TO_GET_RECIPES = 3                     # refiner recipes in an item tooltip (the rest: Codex / persona)
 SEARCH_PLANETS = "search_planets"         # action: search the recorded planets by their texts
 PLANET_SEARCH_ID = "planet-search"
 NAME_FIX = "name_star_fix"               # PROTOTYPE action: name (or forget) a star fix
@@ -181,6 +182,9 @@ class Texts:
             blocks.append(entry["desc_en"])
         if entry.get("desc_local"):
             blocks.append(f"{getattr(self.gamedata, 'language_label', 'Game language')}: {entry['desc_local']}")
+        how = self.how_to_get(item_id)
+        if how:
+            blocks.append(how)
         mods = self.modifiers(item_id)
         if mods:
             note = self.gamedata.tech.note(item_id)
@@ -189,6 +193,25 @@ class Texts:
         if trade_lines:
             blocks.append(trade_lines)
         return "\n\n".join(blocks) or None
+
+    def how_to_get(self, item_id: str, limit: int = HOW_TO_GET_RECIPES) -> str | None:
+        """Tooltip block 'How to get it:' - up to `limit` refiner recipes (best yield first, the refiner the game
+        needs) and the crafting recipe, from the game's recipe table (recipes.RecipeBook via gamedata.recipes)."""
+        from . import recipes
+        book = getattr(self.gamedata, "recipes", None)
+        if book is None or not getattr(book, "recipes", None):
+            return None
+        terms = getattr(self.gamedata, "terms", None)
+        refined = book.made_by(item_id)
+        lines = [recipes._line_in(self.gamedata.lookup, r, recipes.ENGLISH, terms) for r in refined[:limit]]
+        if len(refined) > limit:
+            more = len(refined) - limit
+            lines.append(f"… {more} more refiner recipe{'s' if more > 1 else ''} (Codex / ask the persona)")
+        crafted = book.crafting.get(item_id)
+        if crafted:
+            lines.append("Crafted from " + " + ".join(f"{a} {recipes.name_in(self.gamedata.lookup, i, recipes.ENGLISH)}"
+                                                      for i, a in crafted))
+        return ("How to get it:\n" + "\n".join(f"• {line}" for line in lines)) if lines else None
 
     def item(self, item_id: str | None, text: str | None = None):
         """An item id -> table cell with the game's icon, name (id when unknown) and tooltip."""
