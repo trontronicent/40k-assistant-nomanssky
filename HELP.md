@@ -78,6 +78,13 @@ gets, from the game's own files, where it comes from (the game's description: wh
 planets, which tool), every refiner recipe that makes it with the refiner size it
 needs, and its crafting recipe; an item no recipe makes is gathered only.
 
+**World types in German.** The plugin knows every name the game gives a kind of world, in English and the
+game's language. *stickig* is the German game's **airless** (a dead world without atmosphere - not "sticky"),
+*giftig* toxic, *verstrahlt* radioactive, *unwirtlich* barren, *sumpfig* swamp, *vulkanisch* volcanic. Ask
+*Habe ich bereits eine stickige Welt entdeckt?* or *Welche giftigen Planeten kenne ich?*: the persona is told what
+the word means, finds every planet of that kind (also one the game calls *Toter* or *Leerer Planet*) and how many
+match. The planet search (*Systems → Planets*) understands inflected words too (*giftigen*, *toten*).
+
 **Item documents for the Codex.** `tools/codex_recipes.py` (in the plugin's folder)
 writes one document per item into the Codex folder's *No Man's Sky* library, under
 *Items* (*Raw materials*, *Products*, *Food*): where the item comes from, every
@@ -85,7 +92,9 @@ refiner, cooking and crafting recipe that makes it, and what it is used for - in
 English with the German names, read from the installed game (1,182 items, 1,684
 recipes on 2026-10-06). The Codex indexes them at its next sync; then the Codex
 search (also in the overlay) finds *Ammoniak* or *Schwefelin* directly. Run it again
-after a game update; documents you wrote yourself are never changed.
+after a game update; documents you wrote yourself are never changed. The same tool writes one document per
+**world type** (folder *Worlds*): every planet name and weather the game uses, English = German, typical resources
+and gas, and for airless worlds what they are like (from the community wiki).
 
 Your numbers always come from the game data, never from the Codex or the web.
 Its answers are as fresh as the game's last save (and the live position while

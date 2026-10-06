@@ -21,6 +21,11 @@
   Ammoniak?*), the persona now gets where it comes from, every refiner recipe that
   makes it (with the refiner size) and its crafting recipe - read from the installed
   game, not from the web.
+- **World types in German**: *stickige Welt* is now understood as the game means it - an **airless** world, not
+  a "sticky" one. The persona gets the game's own meaning of world words, finds every planet of that kind
+  (also under the game's other names for it) and says how many match; the planet search understands inflected
+  words (*giftigen*, *toten*) and no longer counts asking words (*bereits*, *entdeckt*). The Codex tool also writes
+  one document per world type (names and weathers in English and German, resources, gas).
 - **Item documents for the Codex**: `tools/codex_recipes.py` writes one document per
   item (1,182) into the *No Man's Sky* Codex library - where it comes from, every
   refiner, cooking and crafting recipe and what it is used for, English with German
