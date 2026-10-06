@@ -97,8 +97,8 @@ language and says its language, so the Codex gives you the German one when you a
 German. The old mixed folders *Items* and *Worlds* are removed when you run it. The Codex indexes them at its next sync; then the Codex
 search (also in the overlay) finds *Ammoniak* or *Schwefelin* directly. Run it again
 after a game update; documents you wrote yourself are never changed. The same tool writes one document per
-**world type** (folder *Worlds*): every planet name and weather the game uses, English = German, typical resources
-and gas, and for airless worlds what they are like (from the community wiki).
+**world type** (folders *English/Worlds* and *Deutsch/Welten*): every planet name and weather the game uses in
+that language, typical resources and gas, and for airless worlds what they are like (from the community wiki).
 
 Your numbers always come from the game data, never from the Codex or the web.
 Its answers are as fresh as the game's last save (and the live position while
