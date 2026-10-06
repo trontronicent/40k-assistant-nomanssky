@@ -62,7 +62,8 @@ credits appear in the 40k Assistant's manual under *Plugin Help* (app 3.4.0+).
 - **Recipes:** where an item comes from and every refiner, cooking and crafting recipe
   that makes it, from the game's own recipe table; the persona answers "how do I get
   ...?" from it
-- **Codex documents** (`tools/codex_recipes.py`): one document per item and per world
+- **Codex documents** (the page's *Write Codex documents* button, or
+  `tools/codex_recipes.py`): one document per item and per world
   type, separately in English and the game's language, in the game's own words
   (*Mittlere Raffinerie*, *Nährstoffprozessor*), for the app's Codex
 - **Desktop overlay (app 3.11.0+):** timers, where you are, settlements and more as
