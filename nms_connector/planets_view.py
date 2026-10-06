@@ -343,6 +343,39 @@ class Context:
         entry = self.texts.gamedata.text(key) if key else None
         return self.texts.both(entry["en"], entry["local"]) if entry else trade.ECONOMY_FALLBACK_NAMES.get(economy, economy)
 
+    def wealth_text(self, wealth: str | None) -> str | None:
+        """'Average - 2 of 3' - the game's word plus where it sits on the scale (trade.WEALTH_ORDER).
+        A lawless "Pirate" economy keeps its name alone: it is a state, not a step on the scale.
+
+        The rank is appended with a dash, not in brackets: a translated name already carries a pair
+        ("Low (Niedrig)"), and "Low (Niedrig) (1 of 4)" reads as two nested parentheses."""
+        if not wealth:
+            return None
+        level = trade.wealth_level(wealth)
+        return f"{wealth} - {level[0]} of {level[1]}" if level else wealth
+
+    def wealth_cell(self, wealth: str | None) -> object:
+        """The wealth as a table cell that sorts by its rank - the text alone would sort alphabetically
+        (Average, Poor, Wealthy), which is not the order of the scale."""
+        level = trade.wealth_level(wealth)
+        text = self.wealth_text(wealth)
+        return {"text": text, "sort": level[0]} if level and text else text
+
+    def conflict_text(self, conflict: str | None) -> str | None:
+        """'Low (Niedrig) - 1 of 4' - the game's word for the conflict level plus its rank, pirate-controlled
+        highest. Dash, not brackets: the name is bilingual and already bracketed."""
+        name = self.conflict_name(conflict)
+        if not name:
+            return None
+        level = trade.conflict_level(conflict)
+        return f"{name} - {level[0]} of {level[1]}" if level else name
+
+    def conflict_cell(self, conflict: str | None) -> object:
+        """The conflict level as a table cell that sorts by its rank, not alphabetically."""
+        level = trade.conflict_level(conflict)
+        text = self.conflict_text(conflict)
+        return {"text": text, "sort": level[0]} if level and text else text
+
     def conflict_name(self, conflict: str | None) -> str | None:
         if not conflict:
             return None
@@ -355,7 +388,8 @@ class Context:
         e = self.economies.get(key)
         if not e:
             return None
-        return f"{self.economy_name(e.get('economy'))} ({e.get('wealth')})" + (" - predicted" if e.get("predicted") else "")
+        return f"{self.economy_name(e.get('economy'))} ({self.wealth_text(e.get('wealth'))})" \
+               + (" - predicted" if e.get("predicted") else "")
 
     def goods_text(self, category: str | None) -> str | None:
         if not category:
@@ -376,8 +410,8 @@ class Context:
         return [
             {"label": "Economy", "value": self.economy_name(e.get("economy"))},
             {"label": "Source", "value": source},
-            {"label": "Wealth", "value": e.get("wealth")},
-            {"label": "Conflict", "value": self.conflict_name(e.get("conflict"))},
+            {"label": "Wealth", "value": self.wealth_text(e.get("wealth"))},
+            {"label": "Conflict", "value": self.conflict_text(e.get("conflict"))},
             {"label": "Dominant race", "value": e.get("race")},
             {"label": f"Cheap to buy here (x{lo}-{hi})" if lo else "Cheap to buy here", "value": self.goods_text(t.get("sells"))},
             {"label": f"Sells well here (x{blo}-{bhi})" if blo else "Sells well here", "value": self.goods_text(t.get("needs"))},
@@ -586,7 +620,7 @@ def visited_systems_sections(ctx: Context, selected: int | None) -> list[dict]:
         row = [_system_label(key, visit), address_portal(addr), galaxy_name(addr.get("RealityIndex")),
                len(planets) or None, named or None, visit.get("named_by"), _last_seen(key, ctx) or None,
                "yes" if key == ctx.live.current_system else "",
-               ctx.economy_summary(key), ctx.conflict_name((ctx.economies.get(key) or {}).get("conflict"))]
+               ctx.economy_summary(key), ctx.conflict_cell((ctx.economies.get(key) or {}).get("conflict"))]
         entries.append((row, key))
     # Current system first, then systems with recorded resources, each newest first (sorts are stable).
     entries.sort(key=lambda e: e[0][6] or "", reverse=True)
@@ -797,8 +831,8 @@ def trade_sections(ctx: Context) -> list[dict]:
         t = ctx.trading.get(e.get("economy"), {})
         dist = galaxy.distance_ly(ctx.origin, key) if ctx.origin is not None else None
         rows.append([_system_label(key, ctx.visit(key)),
-                     ctx.economy_name(e.get("economy")) + (" (predicted)" if e.get("predicted") else ""), e.get("wealth"),
-                     ctx.conflict_name(e.get("conflict")), e.get("race"),
+                     ctx.economy_name(e.get("economy")) + (" (predicted)" if e.get("predicted") else ""),
+                     ctx.wealth_cell(e.get("wealth")), ctx.conflict_cell(e.get("conflict")), e.get("race"),
                      trade.CATEGORY_NAMES.get(t.get("sells"), t.get("sells")),
                      trade.CATEGORY_NAMES.get(t.get("needs"), t.get("needs")),
                      galaxy.distance_text(dist, key == ctx.origin) if ctx.origin is not None else "unknown"])

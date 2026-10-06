@@ -6,6 +6,7 @@ from nms_connector import memory, planets_view, trade
 from nms_connector.gamedata import GameData
 from nms_connector.game_install import GameInstall
 from nms_connector.history import PlanetHistory
+from nms_connector.companion import PluginCompanion
 from nms_connector.live import LiveMemory
 from test_gamedata import build_pak, make_game
 from test_memory import FakeReader, planet_blob
@@ -182,3 +183,47 @@ def test_a_cached_item_database_gets_the_trading_table(tmp_path):
     again = GameData(tmp_path / "data")
     again.load(GameInstall(game.root, game.build_id, game.language, game.source))
     assert again.trading_source == "game files"
+
+
+def test_wealth_and_conflict_carry_their_rank_on_the_scale(tmp_path):
+    """Asked for on 2026-10-06: the game only says "Average" or "Low", which does not say how good or bad that
+    is. Every place that shows the economy's strength or the conflict level now adds its rank ("2 of 3"), and
+    the table cells sort by that rank - as plain text "Average" would sort before "Poor".
+    """
+    history = PlanetHistory(tmp_path / "h.json")
+    history.record_economies({SYSTEM_98: {"economy": "Mining", "wealth": "Poor", "conflict": "Low", "race": "Gek"},
+                              SYSTEM_115: {"economy": "Manufacturing", "wealth": "Wealthy", "conflict": "Pirate",
+                                           "race": "Korvax"}}, "t")
+    ctx = planets_view.Context(Live(), history, {}, FakeTexts(), None)
+    # The rank is appended with a dash: a translated conflict name already carries brackets ("Low (Niedrig)").
+    assert ctx.wealth_text("Average") == "Average - 2 of 3"
+    assert ctx.conflict_text("Low") == "Low - 1 of 4" and ctx.conflict_text("Pirate") == "Pirate - 4 of 4"
+    # A lawless economy is a state, not a step on the scale, so it keeps its name and gets no rank.
+    assert ctx.wealth_text("Pirate") == "Pirate" and ctx.wealth_cell("Pirate") == "Pirate"
+    assert trade.wealth_level("Pirate") is None and trade.wealth_level("nonsense") is None
+
+    star = planets_view._star(SYSTEM_98, {}, [], ctx)
+    items = {i["label"]: i["value"] for i in star["items"]}
+    assert items["Wealth"] == "Poor - 1 of 3" and items["Conflict"] == "Low - 1 of 4"
+
+    economies = planets_view.trade_sections(ctx)[0]
+    rich = next(r for r in economies["rows"] if r[1].startswith("Manufacturing"))
+    poor = next(r for r in economies["rows"] if r[1].startswith("Mining"))
+    assert rich[2] == {"text": "Wealthy - 3 of 3", "sort": 3} and poor[2] == {"text": "Poor - 1 of 3", "sort": 1}
+    assert rich[3] == {"text": "Pirate - 4 of 4", "sort": 4} and poor[3] == {"text": "Low - 1 of 4", "sort": 1}
+
+    # The visited-systems table (rows need a visit, not only a recorded economy) uses the same ranked cell.
+    visited_ctx = planets_view.Context(Live(), history, {SYSTEM_98: {"planets": {}}}, FakeTexts(), None)
+    visited = planets_view.visited_systems_sections(visited_ctx, None)[-1]
+    assert visited["columns"][-1] == "Conflict"
+    assert [r[-1] for r in visited["rows"]] == [{"text": "Low - 1 of 4", "sort": 1}]
+
+
+def test_the_persona_is_told_the_rank_so_it_can_compare_systems(tmp_path):
+    """The economy lines the plugin persona receives carry the rank too: without it the model had to know from
+    the game whether "Average" beats "Wealthy", and it guessed."""
+    history = PlanetHistory(tmp_path / "h.json")
+    history.record_economies({SYSTEM_98: {"economy": "Mining", "wealth": "Average", "conflict": "Low"}}, "t")
+    ctx = planets_view.Context(Live(), history, {}, FakeTexts(), None)
+    lines = PluginCompanion.economy_lines(object.__new__(PluginCompanion), "where can I sell minerals?", ctx, None)
+    assert any("Average - 2 of 3" in line for line in lines), lines

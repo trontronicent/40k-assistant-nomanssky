@@ -412,7 +412,7 @@ class PluginCompanion:
             for k in keys[:3 if not named else 6]:
                 e = ctx.economies[k]
                 dist = galaxy.distance_text(galaxy.distance_ly(here, k), k == here) if here is not None else "?"
-                listed.append(f"{planets_view._system_label(k, ctx.visit(k))} ({e.get('wealth')}, {dist}"
+                listed.append(f"{planets_view._system_label(k, ctx.visit(k))} ({ctx.wealth_text(e.get('wealth'))}, {dist}"
                               + (", predicted" if e.get("predicted") else "") + ")")
             out.append(f"Nearest {ctx.economy_name(econ)} systems: " + "; ".join(listed))
         return out

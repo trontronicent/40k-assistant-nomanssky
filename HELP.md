@@ -324,6 +324,15 @@ conflict level and a dominant race. The plugin knows them in three ways:
   generation rules (they reproduce the game's planet seeds exactly and got all
   systems read so far right). Predicted values are marked *predicted*.
 
+**Wealth and conflict carry their rank**, because the game's word alone does not
+say how good or bad it is: the wealth reads *Poor - 1 of 3*, *Average - 2 of 3*
+or *Wealthy - 3 of 3*, and the conflict level *Low - 1 of 4*, *Medium - 2 of 4*,
+*High - 3 of 4* or *Pirate - 4 of 4*. Sorting the **Wealth** or **Conflict**
+column of *Systems -> Trade* orders by that rank, so the richest or the most
+dangerous systems come together. A rare *Pirate* economy keeps its name without
+a rank: it marks a lawless system rather than a step on the wealth scale. The
+plugin persona is told the rank too, so it can compare systems for you.
+
 Each economy sells one kind of trade goods cheaply and pays well for another;
 the plugin reads this from the game's trading table. You see it:
 

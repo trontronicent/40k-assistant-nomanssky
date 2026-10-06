@@ -5,6 +5,12 @@
 Needs the 40k Assistant 3.12.0 (the plugin now declares its data format, which older
 versions do not accept).
 
+- **Wealth and conflict say where they sit**: a system's wealth now reads
+  *Average - 2 of 3* and its conflict level *Low - 1 of 4*, in the system
+  details, the economies table and the visited systems. Sorting the Wealth or
+  Conflict column orders by that rank instead of by the alphabet (needs the
+  40k Assistant 3.12.0; older versions sort those columns by text). The plugin
+  persona receives the rank as well, so it can compare systems.
 - **Planets tables start with the planet**: *Visited planets with resources* and the
   planet search list the planet first, then its system (still grouped by system). On a
   phone the app shows each row as a card titled by its first column - now the planet.

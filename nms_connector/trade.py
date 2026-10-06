@@ -33,6 +33,30 @@ CONFLICT_KEYS = {"Low": "UI_CONFLICT_LEVEL_LOW_2", "Default": "UI_CONFLICT_LEVEL
                  "Pirate": "UI_CONFLICT_LEVEL_PIRATE1"}
 TRADING_CLASS_ORDER = ["Mining", "HighTech", "Trading", "Manufacturing", "Fusion", "Scientific", "PowerGeneration"]
 
+# How strong an economy is and how dangerous a system is, as ranks - the game shows only words, so "is Average
+# better or worse than Wealthy here?" needed game knowledge. The economy *type* (Mining, Trading ...) has no
+# order and gets no rank.
+#
+# WealthClass in the save/memory is {Poor, Average, Wealthy, Pirate}: the first three are the scale, while
+# "Pirate" marks a lawless system rather than a step on it, so it keeps its name and gets no rank.
+# ConflictLevel {Low, Default, High, Pirate} *is* an escalation, so pirate-controlled is its top step.
+WEALTH_ORDER = ["Poor", "Average", "Wealthy"]
+CONFLICT_ORDER = ["Low", "Default", "High", "Pirate"]
+
+
+def wealth_level(wealth: str | None) -> tuple[int, int] | None:
+    """(rank, highest) of an economy's strength, 1 = Poor; None for an unknown value or lawless "Pirate"."""
+    if wealth in WEALTH_ORDER:
+        return WEALTH_ORDER.index(wealth) + 1, len(WEALTH_ORDER)
+    return None
+
+
+def conflict_level(conflict: str | None) -> tuple[int, int] | None:
+    """(rank, highest) of a system's conflict level, 1 = Low, highest = pirate-controlled; None if unknown."""
+    if conflict in CONFLICT_ORDER:
+        return CONFLICT_ORDER.index(conflict) + 1, len(CONFLICT_ORDER)
+    return None
+
 # economy: needs, sells, (min, max) price factor when the station buys from you, (min, max) when it sells to you
 FALLBACK = {
     "Mining": {"needs": "Energy", "sells": "Mineral", "buys_at": (1.4, 1.8), "sells_at": (0.7, 0.9)},
