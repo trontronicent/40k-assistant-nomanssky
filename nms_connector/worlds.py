@@ -51,6 +51,9 @@ class WorldType:
     resources: tuple[str, ...] = ()             # typical item ids (the game's descriptions say so)
     gas: str | None = None                      # atmosphere harvester gas
     summary: str = ""                           # one line: what such a world is like
+    # False for exotic worlds: ~15 sub-biomes with unrelated names ("Toxic Anomaly", "Planet of Light"); giving every
+    # exotic planet all of them made each match "giftige", "gefrorenen" and "grüne" (live test 2026-10-06).
+    names_identify: bool = True
 
 
 WORLD_TYPES = (
@@ -84,7 +87,7 @@ WORLD_TYPES = (
     WorldType("exotic", "Exotic worlds", EXOTIC_PREFIXES,
               ("WEATHER_GLITCH", "WEATHER_RED", "WEATHER_GREEN", "WEATHER_BLUE", "WEATHER_CLEAR"),
               "UI_VISIT_CLIMATE_WEIRD", ("Exotic", "Exotic (red)", "Exotic (green)", "Exotic (blue)"), (), "OXYGEN",
-              "strange worlds (bubbles, glitches, coloured skies) with unusual terrain"),
+              "strange worlds (bubbles, glitches, coloured skies) with unusual terrain", names_identify=False),
     WorldType("gasgiant", "Gas giants", (), ("WEATHER_GASGIANT",), None, ("Gas giant",), (), None,
               "giant planets of gas"),
 )
@@ -159,7 +162,9 @@ class WorldBook:
         """The folded words of a world type's planet-type names and climate word (not its weathers: a swamp
         weather "Stickiger Sprühregen" must not make every swamp planet airless)."""
         w = self.worlds.get(world_id) or {}
-        texts = list(w.get("names") or []) + ([w["climate"]] if w.get("climate") else [])
+        wt = next((t for t in WORLD_TYPES if t.id == world_id), None)
+        names = list(w.get("names") or []) if wt is None or wt.names_identify else []
+        texts = names + ([w["climate"]] if w.get("climate") else [])
         out = set()
         for t in texts:
             for text in (t["en"], t["local"]):

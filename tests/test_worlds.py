@@ -58,6 +58,9 @@ def test_biome_words_link_every_name_variant_but_not_weathers():
     words = book().biome_words()
     assert {"stickiger", "leerer", "toter", "airless", "stickig"} <= words["Dead"]
     assert "stickiger" not in words["Swamp"]
+    exotic = worlds.WorldBook.from_texts({"GLITCHBIOME1": "Toxic Anomaly", "UI_VISIT_CLIMATE_WEIRD": "unusual"},
+                                         {"GLITCHBIOME1": "Giftige Anomalie", "UI_VISIT_CLIMATE_WEIRD": "ungewöhnlich"})
+    assert exotic.biome_words()["Exotic"] == {"unusual", "ungewoehnlich"}       # not 'giftige' for every exotic planet
 
 
 def test_stem_drops_german_adjective_endings_only_from_long_words():
