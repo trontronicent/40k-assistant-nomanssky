@@ -221,12 +221,23 @@ class PluginCompanion:
                 "toggles": settings.toggles("set_setting") if settings is not None else []}
 
     def where_lines(self) -> list[str]:
-        """Overlay area *Where you are*: the system (live from the game, else the save's) and its galaxy."""
+        """Overlay area *Where you are*: the system (live from the game, else the save's), the planet you are on
+        when it is known (the page's 'Where you are now': exact from memory, else the last save in this system)
+        and the galaxy."""
         c = self.connector
         here = c.here()
         if here is None:
             return []
-        out = [f"You are in {planets_view._system_label(here, c.context().visit(here))}"]
+        ctx = c.context()
+        out = [f"You are in {planets_view._system_label(here, ctx.visit(here))}"]
+        try:
+            section = planets_view.where_you_are(ctx)
+        except (AttributeError, KeyError, TypeError) as exc:    # live data not ready: the system line stands alone
+            c.ctx.logger.debug("[NMS] overlay planet line skipped: %s", exc)
+            section = None
+        planet = next((i["value"] for i in (section or {}).get("items", []) if i.get("label") == "Planet"), None)
+        if planet and not str(planet).startswith("unknown"):
+            out.append(f"Planet: {planet}")
         galaxy_name = ((c.snapshot or {}).get("location") or {}).get("galaxy")
         if galaxy_name:
             out.append(f"Galaxy: {galaxy_name}")

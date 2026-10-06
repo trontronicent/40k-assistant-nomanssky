@@ -21,6 +21,7 @@
   Ammoniak?*), the persona now gets where it comes from, every refiner recipe that
   makes it (with the refiner size) and its crafting recipe - read from the installed
   game, not from the web.
+- **Overlay: the planet you are on** appears under *Where you are* when the plugin knows it.
 - **Codex documents in English and German**: the item and world documents are written
   once per language, every name and term as the game writes it there (researched in the
   game's language files: *Nährstoffprozessor*, not "Nahrungsprozessor"; *Tragbare /

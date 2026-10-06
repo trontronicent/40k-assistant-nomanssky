@@ -146,3 +146,19 @@ def test_world_documents_open_with_a_german_sentence():
     assert "Eine stickige Welt" in head and "nicht klebrig" in head
 
 
+
+
+def test_the_overlay_location_area_names_the_planet_when_known(tmp_path, monkeypatch):
+    """The overlay's *Where you are* area adds the planet you are on, as the page's 'Where you are now' knows it,
+    and leaves an uncertain answer out (the system line stands alone)."""
+    from test_connector import FakeCtx, create_plugin
+    from nms_connector import planets_view
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    monkeypatch.setattr(type(plugin), "here", lambda self: 0x79)
+    monkeypatch.setattr(planets_view, "where_you_are", lambda ctx: {"items": [{"label": "Planet", "value": "Corrodia"}]})
+    lines = plugin.companion.where_lines()
+    assert lines[0].startswith("You are in ") and lines[1] == "Planet: Corrodia"
+    monkeypatch.setattr(planets_view, "where_you_are",
+                        lambda ctx: {"items": [{"label": "Planet", "value": "unknown (your exact position ...)"}]})
+    assert not any(line.startswith("Planet:") for line in plugin.companion.where_lines())
