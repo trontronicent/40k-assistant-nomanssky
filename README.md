@@ -54,9 +54,25 @@ credits appear in the 40k Assistant's manual under *Plugin Help* (app 3.4.0+).
   hover, and for trade goods where they sell and whether you know such a system
 - **How often the game saves:** every save write the connector sees, with the
   time since the previous one
+- **Equipment:** exosuit, multi-tools, exocraft and freighter technology with what
+  each part does (an upgrade module's possible stat ranges, from the game's tables)
+- **Planet search:** recorded planets by type, weather, resources, flora, fauna or
+  sentinels, in English or the game's language - German adjectives in any form
+  (*giftigen*, *stickige*) and every name the game gives a world type
+- **Recipes:** where an item comes from and every refiner, cooking and crafting recipe
+  that makes it, from the game's own recipe table; the persona answers "how do I get
+  ...?" from it
+- **Codex documents** (`tools/codex_recipes.py`): one document per item and per world
+  type, separately in English and the game's language, in the game's own words
+  (*Mittlere Raffinerie*, *Nährstoffprozessor*), for the app's Codex
+- **Desktop overlay (app 3.11.0+):** timers, where you are, settlements and more as
+  areas you switch on and off, a Codex search box (app 3.12.0), and buttons to talk to
+  the persona by voice; **Settings:** the persona's codeword and *Single Context Per
+  Question*
 
-The data is as fresh as the last save the game wrote. Live data (position while
-flying, events) would need a game mod and is a possible later addition.
+The data is as fresh as the last save the game wrote; while the game runs, the
+plugin also reads the current system, planets, economies, system names and the
+settlement screen from the game's memory (read-only).
 
 ## How it works
 
