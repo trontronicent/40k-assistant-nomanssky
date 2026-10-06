@@ -1,44 +1,40 @@
 # Changelog
 
-## 0.12.0 — 2026-10-05
+## 0.12.0 — 2026-10-06
 
-- **A default voice**: the No Man's Sky Plugin Persona now speaks with the app's
-  *Cogitator AI (Male)* voice - calm, British, with a light ship-computer effect
-  (needs the 40k Assistant 3.12.0; older versions keep their voice). An existing
-  persona gets it unless you chose a voice yourself. Other AI voices to pick in the
-  persona editor: *Cogitator AI (Female)*, and German *Cogitator AI (Male) [GERMAN]*
-  / *Cogitator AI (Female) [GERMAN]*.
-- **Overlay areas**: the desktop overlay shows the plugin's data in areas you tick
-  on or off in its right-click menu (*Areas*, needs the 40k Assistant 3.12.0):
-  *Timers*, *Where you are* and *Settlements* at first, and *Current mission*,
-  *Currencies*, *Ships* and *Frigates* to add. The settlements area tells when the
-  next decision can come. Older app versions keep the single block.
-- **Codex search in the overlay** (needs the 40k Assistant 3.12.0): type words in the
-  overlay's *Codex search* box and press Enter to find them in the Codex libraries
-  attached to the plugin persona - exact words, no AI, so recipes and item names are
-  found instantly while you play.
+Needs the 40k Assistant 3.12.0 (the plugin now declares its data format, which older
+versions do not accept).
+
+- **A default voice**: the No Man's Sky Plugin Persona speaks with the app's
+  *Cogitator AI (Male)* voice - calm, British, with a light ship-computer effect. An
+  existing persona gets it unless you chose a voice yourself. Other AI voices to pick
+  in the persona editor: *Cogitator AI (Female)*, and German *Cogitator AI (Male)
+  [GERMAN]* / *Cogitator AI (Female) [GERMAN]*.
+- **Overlay areas**: the desktop overlay shows the plugin's data in areas you tick on
+  or off in its right-click menu (*Areas*): *Timers*, *Where you are* (with the planet
+  you are on when it is known) and *Settlements* (when the next decision can come) at
+  first, and *Current mission*, *Currencies*, *Ships* and *Frigates* to add.
+- **Codex search in the overlay**: type words in the *Codex search* box and press
+  Enter to find them in the Codex libraries attached to the plugin persona - exact
+  words, no AI, so recipes and item names are found instantly while you play.
 - **Recipes from the game's files**: asked how to get an item (*Wie bekomme ich
-  Ammoniak?*), the persona now gets where it comes from, every refiner recipe that
-  makes it (with the refiner size) and its crafting recipe - read from the installed
-  game, not from the web.
-- **Overlay: the planet you are on** appears under *Where you are* when the plugin knows it.
-- **Codex documents in English and German**: the item and world documents are written
-  once per language, every name and term as the game writes it there (researched in the
-  game's language files: *Nährstoffprozessor*, not "Nahrungsprozessor"; *Tragbare /
-  Mittlere / Große Raffinerie*; *Verwendet für*). The app prefers documents in the
-  language you ask in. The persona is told to use the game's names as given, never its
-  own translations, and to prefer the game's recipe tables to older knowledge.
-- **Data format declared** (`data_version` 1, needs the 40k Assistant 3.12.0): the app
-  can now tell exactly whether another version of the plugin fits your stored data.
-- **World types in German**: *stickige Welt* is now understood as the game means it - an **airless** world, not
-  a "sticky" one. The persona gets the game's own meaning of world words, finds every planet of that kind
-  (also under the game's other names for it) and says how many match; the planet search understands inflected
-  words (*giftigen*, *toten*) and no longer counts asking words (*bereits*, *entdeckt*). The Codex tool also writes
-  one document per world type (names and weathers in English and German, resources, gas).
-- **Item documents for the Codex**: `tools/codex_recipes.py` writes one document per
-  item (1,182) into the *No Man's Sky* Codex library - where it comes from, every
-  refiner, cooking and crafting recipe and what it is used for, English with German
-  names - so the Codex search finds e.g. *Ammoniak* with all its recipes.
+  Ammoniak?*), the persona gets where it comes from, every refiner recipe that makes it
+  (with the refiner it needs) and its crafting recipe - read from the installed game.
+- **World types in German**: *stickige Welt* is understood as the game means it - an
+  **airless** world, not a "sticky" one. The persona gets the game's own meaning of
+  world words, finds every planet of that kind (also under the game's other names for
+  it) and says how many match; the planet search understands inflected words
+  (*giftigen*, *toten*) and no longer counts asking words (*bereits*, *entdeckt*).
+- **Codex documents in English and German** (`tools/codex_recipes.py`): one document
+  per item (1,182) and per world type (12), once per language, every name and term as
+  the game writes it there (researched in the game's language files:
+  *Nährstoffprozessor*; *Tragbare / Mittlere / Große Raffinerie*; *Verwendet für*) -
+  where it comes from, every refiner, cooking and crafting recipe, what it is used
+  for. The app prefers documents in the language you ask in.
+- **The persona and game words**: it is told to use the game's names as given, never
+  its own translations, and to prefer the game's recipe tables to older knowledge.
+- **Data format declared** (`data_version` 1): the app can tell exactly whether
+  another version of the plugin fits your stored data.
 
 ## 0.11.0 — 2026-10-05
 
