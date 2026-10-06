@@ -168,6 +168,7 @@ class PluginCompanion:
         extra += self.equipment_lines(words, ctx.texts)
         extra += self.planet_lines(question, words, ctx)
         extra += self.recipe_lines(question, words)
+        extra += self.world_lines(question)
         all_names = {i: [n for n in (e.get("en"), e.get("local")) if n] for i, e in (c.gamedata.items or {}).items()}
 
         def item_notes(item_id):
@@ -302,6 +303,13 @@ class PluginCompanion:
                          + (nearest or "none of your known systems yet"))
             out.append(line)
         return out
+
+    def world_lines(self, question: str) -> list[str]:
+        """What the game terms of a question mean, in the game's own words: "stickige" is the German game's
+        "Airless" - an airless (dead) world - not "sticky" (worlds.WorldBook.explain; the model translated it
+        wrong on 2026-10-06)."""
+        book = getattr(self.connector.tables, "worlds", None)
+        return book.explain(question) if book is not None and book.worlds else []
 
     def recipe_lines(self, question: str, words: set[str]) -> list[str]:
         """For a question about getting an item ("Wie bekomme ich Ammoniak?", "how to make Sulphurine"): per named

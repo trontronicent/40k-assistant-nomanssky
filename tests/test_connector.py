@@ -392,7 +392,7 @@ def test_game_tables_load_once_per_build_and_report_fallbacks():
     tables = GameTables()
     assert tables.needs_load(None) and tables.ship_ranges is ships.FALLBACK and tables.trait_names == {}
     warnings = tables.load(None)
-    assert not tables.needs_load(None) and len(warnings) == 6 and all("not found" in w for w in warnings)
+    assert not tables.needs_load(None) and len(warnings) == 7 and all("not found" in w for w in warnings)
 
     class Install:
         build_id = "new"

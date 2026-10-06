@@ -157,9 +157,12 @@ class NmsConnector:
     def context(self) -> planets_view.Context:
         """Everything the system, planet and item sections are built from, as of now."""
         snap = self.snapshot
-        return planets_view.Context(self.live, self.history, self.visits, self.gamedata, self.combat_timer,
-                                    snap["bases"] if snap else [], origin=self.save_system,
-                                    save_position=self.save_position)
+        ctx = planets_view.Context(self.live, self.history, self.visits, self.gamedata, self.combat_timer,
+                                   snap["bases"] if snap else [], origin=self.save_system,
+                                   save_position=self.save_position)
+        # The planet search also knows each planet by its world type's names ("stickige" -> every airless planet).
+        ctx.world_words = self.tables.worlds.biome_words() if self.tables.worlds.worlds else {}
+        return ctx
 
     def primary_range(self) -> dict | None:
         """The primary ship's warp-range estimate (route planner default, galaxy map reach)."""

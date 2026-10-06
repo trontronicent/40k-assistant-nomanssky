@@ -7,6 +7,11 @@ compared case-insensitively with ß = ss and ä/ö/ü = ae/oe/ue, and a search w
 with it ("heiss" finds "heißer", "sengend" finds "Sengender"), so the player can type as the game writes it or
 loosely.
 
+German adjectives are inflected ("stickige Welt", "giftigen Planeten"), so a search word also matches through its
+stem (``stem``: -e/-er/-en/-es/-em dropped, >= 3 letters left - "stickige" finds the weather "Stickig").
+Every planet is also indexed with the words of its world type's names in both languages (``Context.world_words``
+from worlds.WorldBook.biome_words): "stickige" finds every airless planet, also one the game calls "Leerer Planet".
+
 * ``PlanetIndex.search(query)`` - every word of the query must match (the page's search field);
 * ``PlanetIndex.best(question)`` - for a chat question: the words that are not question words ("wo", "gibt",
   "planet", "where" ...), planets ranked by how many of them match, then by distance (the persona).
@@ -30,7 +35,20 @@ QUESTION_WORDS = {
     "kenne", "bekannt", "bekannte", "naechste", "naechsten", "nahe", "beste", "gute", "einen", "eine", "einem",
     "einer", "der", "die", "das", "den", "dem", "und", "fuer", "sind", "ist", "kann", "ich", "mir", "mich", "meine",
     "mein", "you", "your", "there", "ein", "auf", "von", "bei", "nach", "how", "wie", "viele", "many", "all", "alle",
+    # "Habe ich bereits eine stickige Welt entdeckt?" - asking whether, not what the planet is like (2026-10-06)
+    "bereits", "schon", "entdeckt", "entdecken", "besucht", "gefunden", "jemals", "irgendeine", "irgendwo", "hab",
+    "discovered", "visited", "already", "ever", "found", "been", "seen", "gesehen", "kennst", "hast",
 }
+GERMAN_ENDINGS = ("en", "er", "es", "em", "e")
+
+
+def stem(word: str) -> str:
+    """A folded word without a German adjective ending: 'stickige' -> 'stickig', 'giftigen' -> 'giftig',
+    'toten' -> 'tot'; at least 3 letters stay, and the stem is only ever matched against word starts."""
+    for end in GERMAN_ENDINGS:
+        if word.endswith(end) and len(word) - len(end) >= 3 and len(word) >= 5:
+            return word[:-len(end)]
+    return word
 
 
 def fold(text: str | None) -> str:
@@ -72,12 +90,14 @@ class PlanetIndex:
                 row = planet_row(ctx.texts, planet, visit, ctx.sentinel_index)
                 text = " ".join([label, planet.get("biome") or "", planet.get("size") or ""]
                                 + [_cell_text(c) for c in row])
+                world = set((getattr(ctx, "world_words", None) or {}).get(planet.get("biome") or "", ()))
                 self.entries.append({"planet": planet, "system": key, "system_label": label, "row": row,
-                                     "words": set(words(text))})
+                                     "words": set(words(text)) | world})
 
     @staticmethod
     def _matches(term: str, planet_words: set[str]) -> bool:
-        return any(w.startswith(term) for w in planet_words)
+        base = stem(term)
+        return any(w.startswith(term) or w.startswith(base) for w in planet_words)
 
     def _distance(self, key):
         return galaxy.distance_ly(self.ctx.origin, key) if self.ctx.origin is not None else None

@@ -10,7 +10,7 @@ Blocking (file reads); the connector calls ``load`` through ``ctx.run_blocking``
 
 from __future__ import annotations
 
-from . import frigates, recipes, settlements, ships, techstats, timers
+from . import frigates, recipes, settlements, ships, techstats, timers, worlds
 
 
 class GameTables:
@@ -25,6 +25,7 @@ class GameTables:
         self.settlements: dict | None = None        # stat limits, judgement windows, perks
         self.tech = techstats.TechStats()           # what every technology does
         self.recipes = recipes.RecipeBook()         # refiner/cooking recipes and crafting requirements
+        self.worlds = worlds.WorldBook()            # world types in the game's words (English + game language)
 
     def needs_load(self, install) -> bool:
         """True before the first load and after a game update (another build id)."""
@@ -40,6 +41,7 @@ class GameTables:
         self.ships = ships.load_tables(install, self.tech)
         self.settlements = settlements.load_tables(install)
         self.recipes = recipes.load(install)
+        self.worlds = worlds.load(install)
         self.loaded = True
         warnings = []
         for label, table in (("Timer durations: built-in values", self.timers),
@@ -47,8 +49,10 @@ class GameTables:
                              ("Warp range values: built-in", self.ships),
                              ("Settlement tables: built-in values", self.settlements),
                              ("Technology stats unavailable", self.tech),
-                             ("Recipes unavailable", self.recipes)):
-            error = table.error if isinstance(table, (techstats.TechStats, recipes.RecipeBook)) else table.get("error")
+                             ("Recipes unavailable", self.recipes),
+                             ("World type names unavailable", self.worlds)):
+            error = (table.error if isinstance(table, (techstats.TechStats, recipes.RecipeBook, worlds.WorldBook))
+                     else table.get("error"))
             if error:
                 warnings.append(f"{label} ({error})")
         return warnings

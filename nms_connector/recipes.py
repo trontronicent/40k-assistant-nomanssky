@@ -307,10 +307,11 @@ def documents(book: RecipeBook, lookup) -> dict[str, str]:
     return out
 
 
-def write_documents(folder: Path, docs: dict[str, str]) -> dict[str, int]:
+def write_documents(folder: Path, docs: dict[str, str], mark: str = GENERATED_MARK,
+                    subdir: str = ITEMS_DIR) -> dict[str, int]:
     """Write `docs` below `folder` (the library's folder in the Codex folder): new and changed files are written,
-    unchanged ones left alone (the Codex sync then skips them), generated files no longer produced are removed.
-    Only files containing GENERATED_MARK are ever changed or removed. Returns the counts."""
+    unchanged ones left alone (the Codex sync then skips them), generated files under `subdir` no longer produced
+    are removed. Only files containing `mark` (the generator's own) are ever changed or removed. Returns the counts."""
     folder = Path(folder)
     counts = {"written": 0, "unchanged": 0, "removed": 0, "kept_handwritten": 0}
     for rel, text in docs.items():
@@ -320,7 +321,7 @@ def write_documents(folder: Path, docs: dict[str, str]) -> dict[str, int]:
             if old == text:
                 counts["unchanged"] += 1
                 continue
-            if GENERATED_MARK not in old:
+            if mark not in old:
                 counts["kept_handwritten"] += 1
                 continue
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -328,19 +329,19 @@ def write_documents(folder: Path, docs: dict[str, str]) -> dict[str, int]:
         tmp.write_text(text, encoding="utf-8", newline="\n")
         tmp.replace(path)
         counts["written"] += 1
-    root = folder / ITEMS_DIR
+    root = folder / subdir
     wanted = {(folder / rel).resolve() for rel in docs}
     if root.exists():
         for path in root.rglob("*.md"):
-            if path.resolve() not in wanted and GENERATED_MARK in path.read_text(encoding="utf-8", errors="replace"):
+            if path.resolve() not in wanted and mark in path.read_text(encoding="utf-8", errors="replace"):
                 path.unlink()
                 counts["removed"] += 1
     return counts
 
 
 def main(argv: list[str] | None = None) -> int:
-    """Generate the item documents into a Codex library folder (argument), from the installed game and the
-    plugin's item cache (names and descriptions)."""
+    """Generate the item and world-type documents into a Codex library folder (argument), from the installed game
+    and the plugin's item cache (names and descriptions)."""
     import argparse
     from .game_install import find_game
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
@@ -349,14 +350,23 @@ def main(argv: list[str] | None = None) -> int:
                                                 / ".data" / "nomanssky" / "gamedata" / "items.json"),
                         help="the plugin's item cache (gamedata/items.json in its data folder)")
     args = parser.parse_args(argv)
-    book = load(find_game())
+    install = find_game()
+    book = load(install)
     if book.error:
         print(f"Recipes unavailable: {book.error}")
         return 1
     items = json.loads(Path(args.items).read_text(encoding="utf-8")).get("items") or {}
     docs = documents(book, items.get)
     print(f"{len(book.recipes)} recipes, {len(book.crafting)} crafting recipes -> {len(docs)} documents")
-    print(write_documents(Path(args.folder), docs))
+    print("items:", write_documents(Path(args.folder), docs))
+    from . import worlds
+    world_book = worlds.load(install)
+    if world_book.error:
+        print(f"World types unavailable: {world_book.error}")
+        return 1
+    world_docs = world_book.documents(items.get)
+    print(f"{len(world_docs)} world-type documents ->",
+          write_documents(Path(args.folder), world_docs, worlds.GENERATED_MARK, worlds.WORLDS_DIR))
     return 0
 
 
