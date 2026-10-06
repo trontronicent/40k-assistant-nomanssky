@@ -27,7 +27,8 @@ versions do not accept).
   world words, finds every planet of that kind (also under the game's other names for
   it) and says how many match; the planet search understands inflected words
   (*giftigen*, *toten*) and no longer counts asking words (*bereits*, *entdeckt*).
-- **Codex documents in English and German** (`tools/codex_recipes.py`): one document
+- **Codex documents in English and German** (the page's **Write Codex documents**
+  button, or `tools/codex_recipes.py`): one document
   per item (1,182) and per world type (12), once per language, every name and term as
   the game writes it there (researched in the game's language files:
   *Nährstoffprozessor*; *Tragbare / Mittlere / Große Raffinerie*; *Verwendet für*) -

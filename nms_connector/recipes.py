@@ -402,6 +402,19 @@ def write_documents(folder: Path, docs: dict[str, str], mark: str = GENERATED_MA
 LEGACY_DIRS = ("Items", "Worlds")
 
 
+CODEX_LIBRARY = "No Man's Sky"      # the library the persona's setup suggests (companion.PERSONA_SETUP)
+
+
+def codex_library_folder(plugin_root: Path, environ=None) -> Path:
+    """The No Man's Sky library in the app's Codex folder, found as the app finds it: $CODEX_FOLDER, else
+    knowledge_base/ in the app folder (the installed plugin sits in <app>/plugins/<id>)."""
+    import os
+    env = os.environ if environ is None else environ
+    override = str(env.get("CODEX_FOLDER") or "").strip()
+    root = Path(override) if override else Path(plugin_root).resolve().parents[1] / "knowledge_base"
+    return root / CODEX_LIBRARY
+
+
 def default_items_path(here: Path | None = None) -> Path:
     """The plugin's item cache: next to an installed plugin (plugins/nomanssky -> plugins/.data/nomanssky), else in
     the app beside a development checkout (stc-repos/<plugin> -> 40k-assistant/plugins/.data/nomanssky); the first

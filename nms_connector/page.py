@@ -37,6 +37,10 @@ ACTIONS = [
      "description": "Download the newest mapping.json from MBINCompiler (needed after game updates)."},
     {"id": "scan_memory", "label": "Scan game now",
      "description": "Read the planets of the current system from the running game now (read-only, ~10 s)."},
+    {"id": "write_codex", "label": "Write Codex documents",
+     "description": "Write one document per item and world type, in English and the game's language, into the "
+                    "No Man's Sky library of the app's Codex folder (only the plugin's own files change). Then press "
+                    "Sync now in the Codex panel."},
     {"id": "rebuild_names", "label": "Re-read item names",
      "description": "Read item names and icons from the game files again (done automatically after a game update)."},
     {"id": "clear_history", "label": "Clear save history", "description": "Forget the recorded save writes.",

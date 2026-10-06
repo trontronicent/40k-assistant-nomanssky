@@ -241,3 +241,36 @@ def test_item_tooltips_say_how_to_get_the_item():
     anti = planets_view.Texts.how_to_get(texts, "ANTIMATTER")
     assert anti == "How to get it:\n• Crafted from 25 Chromatic Metal + 20 Condensed Carbon"
     assert planets_view.Texts.how_to_get(SimpleNamespace(gamedata=SimpleNamespace(lookup=ITEMS.get)), "TOXIC1") is None
+
+
+def test_the_codex_library_folder_is_found_as_the_app_finds_it(tmp_path):
+    """$CODEX_FOLDER wins (trimmed, as the app trims it); else knowledge_base/ in the app folder, two levels above
+    the installed plugin (<app>/plugins/nomanssky)."""
+    plugin_root = tmp_path / "app" / "plugins" / "nomanssky"
+    assert recipes.codex_library_folder(plugin_root, {}) == (tmp_path / "app" / "knowledge_base" / "No Man's Sky").resolve()
+    assert recipes.codex_library_folder(plugin_root, {"CODEX_FOLDER": f"  {tmp_path / 'kb'} "}) == tmp_path / "kb" / "No Man's Sky"
+
+
+def test_the_write_codex_action_writes_both_languages(tmp_path, monkeypatch):
+    """The page's 'Write Codex documents' writes the item and world documents of both languages into the Codex
+    library folder and tells to press Sync now; before the game files are read it says so instead."""
+    import asyncio
+    from test_connector import FakeCtx, create_plugin
+    from nms_connector import game_terms, worlds
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    monkeypatch.setenv("CODEX_FOLDER", str(tmp_path / "kb"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    early = asyncio.run(plugin.action("write_codex", {}))
+    assert early["ok"] is False and "not written" in early["message"]
+    plugin.tables.loaded = True
+    plugin.tables.recipes = book()
+    plugin.tables.terms = game_terms.GameTerms(language="german")
+    plugin.tables.worlds = worlds.WorldBook.from_texts({"DEAD9": "Airless %PLANETCLASS%", "WEATHER_DEAD7": "Airless"},
+                                                      {"DEAD9": "Stickiger %PLANETCLASS%", "WEATHER_DEAD7": "Stickig"}, "german")
+    plugin.gamedata.items = dict(ITEMS)
+    done = asyncio.run(plugin.action("write_codex", {}))
+    assert done["ok"] and "Sync now" in done["message"]
+    library = tmp_path / "kb" / "No Man's Sky"
+    assert (library / "Deutsch" / "Rohstoffe" / "Ammoniak.md").is_file()
+    assert (library / "English" / "Raw Materials" / "Ammonia.md").is_file()
+    assert (library / "Deutsch" / "Welten" / "Stickige Welten (tot, ohne Atmosphäre).md").is_file()

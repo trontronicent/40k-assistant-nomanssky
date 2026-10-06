@@ -170,6 +170,34 @@ class NmsConnector:
 
     # ------------------------------------------------------------------ lifecycle
 
+    async def _write_codex(self) -> dict:
+        """Action 'write_codex': the item and world-type documents (both languages) into the Codex library folder
+        (recipes.codex_library_folder) - what tools/codex_recipes.py does, from the tables already loaded."""
+        from . import recipes, worlds
+        if not (self.tables.loaded and self.gamedata.ready and self.tables.recipes.recipes and self.tables.worlds.worlds):
+            reason = self.tables.recipes.error or self.tables.worlds.error or "the game files are not read yet"
+            return {"ok": False, "message": f"Codex documents not written: {reason}."}
+        # The plugin's folder (<app>/plugins/<id>); the context's root, or this package's parent.
+        folder = recipes.codex_library_folder(getattr(self.ctx, "root", None) or Path(__file__).resolve().parents[1])
+
+        def write():
+            terms = self.tables.terms
+            roots = tuple(recipes._label(lang) for lang in recipes.languages_of(terms))
+            items = recipes.write_documents(folder, recipes.documents(self.tables.recipes, self.gamedata.lookup, terms),
+                                            recipes.GENERATED_MARK, roots + recipes.LEGACY_DIRS)
+            world = recipes.write_documents(folder, self.tables.worlds.documents(self.gamedata.lookup, terms),
+                                            worlds.GENERATED_MARK, roots + recipes.LEGACY_DIRS)
+            return {k: items[k] + world[k] for k in items}
+        try:
+            counts = await self.ctx.run_blocking(write)
+        except OSError as exc:
+            self.ctx.logger.warning("[NMS] Codex documents not written to %s: %s", folder, exc)
+            return {"ok": False, "message": f"Writing to {folder} failed: {exc}"}
+        self.ctx.logger.info("[NMS] Codex documents in %s: %s", folder, counts)
+        return {"ok": True, "message": f"Codex documents in {folder}: {counts['written']:,} written, "
+                                       f"{counts['unchanged']:,} unchanged, {counts['removed']:,} removed. Press "
+                                       "Sync now in the Codex panel so the Codex reads them."}
+
     async def start(self) -> None:
         self.ctx.spawn(self._run(), "save-watch")
         self.ctx.spawn(self._camera_loop(), "map-camera")
@@ -542,6 +570,8 @@ class NmsConnector:
             self.snapshot = None
             self._force.set()
             return {"ok": True, "message": f"Key mapping {self.mapping_meta.get('tag')} downloaded."}
+        if action_id == "write_codex":
+            return await self._write_codex()
         if action_id == "rebuild_names":
             await self._ensure_gamedata(force=True)
             if self.install is None:
