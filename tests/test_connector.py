@@ -502,6 +502,7 @@ def test_the_overlay_offers_areas_the_user_switches_in_the_app(tmp_path, monkeyp
         pytest.skip("the app is not next to the plugin")
     checked = normalize_overlay(overlay, "nomanssky", "x")
     assert [a["id"] for a in checked["areas"]] == [a["id"] for a in overlay["areas"]]
+    assert checked["codex_search"] is True       # the app's Codex search in the persona's libraries
     assert checked["areas"][2]["lines"] == areas["settlements"]["lines"]
 
 

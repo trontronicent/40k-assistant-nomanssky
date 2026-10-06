@@ -99,7 +99,10 @@ galaxy) and **Settlements** (inhabitants, a waiting decision or when the next on
 come, a construction) are shown at first; **Current mission**, **Currencies** (Units,
 Nanites, Quicksilver), **Ships** (primary ship with its warp range, freighter) and
 **Frigates** are there to tick on (needs the 40k Assistant 3.12.0; older versions show
-timers, where you are and settlements in one block). The buttons
+timers, where you are and settlements in one block). The area **Codex search** finds
+words in the Codex libraries attached to the plugin persona (the *No Man's Sky* library,
+for example): click the box, type - *warp cell*, *"antimatter housing"*, *Hyperantrieb*
+- and press Enter. No AI: it finds exactly the words, instantly, while you play. The buttons
 **Codeword** (with the codeword from the Settings tab) and **Live call** switch the
 open app tab to the plugin persona and start Live Comms, so you can ask by voice
 without leaving the game; **Off** stops listening. Above the buttons the overlay shows

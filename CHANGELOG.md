@@ -13,6 +13,10 @@
   *Timers*, *Where you are* and *Settlements* at first, and *Current mission*,
   *Currencies*, *Ships* and *Frigates* to add. The settlements area tells when the
   next decision can come. Older app versions keep the single block.
+- **Codex search in the overlay** (needs the 40k Assistant 3.12.0): type words in the
+  overlay's *Codex search* box and press Enter to find them in the Codex libraries
+  attached to the plugin persona - exact words, no AI, so recipes and item names are
+  found instantly while you play.
 
 ## 0.11.0 — 2026-10-05
 

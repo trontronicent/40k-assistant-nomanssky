@@ -177,7 +177,8 @@ class PluginCompanion:
 
         App 3.12.0 draws ``areas`` instead: named blocks (OVERLAY_AREAS) the user ticks on or off in the overlay's
         right-click menu - the overlay keeps that choice, the plugin only says which are on by default. The flat
-        ``timers``/``lines`` stay for older apps, which ignore ``areas``."""
+        ``timers``/``lines`` stay for older apps, which ignore ``areas``. ``codex_search`` adds the app's own area
+        *Codex search*: the words typed, found in the libraries attached to this plugin's persona."""
         c = self.connector
         now = time.time()
         shown_timers = timers.visible(c.timers, now)[:20]
@@ -195,6 +196,8 @@ class PluginCompanion:
             areas.append({"id": area_id, "title": title, "default_on": default_on,
                           "timers": data if area_id == "timers" else [], "lines": [] if area_id == "timers" else data})
         return {"title": "No Man's Sky", "timers": shown_timers, "lines": lines, "areas": areas,
+                # App 3.12.0: a full-text search (no model) in the Codex libraries attached to the persona.
+                "codex_search": True,
                 "persona_id": PERSONA_ID, "codeword": getattr(settings, "codeword", None),
                 # Switches in the overlay; clicking one runs the plugin's set_setting action (plugin.SET_SETTING).
                 "toggles": settings.toggles("set_setting") if settings is not None else []}
