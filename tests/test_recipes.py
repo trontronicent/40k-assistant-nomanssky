@@ -210,3 +210,18 @@ def test_the_persona_gets_recipes_when_the_question_asks_how_to_get_an_item(tmp_
     assert plugin.companion.recipe_lines("How much Ammonia do I have?", {"how", "much", "ammonia", "do", "i", "have"}) == []
     copper = plugin.companion.recipe_lines("where do I find copper", {"where", "do", "i", "find", "copper"})
     assert copper[-1] == "  no refiner or crafting recipe makes it: it is gathered only"
+
+
+def test_the_codex_tool_finds_the_item_cache_installed_or_beside_a_checkout(tmp_path):
+    """Run from the installed plugin (plugins/nomanssky) the cache is plugins/.data/nomanssky; run from a
+    development checkout beside the app it is the app's - the old default only worked for the checkout."""
+    installed = tmp_path / "app" / "plugins" / "nomanssky" / "nms_connector" / "recipes.py"
+    cache = tmp_path / "app" / "plugins" / ".data" / "nomanssky" / "gamedata" / "items.json"
+    cache.parent.mkdir(parents=True)
+    cache.write_text("{}")
+    assert recipes.default_items_path(installed) == cache.resolve()
+    checkout = tmp_path / "stc-repos" / "plugin" / "nms_connector" / "recipes.py"
+    app_cache = tmp_path / "40k-assistant" / "plugins" / ".data" / "nomanssky" / "gamedata" / "items.json"
+    app_cache.parent.mkdir(parents=True)
+    app_cache.write_text("{}")
+    assert recipes.default_items_path(checkout) == app_cache.resolve()

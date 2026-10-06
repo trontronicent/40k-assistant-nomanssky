@@ -402,6 +402,16 @@ def write_documents(folder: Path, docs: dict[str, str], mark: str = GENERATED_MA
 LEGACY_DIRS = ("Items", "Worlds")
 
 
+def default_items_path(here: Path | None = None) -> Path:
+    """The plugin's item cache: next to an installed plugin (plugins/nomanssky -> plugins/.data/nomanssky), else in
+    the app beside a development checkout (stc-repos/<plugin> -> 40k-assistant/plugins/.data/nomanssky); the first
+    that exists, else the installed location (the error then names it)."""
+    here = (here or Path(__file__)).resolve()
+    installed = here.parents[2] / ".data" / "nomanssky" / "gamedata" / "items.json"
+    checkout = here.parents[3] / "40k-assistant" / "plugins" / ".data" / "nomanssky" / "gamedata" / "items.json"
+    return next((p for p in (installed, checkout) if p.is_file()), installed)
+
+
 def main(argv: list[str] | None = None) -> int:
     """Generate the item and world-type documents, per language, into a Codex library folder (argument), from the
     installed game and the plugin's item cache (names and descriptions)."""
@@ -409,8 +419,7 @@ def main(argv: list[str] | None = None) -> int:
     from .game_install import find_game
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
     parser.add_argument("folder", help="the No Man's Sky library folder in the Codex folder")
-    parser.add_argument("--items", default=str(Path(__file__).resolve().parents[3] / "40k-assistant" / "plugins"
-                                                / ".data" / "nomanssky" / "gamedata" / "items.json"),
+    parser.add_argument("--items", default=str(default_items_path()),
                         help="the plugin's item cache (gamedata/items.json in its data folder)")
     args = parser.parse_args(argv)
     install = find_game()
