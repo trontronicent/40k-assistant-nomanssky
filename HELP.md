@@ -86,11 +86,15 @@ the word means, finds every planet of that kind (also one the game calls *Toter*
 match. The planet search (*Systems → Planets*) understands inflected words too (*giftigen*, *toten*).
 
 **Item documents for the Codex.** `tools/codex_recipes.py` (in the plugin's folder)
-writes one document per item into the Codex folder's *No Man's Sky* library, under
-*Items* (*Raw materials*, *Products*, *Food*): where the item comes from, every
-refiner, cooking and crafting recipe that makes it, and what it is used for - in
-English with the German names, read from the installed game (1,182 items, 1,684
-recipes on 2026-10-06). The Codex indexes them at its next sync; then the Codex
+writes one document per item into the Codex folder's *No Man's Sky* library, **once in
+English and once in the game's language**: *English/Raw Materials*, *Products*, *Food*
+and *Deutsch/Rohstoffe*, *Produkte*, *Nahrung* - where the item comes from, every
+refiner, cooking and crafting recipe that makes it, and what it is used for, with every
+name and term as the game writes it in that language (*Mittlere Raffinerie oder
+größer*, *Nährstoffprozessor*, *Verwendet für*; read from the installed game: 1,182
+items, 1,684 recipes on 2026-10-06). Each document names the item once in the other
+language and says its language, so the Codex gives you the German one when you ask in
+German. The old mixed folders *Items* and *Worlds* are removed when you run it. The Codex indexes them at its next sync; then the Codex
 search (also in the overlay) finds *Ammoniak* or *Schwefelin* directly. Run it again
 after a game update; documents you wrote yourself are never changed. The same tool writes one document per
 **world type** (folder *Worlds*): every planet name and weather the game uses, English = German, typical resources

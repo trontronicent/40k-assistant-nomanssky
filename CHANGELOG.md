@@ -21,6 +21,14 @@
   Ammoniak?*), the persona now gets where it comes from, every refiner recipe that
   makes it (with the refiner size) and its crafting recipe - read from the installed
   game, not from the web.
+- **Codex documents in English and German**: the item and world documents are written
+  once per language, every name and term as the game writes it there (researched in the
+  game's language files: *Nährstoffprozessor*, not "Nahrungsprozessor"; *Tragbare /
+  Mittlere / Große Raffinerie*; *Verwendet für*). The app prefers documents in the
+  language you ask in. The persona is told to use the game's names as given, never its
+  own translations, and to prefer the game's recipe tables to older knowledge.
+- **Data format declared** (`data_version` 1, needs the 40k Assistant 3.12.0): the app
+  can now tell exactly whether another version of the plugin fits your stored data.
 - **World types in German**: *stickige Welt* is now understood as the game means it - an **airless** world, not
   a "sticky" one. The persona gets the game's own meaning of world words, finds every planet of that kind
   (also under the game's other names for it) and says how many match; the planet search understands inflected

@@ -118,53 +118,75 @@ def test_the_book_answers_what_makes_an_item_and_what_it_is_used_for():
     assert {"TOXIC1", "SULPHIDE", "FUEL2", "FOOD_MEAT"} <= b.items()
 
 
+def terms():
+    """The game's terms as read from a German game (game_terms fallbacks, language german)."""
+    from nms_connector import game_terms
+    return game_terms.GameTerms(language="german")
+
+
 def test_an_items_document_says_where_it_comes_from_every_recipe_and_its_uses():
-    """Asked for 2026-10-06 ("Ammoniak: findable and every recipe that creates it"): the document carries both
-    names, where the game says it is found (English and German), each refiner recipe with the refiner size it
-    needs, and what it is used for; a gathered-only substance says so; a product gets its crafting recipe."""
+    """Asked for 2026-10-06 ("Ammoniak: findable and every recipe that creates it"), then split by language: the
+    English document is English only - where the game says it is found, each refiner recipe with the smallest
+    refiner that has enough slots (the game's names), its uses - and names the item once in German."""
     b = book()
-    doc = recipes.item_markdown(b, ITEMS.get, "TOXIC1")
-    assert 'title: "Ammonia (Ammoniak)"' in doc and recipes.GENERATED_MARK in doc
-    assert "## Where it comes from (Fundort)" in doc and "toxic environment" in doc and "Deutsch: Ist auf Planeten" in doc
-    assert ("- 2 Fungal Mould (Pilzschimmel) + 1 Salt (Salz) → 1 Ammonia (Ammoniak) · Medium or Large Refiner"
-            in doc)
-    assert "- 1 Ammonia (Ammoniak) → 1 Ferrite Dust (Ferritstaub) · any Refiner" in doc
-    assert "For cooking (1):" in doc and "Nutrient Processor" in doc
-    copper = recipes.item_markdown(b, ITEMS.get, "YELLOW2")
+    doc = recipes.item_markdown(b, ITEMS.get, "TOXIC1", "english", terms())
+    assert 'title: "Ammonia"' in doc and "language: en" in doc and recipes.GENERATED_MARK in doc
+    assert "## Where it comes from" in doc and "toxic environment" in doc and "Ist auf Planeten" not in doc
+    assert "- 2 Fungal Mould + 1 Salt → 1 Ammonia · Medium Refiner or larger" in doc
+    assert "- 1 Ammonia → 1 Ferrite Dust · Portable Refiner or larger" in doc
+    assert "For cooking (1):" in doc and "Nutrient Processor" in doc and "In the German game: Ammoniak." in doc
+    copper = recipes.item_markdown(b, ITEMS.get, "YELLOW2", "english", terms())
     assert "gathered (mined, harvested or collected) only" in copper
-    anti = recipes.item_markdown(b, ITEMS.get, "ANTIMATTER")
-    assert "## About (Beschreibung)" in anti
-    assert "- 25 Chromatic Metal + 20 Condensed Carbon → 1 Antimatter (Antimaterie)" in anti
+    anti = recipes.item_markdown(b, ITEMS.get, "ANTIMATTER", "english", terms())
+    assert "## About" in anti and "- 25 Chromatic Metal + 20 Condensed Carbon → 1 Antimatter" in anti
 
 
-def test_documents_go_to_category_folders_and_unnamed_ids_are_skipped():
-    """Raw materials, products and foods get their own folder; a title with characters Windows forbids gets a
-    safe file name; ids without an English name (unused by the game) get no document."""
-    docs = recipes.documents(book(), ITEMS.get)
-    assert "Items/Raw materials/Ammonia (Ammoniak).md" in docs
-    assert "Items/Products/Antimatter (Antimaterie).md" in docs and "Items/Food/Toxic Stew.md" in docs
-    assert "Items/Products/Crystal Sulphide.md" in docs
+def test_the_german_document_uses_the_games_german_words():
+    """The German document has German names, the German description and the game's own German terms (Mittlere
+    Raffinerie, Nährstoffprozessor - not 'Nahrungsprozessor' as before), and names the item once in English."""
+    doc = recipes.item_markdown(book(), ITEMS.get, "TOXIC1", "german", terms())
+    assert 'title: "Ammoniak"' in doc and "language: de" in doc and "## Fundort" in doc
+    assert "Ist auf Planeten mit toxischem Klima zu finden." in doc and "toxic environment" not in doc
+    assert "- 2 Pilzschimmel + 1 Salz → 1 Ammoniak · Mittlere Raffinerie oder größer" in doc
+    assert "Nährstoffprozessor" in doc and "Nahrungsprozessor" not in doc
+    assert "## Verwendet für" in doc and "Im Spiel auf Englisch: Ammonia." in doc
+
+
+def test_documents_go_to_language_and_category_folders_and_unnamed_ids_are_skipped():
+    """Per language a folder named as the language calls itself, categories as the game names them (Raw
+    Materials / Rohstoffe, Products / Produkte, Food / Nahrung); ids without an English name get no document; a
+    title with characters Windows forbids gets a safe file name; an English game gets English documents only."""
+    docs = recipes.documents(book(), ITEMS.get, terms())
+    assert "English/Raw Materials/Ammonia.md" in docs and "Deutsch/Rohstoffe/Ammoniak.md" in docs
+    assert "English/Products/Antimatter.md" in docs and "Deutsch/Produkte/Antimaterie.md" in docs
+    assert "English/Food/Toxic Stew.md" in docs and "Deutsch/Nahrung/Toxic Stew.md" in docs
+    assert "English/Products/Crystal Sulphide.md" in docs
     assert recipes.file_name('Upgrade: "A/B"?') == "Upgrade AB.md"
-    no_names = recipes.documents(book(), {}.get)
-    assert no_names == {}
+    assert recipes.documents(book(), {}.get, terms()) == {}
+    from nms_connector import game_terms
+    english_only = recipes.documents(book(), ITEMS.get, game_terms.GameTerms(language="english"))
+    assert all(p.startswith("English/") for p in english_only)
 
 
 def test_writing_touches_only_generated_files(tmp_path):
     """New and changed documents are written, unchanged ones left alone (the Codex sync skips them), generated
-    files no longer produced are removed - and a hand-written file with the same name is never overwritten."""
+    files no longer produced are removed - also the mixed-language ones of the old layout - and a hand-written
+    file is never overwritten or removed."""
     folder = tmp_path / "No Man's Sky"
-    docs = recipes.documents(book(), ITEMS.get)
-    assert recipes.write_documents(folder, docs)["written"] == len(docs)
-    assert recipes.write_documents(folder, docs) == {"written": 0, "unchanged": len(docs), "removed": 0,
-                                                     "kept_handwritten": 0}
-    own = folder / "Items" / "Raw materials" / "Salt (Salz).md"
+    docs = recipes.documents(book(), ITEMS.get, terms())
+    dirs = ("English", "Deutsch") + recipes.LEGACY_DIRS
+    assert recipes.write_documents(folder, docs, recipes.GENERATED_MARK, dirs)["written"] == len(docs)
+    assert recipes.write_documents(folder, docs, recipes.GENERATED_MARK, dirs) == {
+        "written": 0, "unchanged": len(docs), "removed": 0, "kept_handwritten": 0}
+    own = folder / "English" / "Raw Materials" / "Salt.md"
     own.write_text("# Salt\nMy own notes.", encoding="utf-8")
-    stale = folder / "Items" / "Products" / "Gone.md"
-    stale.write_text(f"---\n# {recipes.GENERATED_MARK}\n---\nold", encoding="utf-8")
-    counts = recipes.write_documents(folder, docs)
-    assert counts["kept_handwritten"] == 1 and counts["removed"] == 1 and not stale.exists()
+    legacy = folder / "Items" / "Raw materials" / "Ammonia (Ammoniak).md"
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text(f"---\n# {recipes.GENERATED_MARK}\n---\nold", encoding="utf-8")
+    counts = recipes.write_documents(folder, docs, recipes.GENERATED_MARK, dirs)
+    assert counts["kept_handwritten"] == 1 and counts["removed"] == 1
+    assert not (folder / "Items").exists()                 # emptied legacy folders go too
     assert own.read_text(encoding="utf-8") == "# Salt\nMy own notes."
-    assert (folder / "FAQ").exists() is False        # nothing outside Items/ is created or removed
 
 
 def test_no_game_gives_an_empty_book_with_a_reason():

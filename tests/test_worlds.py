@@ -94,19 +94,23 @@ def test_planet_search_finds_an_airless_planet_by_any_german_form():
     assert [e["planet"]["name"] for e, _ in index.search("toten")] == ["Leeria"]
 
 
-def test_world_documents_carry_names_weathers_facts_and_resources():
-    """One Codex document per world type: title with the game's German climate word, every planet name and
-    weather 'English = German', researched facts with their source, typical resources by name."""
+def test_world_documents_are_split_by_language():
+    """One document per world type and language: the English one has the English names and weathers only, the
+    German one the German title, names, weathers, facts and resources (as the game names them: Flüsterndes Ei,
+    Biologische Abscheulichkeit, Verrostetes Metall, Atmosphärenverarbeitungsanlage)."""
+    from nms_connector import game_terms
     items = {"SPACEGUNK3": {"en": "Rusted Metal", "local": "Verrostetes Metall"}, "TOXIC1": {"en": "Ammonia", "local": "Ammoniak"},
              "PLANT_TOXIC": {"en": "Fungal Mould"}, "GAS3": {"en": "Nitrogen", "local": "Stickstoff"}}
-    docs = book().documents(items.get)
-    dead = docs["Worlds/Airless (dead) worlds (stickig - airless).md"]
-    assert worlds.GENERATED_MARK in dead and "- Airless Planet = Stickiger Planet" in dead
-    assert "- Airless = Stickig" in dead and "Rusted Metal (Verrostetes Metall)" in dead
-    assert "Whispering Eggs" in dead and "Source: No Man's Sky community wiki" in dead
-    toxic = docs["Worlds/Toxic worlds (giftig - toxic).md"]
-    assert "Ammonia (Ammoniak)" in toxic and "Atmosphere harvester gas: Nitrogen (Stickstoff)" in toxic
-    assert "(extreme weather - storms)" in toxic
+    docs = book().documents(items.get, game_terms.GameTerms(language="german"))
+    en = docs["English/Worlds/Airless (dead) worlds.md"]
+    assert worlds.GENERATED_MARK in en and "language: en" in en and "- Airless Planet" in en
+    assert "Stickig" not in en and "Rusted Metal" in en and "Whispering Eggs" in en
+    de = docs["Deutsch/Welten/Stickige Welten (tot, ohne Atmosphäre).md"]
+    assert "language: de" in de and "- Stickiger Planet" in de and "- Stickig" in de and "Airless" not in de.split("## ")[1]
+    assert "Verrostetes Metall" in de and "Biologische Abscheulichkeiten" in de and "Flüsterndes Ei" in de
+    toxic = docs["Deutsch/Welten/Giftige Welten.md"]
+    assert "Ammoniak" in toxic and "Gas für die Atmosphärenverarbeitungsanlage: Stickstoff" in toxic
+    assert "(Extremwetter - Stürme)" in toxic
     assert worlds.load(None).error == "game installation not found"
 
 
@@ -133,8 +137,12 @@ def test_the_persona_is_told_how_many_planets_match_when_the_list_is_cut():
 
 
 def test_world_documents_open_with_a_german_sentence():
-    """The Codex's meaning-based lookup embeds a document's first passage: the airless document says in German,
-    near the top, that a 'stickige Welt' is a world without atmosphere (not sticky)."""
-    dead = book().documents({}.get)["Worlds/Airless (dead) worlds (stickig - airless).md"]
+    """The Codex's meaning-based lookup embeds a document's first passage: the German airless document says right
+    at the top that a 'stickige Welt' is a world without atmosphere (not sticky)."""
+    from nms_connector import game_terms
+    dead = book().documents({}.get, game_terms.GameTerms(language="german"))[
+        "Deutsch/Welten/Stickige Welten (tot, ohne Atmosphäre).md"]
     head = dead.split("## ", 1)[0]
-    assert "Deutsch: Eine stickige Welt" in head and "nicht klebrig" in head
+    assert "Eine stickige Welt" in head and "nicht klebrig" in head
+
+

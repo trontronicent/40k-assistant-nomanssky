@@ -10,7 +10,7 @@ Blocking (file reads); the connector calls ``load`` through ``ctx.run_blocking``
 
 from __future__ import annotations
 
-from . import frigates, recipes, settlements, ships, techstats, timers, worlds
+from . import frigates, game_terms, recipes, settlements, ships, techstats, timers, worlds
 
 
 class GameTables:
@@ -26,6 +26,7 @@ class GameTables:
         self.tech = techstats.TechStats()           # what every technology does
         self.recipes = recipes.RecipeBook()         # refiner/cooking recipes and crafting requirements
         self.worlds = worlds.WorldBook()            # world types in the game's words (English + game language)
+        self.terms = game_terms.GameTerms()         # the game's words for refiners, crafting, ... (both languages)
 
     def needs_load(self, install) -> bool:
         """True before the first load and after a game update (another build id)."""
@@ -41,7 +42,7 @@ class GameTables:
         self.ships = ships.load_tables(install, self.tech)
         self.settlements = settlements.load_tables(install)
         self.recipes = recipes.load(install)
-        self.worlds = worlds.load(install)
+        self.worlds, self.terms = self._language_tables(install)
         self.loaded = True
         warnings = []
         for label, table in (("Timer durations: built-in values", self.timers),
@@ -56,6 +57,20 @@ class GameTables:
             if error:
                 warnings.append(f"{label} ({error})")
         return warnings
+
+    @staticmethod
+    def _language_tables(install) -> tuple[worlds.WorldBook, game_terms.GameTerms]:
+        """World types and game terms from one pass over the language files (~1 s)."""
+        if install is None:
+            return worlds.WorldBook(error="game installation not found"), game_terms.GameTerms()
+        try:
+            english, local, language = game_terms.read_language(
+                install, lambda key: worlds.wanted_key(key) or game_terms.term_keys_wanted(key))
+        except (OSError, KeyError, ValueError, RuntimeError) as exc:
+            reason = f"{type(exc).__name__}: {exc}"
+            return worlds.WorldBook(error=reason), game_terms.GameTerms(error=reason)
+        return (worlds.WorldBook.from_texts(english, local, language),
+                game_terms.GameTerms.from_texts(english, local, language))
 
     # The tables with their fallbacks: what the views use, loaded or not.
 

@@ -269,55 +269,100 @@ class WorldBook:
                 out.append(f"Game term '{m['word']}' in the game's words: " + "; ".join(parts) + ".")
         return out
 
-    def documents(self, lookup, gas_names=None) -> dict[str, str]:
-        """{relative path: Markdown}: one Codex document per world type - every name the game gives such
-        planets and their weathers (English = the game's language), its climate word, typical resources and gas,
-        researched facts with their source."""
+    def documents(self, lookup, terms=None) -> dict[str, str]:
+        """{relative path: Markdown}: one Codex document per world type and language (English, and the game's
+        language) - every name the game gives such planets and their weathers in that language, its climate word,
+        typical resources and the harvester gas, researched facts with their source."""
+        from . import game_terms
+        terms = terms or game_terms.GameTerms(language=self.language or "english")
         out = {}
-        for wt in WORLD_TYPES:
-            w = self.worlds.get(wt.id) or {}
-            if not (w.get("names") or w.get("weathers")):
-                continue
-            climate = w.get("climate")
-            local_title = (climate or {}).get("local")
-            title = wt.title + (f" ({local_title} - {climate['en']})" if local_title else "")
-            lines = ["---", f"title: {json.dumps(title, ensure_ascii=False)}",
-                     "tags: [" + ", ".join(json.dumps(t, ensure_ascii=False) for t in
-                                           [wt.id, *wt.biomes, *( [local_title] if local_title else [])]) + "]",
-                     f"# {GENERATED_MARK} - edits are overwritten when the documents are generated again", "---", "",
-                     f"# {title}", "", f"{wt.summary[0].upper() + wt.summary[1:]}.", ""]
-            if GERMAN_SUMMARIES.get(wt.id):
-                lines += [f"Deutsch: {GERMAN_SUMMARIES[wt.id]}", ""]
-            if climate:
-                lines += [f"The game's word for this climate: **{climate['en']}**"
-                          + (f" (German: **{climate['local']}**)" if climate.get("local") else "") + ".", ""]
-            lines += [f"Planet records (and the plugin's planet table) call this biome: {', '.join(wt.biomes)}.", ""]
-            facts = FACTS.get(wt.id)
-            if facts:
-                lines += ["## What such a world is like (Wissenswertes)", ""]
-                lines += [f"- {p}" for p in facts["points"]] + ["", f"Source: {facts['source']}.", ""]
-            res = [r for r in wt.resources if lookup(r)]
-            if res or wt.gas:
-                lines += ["## Typical resources (Typische Ressourcen)", ""]
-                for r in res:
-                    e = lookup(r) or {}
-                    name = e.get("en") or r
-                    lines.append(f"- {name}" + (f" ({e['local']})" if e.get("local") and e.get("local") != name else ""))
-                if wt.gas:
-                    g = lookup(wt.gas) or {}
-                    lines.append(f"- Atmosphere harvester gas: {g.get('en') or wt.gas}"
-                                 + (f" ({g['local']})" if g.get("local") and g.get("local") != g.get("en") else ""))
-                lines.append("")
-            if w.get("names"):
-                lines += ["## Planet names the game uses (Planetenbezeichnungen)", ""]
-                lines += [f"- {n['en']}" + (f" = {n['local']}" if n["local"] else "") for n in w["names"]] + [""]
-            if w.get("weathers"):
-                lines += ["## Weather (Wetter)", ""]
-                lines += [f"- {x['en']}" + (f" = {x['local']}" if x["local"] else "")
-                          + (" (extreme weather - storms)" if x["extreme"] else "") for x in w["weathers"]] + [""]
-            text = re.sub(r"\n(?=- )", "\n\n", "\n".join(lines)).replace("\n\n\n", "\n\n")
-            out[f"{WORLDS_DIR}/{_file(title)}"] = text.rstrip() + "\n"
+        langs = ["english"] + ([self.language] if self.language and self.language not in ("english", "usenglish") else [])
+        for language in langs:
+            local = language != "english"
+            h = lambda key, **v: game_terms.heading(key, language, **v)        # noqa: E731
+            folder = f"{_label(language)}/{h('worlds')}"
+            for wt in WORLD_TYPES:
+                w = self.worlds.get(wt.id) or {}
+                if not (w.get("names") or w.get("weathers")):
+                    continue
+                pick = (lambda e: e.get("local") or e["en"]) if local else (lambda e: e["en"])
+                climate = w.get("climate")
+                if local and language == "german":
+                    title = GERMAN_TITLES.get(wt.id, wt.title)
+                elif local and climate and climate.get("local"):
+                    title = f"{climate['local']} ({wt.title})"
+                else:
+                    title = wt.title
+                summary = GERMAN_SUMMARIES.get(wt.id) if language == "german" else None
+                summary = summary or (wt.summary[0].upper() + wt.summary[1:] + ".")
+                tags = [wt.id, *wt.biomes] + ([climate["local"]] if local and climate and climate.get("local") else [])
+                lines = _front(title, tags, language) + [f"# {title}", "", summary, ""]
+                if climate:
+                    lines += [h("climate_word", word=pick(climate)), ""]
+                lines += [h("biomes", b=", ".join(wt.biomes)), ""]
+                facts = FACTS.get(wt.id)
+                points = (FACTS_DE.get(wt.id) if language == "german" else None) or (facts or {}).get("points")
+                if points:
+                    lines += [f"## {h('world_like')}", ""] + [f"- {x}" for x in points] + \
+                             ["", h("source", s=facts["source"]), ""]
+                res = [r for r in wt.resources if lookup(r)]
+                if res or wt.gas:
+                    lines += [f"## {h('resources')}", ""]
+                    for r in res:
+                        e = lookup(r) or {}
+                        lines.append(f"- {(e.get('local') if local else None) or e.get('en') or r}")
+                    if wt.gas:
+                        g = lookup(wt.gas) or {}
+                        gas = (g.get("local") if local else None) or g.get("en") or wt.gas
+                        lines.append(f"- {h('gas', harvester=terms.get('harvester', language), gas=gas)}")
+                    lines.append("")
+                if w.get("names"):
+                    names = list(dict.fromkeys(pick(n) for n in w["names"]))
+                    lines += [f"## {h('planet_names')}", ""] + [f"- {n}" for n in names] + [""]
+                if w.get("weathers"):
+                    seen = {}
+                    for x in w["weathers"]:
+                        seen.setdefault(pick(x), x["extreme"])
+                    lines += [f"## {h('weather')}", ""] + [f"- {n}" + (f" ({h('extreme')})" if ext else "")
+                                                           for n, ext in seen.items()] + [""]
+                text = re.sub(r"\n(?=- )", "\n\n", "\n".join(lines)).replace("\n\n\n", "\n\n")
+                out[f"{folder}/{_file(title)}"] = text.rstrip() + "\n"
         return out
+
+
+def _label(language: str) -> str:
+    from .game_install import language_label
+    return language_label(language)
+
+
+def _front(title: str, tags: list[str], language: str) -> list[str]:
+    from .game_terms import LANGUAGE_CODES
+    return ["---", f"title: {json.dumps(title, ensure_ascii=False)}",
+            "tags: [" + ", ".join(json.dumps(t, ensure_ascii=False) for t in tags) + "]",
+            f"language: {LANGUAGE_CODES.get(language, 'en')}",
+            f"# {GENERATED_MARK} - edits are overwritten when the documents are generated again", "---", ""]
+
+
+GERMAN_TITLES = {
+    "dead": "Stickige Welten (tot, ohne Atmosphäre)", "lush": "Grüne Welten (üppig)", "toxic": "Giftige Welten",
+    "scorched": "Sengend heiße Welten", "frozen": "Gefrorene Welten", "radioactive": "Verstrahlte Welten (radioaktiv)",
+    "barren": "Unwirtliche Welten (Wüste)", "swamp": "Sumpfige Welten", "lava": "Vulkanische Welten (Lava)",
+    "water": "Ozeanwelten", "exotic": "Ungewöhnliche Welten (exotisch)", "gasgiant": "Gasriesen",
+}
+# The researched facts in German (same source as FACTS).
+FACTS_DE = {
+    "dead": [
+        "Keine Atmosphäre und geringere Schwerkraft; felsige, staubige Oberflächen wie Merkur oder der Mond.",
+        "Keine gewöhnliche Flora oder Fauna, und es gibt nie Stürme.",
+        "Mehr Ressourcen als andere Biome; hier findet man Verrostetes Metall.",
+        "Flüsternde Eier (Flüsterndes Ei) liegen überall auf der Oberfläche (50-70 Einheiten auseinander) und setzen Biologische "
+        "Abscheulichkeiten frei, wenn man sie stört - auf anderen Welten nur bei verlassenen Gebäuden.",
+        "Die roten (Sauerstoff), gelben (Natrium) und blauen (Energie für den Exo-Anzug) Pflanzen wachsen trotzdem; manche "
+        "stickigen Welten haben Pflanzen unterirdisch, in Höhlen.",
+        "Keine Bauwerke wie Handelsposten.",
+        "Die Lebenserhaltung leert sich schneller: Lebenserhaltungsgel, Sauerstoff und Dioxit mitnehmen.",
+    ],
+}
 
 
 GENERATED_MARK = "generated: nomanssky-plugin worlds"
@@ -328,23 +373,23 @@ def _file(title: str) -> str:
     return re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", title).strip(" .")[:120] + ".md"
 
 
+def wanted_key(key: str) -> bool:
+    """The language keys the world types need (planet names, weathers, climate words)."""
+    return bool(_WANTED_RE.match(key))
+
+
+_WANTED_RE = re.compile(r"^(" + "|".join(sorted({re.escape(p) for wt in WORLD_TYPES
+                                                  for p in wt.type_prefixes + wt.weather_prefixes})) + r")\d+$"
+                        r"|^UI_VISIT_CLIMATE_")
+
+
 def load(install) -> WorldBook:
     """The world-type texts of an installation (blocking: reads the English and the game's language files)."""
-    from . import hgpak
-    from .gamedata import PAK_HINTS
+    from .game_terms import read_language
     if install is None:
         return WorldBook(error="game installation not found")
-    language = getattr(install, "language", None) or "english"
-    prefixes = tuple({p for wt in WORLD_TYPES for p in wt.type_prefixes + wt.weather_prefixes})
-    wanted_re = re.compile(r"^(" + "|".join(re.escape(p) for p in prefixes) + r")\d+$|^UI_VISIT_CLIMATE_")
     try:
-        texts: dict[str, dict[str, str]] = {"english": {}, language: {}}
-        with hgpak.PakSet(install.pcbanks, PAK_HINTS) as paks:
-            for lang in dict.fromkeys(("english", language)):
-                for name in paks.names_matching("language/", f"_{lang}.mbin"):
-                    for key, text in mbin.parse_language_table(paks.read(name)).items():
-                        if wanted_re.match(key):
-                            texts[lang][key] = text
-        return WorldBook.from_texts(texts["english"], texts[language] if language != "english" else None, language)
-    except (OSError, KeyError, ValueError, hgpak.PakError, hgpak.ZstdUnavailable) as exc:
+        english, local, language = read_language(install, wanted_key)
+        return WorldBook.from_texts(english, local, language)
+    except (OSError, KeyError, ValueError, RuntimeError) as exc:      # PakError is a ValueError, ZstdUnavailable a RuntimeError
         return WorldBook(error=f"{type(exc).__name__}: {exc}")

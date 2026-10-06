@@ -28,7 +28,7 @@ import struct
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import mbin
+from . import game_terms, mbin
 
 RECIPE_FILE = "metadata/reality/tables/nms_reality_gcrecipetable.mbin"
 REQUIREMENT_TABLES = ("nms_reality_gcproducttable", "nms_reality_gcsubstancetable")
@@ -189,6 +189,12 @@ def load(install) -> RecipeBook:
 
 
 # ---- Codex documents ---------------------------------------------------------------------------------------
+# One document per item and language (app 3.12.0 keeps the `language` front matter and prefers documents in the
+# question's language): English, and the game's language when it is not English - every name, description and
+# term as the game writes it in that language (game_terms), split instead of mixed (asked for 2026-10-06).
+
+ENGLISH = "english"
+
 
 def _names(lookup, item: str) -> tuple[str, str | None]:
     """(English name, game-language name or None) - the id when the game has no name for it."""
@@ -198,21 +204,48 @@ def _names(lookup, item: str) -> tuple[str, str | None]:
     return en, (local if local and local != en else None)
 
 
+def name_in(lookup, item: str, language: str) -> str:
+    """The item's name in `language` (the game's language falls back to English where it has no name)."""
+    entry = lookup(item) or {}
+    if language != ENGLISH and entry.get("local"):
+        return entry["local"]
+    return entry.get("en") or item
+
+
 def item_label(lookup, item: str) -> str:
-    """'Ammonia (Ammoniak)'."""
+    """'Ammonia (Ammoniak)' - both names, for the persona's chat data."""
     en, local = _names(lookup, item)
     return f"{en} ({local})" if local else en
 
 
-def recipe_line(lookup, r: Recipe) -> str:
-    """'2 Paraffinium + 1 Ferrite Dust (Ferritstaub) → 1 Ammonia (Ammoniak) · Medium or Large Refiner (...)'."""
-    parts = " + ".join(f"{a} {item_label(lookup, i)}" for i, a in r.ingredients)
-    line = f"{parts} → {r.amount} {item_label(lookup, r.result)}"
+def _station(r: Recipe, language: str, terms) -> str:
+    """Where a recipe is made, in the game's words: the smallest refiner with enough input slots, or the
+    Nutrient Processor ('Tragbare Raffinerie oder größer', 'Große Raffinerie', 'Nährstoffprozessor')."""
+    terms = terms or game_terms.GameTerms()
     if r.cooking:
-        return line + " · Nutrient Processor (Nahrungsprozessor)"
-    return line + " · " + {1: "any Refiner (jede Raffinerie)",
-                          2: "Medium or Large Refiner (mittlere oder große Raffinerie)"}.get(
-        len(r.ingredients), "Large Refiner (große Raffinerie)")
+        return terms.get("processor", language)
+    larger = " or larger" if language == ENGLISH else (" oder größer" if language == "german" else " +")
+    return {1: terms.get("refiner_portable", language) + larger,
+            2: terms.get("refiner_medium", language) + larger}.get(len(r.ingredients), terms.get("refiner_large", language))
+
+
+def recipe_line(lookup, r: Recipe, terms=None) -> str:
+    """'2 Paraffinium + 1 Ferrite Dust (Ferritstaub) → 1 Ammonia (Ammoniak) · Medium Refiner or larger (Mittlere
+    Raffinerie oder größer)' - both languages, for the persona."""
+    terms = terms or game_terms.GameTerms()
+    parts = " + ".join(f"{a} {item_label(lookup, i)}" for i, a in r.ingredients)
+    station = _station(r, ENGLISH, terms)
+    local_station = _station(r, terms.language, terms) if terms.language != ENGLISH else None
+    if local_station is None and terms.language == ENGLISH:
+        local_station = _station(r, "german", terms)        # the measured German fallback, for German questions
+    return f"{parts} → {r.amount} {item_label(lookup, r.result)} · {station}" + (
+        f" ({local_station})" if local_station and local_station != station else "")
+
+
+def _line_in(lookup, r: Recipe, language: str, terms) -> str:
+    """A recipe in one language only: '2 Paraffinium + 1 Ferritstaub → 1 Ammoniak · Mittlere Raffinerie oder größer'."""
+    parts = " + ".join(f"{a} {name_in(lookup, i, language)}" for i, a in r.ingredients)
+    return f"{parts} → {r.amount} {name_in(lookup, r.result, language)} · {_station(r, language, terms)}"
 
 
 def kind_of(book: RecipeBook, lookup, item: str) -> str:
@@ -224,59 +257,68 @@ def kind_of(book: RecipeBook, lookup, item: str) -> str:
     return "product"
 
 
-def item_markdown(book: RecipeBook, lookup, item: str) -> str:
-    """One item's Codex document: names, where it comes from (the game's description), every recipe that makes
-    it, its crafting recipe and what it is used in - English, with the game-language names and description."""
+def _front(title: str, tags: list[str], language: str, mark: str) -> list[str]:
+    """YAML front matter; JSON strings are valid YAML, so titles with ':' or ',' stay one value."""
+    return ["---", f"title: {json.dumps(title, ensure_ascii=False)}",
+            "tags: [" + ", ".join(json.dumps(t, ensure_ascii=False) for t in tags) + "]",
+            f"language: {game_terms.LANGUAGE_CODES.get(language, 'en')}",
+            f"# {mark} - edits are overwritten when the documents are generated again", "---", ""]
+
+
+def item_markdown(book: RecipeBook, lookup, item: str, language: str = ENGLISH, terms=None) -> str:
+    """One item's Codex document in one language: where it comes from (the game's description), every recipe
+    that makes it, its crafting recipe and what it is used for - names and terms as the game writes them there."""
+    terms = terms or game_terms.GameTerms()
     entry = lookup(item) or {}
-    en, local = _names(lookup, item)
-    title = f"{en} ({local})" if local else en
-    tags = [item] + ([local] if local else []) + ["recipe"]
-    # JSON strings are valid YAML: titles with ':' or ',' ("Upgrade Module: ...") stay one value.
-    out = ["---", f"title: {json.dumps(title, ensure_ascii=False)}",
-           "tags: [" + ", ".join(json.dumps(t, ensure_ascii=False) for t in tags) + "]",
-           f"# {GENERATED_MARK} - edits are overwritten when the documents are generated again", "---", "",
-           f"# {title}", ""]
-    if entry.get("desc_en") or entry.get("desc_local"):
-        out += ["## Where it comes from (Fundort)" if kind_of(book, lookup, item) == "substance"
-                else "## About (Beschreibung)", ""]
-        if entry.get("desc_en"):
-            out += [" ".join(entry["desc_en"].split()), ""]
-        if entry.get("desc_local"):
-            out += ["Deutsch: " + " ".join(entry["desc_local"].split()), ""]
+    local_lang = language != ENGLISH
+    name = name_in(lookup, item, language)
+    other_lang = terms.language if not local_lang else ENGLISH
+    other = name_in(lookup, item, other_lang) if other_lang != language else None
+    h = lambda key, **v: game_terms.heading(key, language, **v)            # noqa: E731
+    out = _front(name, [item] + ([other] if other and other != name else []) + ["recipe"], language, GENERATED_MARK)
+    out += [f"# {name}", ""]
+    desc = entry.get("desc_local" if local_lang else "desc_en") or entry.get("desc_en")
+    if desc:
+        out += [f"## {h('where_from') if kind_of(book, lookup, item) == 'substance' else h('about')}", "",
+                " ".join(desc.split()), ""]
+    if other and other != name:
+        out += [h("other_name", lang_name=game_terms.language_name(other_lang, language), name=other), ""]
     refined = book.made_by(item)
     if refined:
-        out += [f"## Refiner recipes for {en} (Raffinerie-Rezepte)", ""]
-        out += [f"- {recipe_line(lookup, r)}" for r in refined] + [""]
+        out += [f"## {h('refined')}: {name}", ""] + [f"- {_line_in(lookup, r, language, terms)}" for r in refined] + [""]
     cooked = book.made_by(item, cooking=True)
     if cooked:
-        out += [f"## Cooking recipes for {en} (Kochrezepte)", ""]
-        out += [f"- {recipe_line(lookup, r)}" for r in cooked] + [""]
+        out += [f"## {h('cooked')}: {name}", ""] + [f"- {_line_in(lookup, r, language, terms)}" for r in cooked] + [""]
     crafted = book.crafting.get(item)
     if crafted:
-        out += [f"## Crafting recipe for {en} (Herstellung)", "",
-                "- " + " + ".join(f"{a} {item_label(lookup, i)}" for i, a in crafted) + f" → 1 {title}", ""]
+        out += [f"## {terms.get('crafting', language)}: {name}", "",
+                "- " + " + ".join(f"{a} {name_in(lookup, i, language)}" for i, a in crafted) + f" → 1 {name}", ""]
     if not (refined or cooked or crafted) and kind_of(book, lookup, item) == "substance":
-        out += ["## Recipes (Rezepte)", "", f"No refiner or crafting recipe makes {en}: it is gathered "
-                "(mined, harvested or collected) only. (Kein Rezept: nur durch Abbauen oder Sammeln.)", ""]
+        out += [f"## {terms.get('recipes', language)}", "", h("gathered", name=name), ""]
     uses = book.used_in(item)
     if any(uses.values()):
-        out += [f"## What {en} is used for (Verwendung)", ""]
-        for kind, heading in (("refiner", "In the refiner"), ("crafting", "To craft"), ("cooking", "For cooking")):
+        out += [f"## {terms.get('used_for', language).rstrip(':')}", ""]
+        for kind, key in (("refiner", "uses_refiner"), ("crafting", "uses_crafting"), ("cooking", "uses_cooking")):
             entries = uses[kind]
             if not entries:
                 continue
-            lines = ([recipe_line(lookup, r) for r in entries] if kind != "crafting" else
-                     [item_label(lookup, p) + ": " + " + ".join(f"{a} {item_label(lookup, i)}" for i, a in book.crafting[p])
-                      for p in entries])
-            out.append(f"{heading} ({len(lines)}):")
+            lines = ([_line_in(lookup, r, language, terms) for r in entries] if kind != "crafting" else
+                     [name_in(lookup, p, language) + ": " + " + ".join(f"{a} {name_in(lookup, i, language)}"
+                                                                     for i, a in book.crafting[p]) for p in entries])
+            out.append(f"{h(key)} ({len(lines)}):")
             out += [f"- {line}" for line in lines[:MAX_USES]]
             if len(lines) > MAX_USES:
-                out.append(f"- … and {len(lines) - MAX_USES} more")
+                out.append(f"- {h('and_more', n=len(lines) - MAX_USES)}")
             out.append("")
     # Id and category last: a search snippet comes from the first passage, which should say where it comes from.
-    category = " / ".join(c for c in (entry.get("cat_en"), entry.get("cat_local")) if c)
-    out += ["## Game data (Spieldaten)", "", f"Item id `{item}`" + (f" · {category}" if category else ""), ""]
+    category = entry.get("cat_local" if local_lang else "cat_en") or entry.get("cat_en")
+    out += [f"## {h('game_data')}", "", f"{h('item_id')} `{item}`" + (f" · {category}" if category else ""), ""]
     return _loose_lists("\n".join(out)).rstrip() + "\n"
+
+
+def _label(language: str) -> str:
+    from .game_install import language_label
+    return language_label(language)
 
 
 def _loose_lists(text: str) -> str:
@@ -291,27 +333,39 @@ def file_name(title: str) -> str:
     return name[:120] + ".md"
 
 
-def documents(book: RecipeBook, lookup) -> dict[str, str]:
-    """{relative path: Markdown} for every named item in a recipe: Items/<Raw materials|Products|Food>/<title>.md.
-    Items the game gives no English name are skipped (unused ids)."""
+def languages_of(terms) -> list[str]:
+    """English, plus the game's language when it is another one."""
+    lang = getattr(terms, "language", ENGLISH) or ENGLISH
+    return [ENGLISH] + ([lang] if lang not in (ENGLISH, "usenglish") else [])
+
+
+def documents(book: RecipeBook, lookup, terms=None) -> dict[str, str]:
+    """{relative path: Markdown} for every named item in a recipe, per language:
+    '<English|Deutsch|...>/<Raw Materials|Products|Food in the game's words>/<name>.md'. Items the game gives no
+    English name are skipped (unused ids)."""
+    terms = terms or game_terms.GameTerms()
+    folders = {"substance": "raw", "product": "products", "food": "food"}
     out: dict[str, str] = {}
-    for item in sorted(book.items()):
-        entry = lookup(item) or {}
-        if not entry.get("en"):
-            continue
-        title = item_label(lookup, item)
-        path = f"{ITEMS_DIR}/{CATEGORY_DIRS[kind_of(book, lookup, item)]}/{file_name(title)}"
-        if path in out:                                  # two ids with one name: keep both, the id tells them apart
-            path = path[:-3] + f" [{item}].md"
-        out[path] = item_markdown(book, lookup, item)
+    for language in languages_of(terms):
+        root = _label(language)
+        for item in sorted(book.items()):
+            entry = lookup(item) or {}
+            if not entry.get("en"):
+                continue
+            path = f"{root}/{terms.get(folders[kind_of(book, lookup, item)], language)}/" \
+                   f"{file_name(name_in(lookup, item, language))}"
+            if path in out:                              # two ids with one name: keep both, the id tells them apart
+                path = path[:-3] + f" [{item}].md"
+            out[path] = item_markdown(book, lookup, item, language, terms)
     return out
 
 
 def write_documents(folder: Path, docs: dict[str, str], mark: str = GENERATED_MARK,
-                    subdir: str = ITEMS_DIR) -> dict[str, int]:
+                    subdirs: tuple[str, ...] | str = ITEMS_DIR) -> dict[str, int]:
     """Write `docs` below `folder` (the library's folder in the Codex folder): new and changed files are written,
-    unchanged ones left alone (the Codex sync then skips them), generated files under `subdir` no longer produced
-    are removed. Only files containing `mark` (the generator's own) are ever changed or removed. Returns the counts."""
+    unchanged ones left alone (the Codex sync then skips them), generated files under `subdirs` no longer produced
+    are removed (and folders left empty). Only files containing `mark` (the generator's own) are ever changed or
+    removed. Returns the counts."""
     folder = Path(folder)
     counts = {"written": 0, "unchanged": 0, "removed": 0, "kept_handwritten": 0}
     for rel, text in docs.items():
@@ -329,19 +383,28 @@ def write_documents(folder: Path, docs: dict[str, str], mark: str = GENERATED_MA
         tmp.write_text(text, encoding="utf-8", newline="\n")
         tmp.replace(path)
         counts["written"] += 1
-    root = folder / subdir
     wanted = {(folder / rel).resolve() for rel in docs}
-    if root.exists():
+    for subdir in ([subdirs] if isinstance(subdirs, str) else subdirs):
+        root = folder / subdir
+        if not root.exists():
+            continue
         for path in root.rglob("*.md"):
             if path.resolve() not in wanted and mark in path.read_text(encoding="utf-8", errors="replace"):
                 path.unlink()
                 counts["removed"] += 1
+        for d in sorted((p for p in root.rglob("*") if p.is_dir()), key=lambda p: -len(p.parts)) + [root]:
+            if d.is_dir() and not any(d.iterdir()):
+                d.rmdir()
     return counts
 
 
+# Folders of the mixed-language documents written before 2026-10-06 (removed when the split ones are written).
+LEGACY_DIRS = ("Items", "Worlds")
+
+
 def main(argv: list[str] | None = None) -> int:
-    """Generate the item and world-type documents into a Codex library folder (argument), from the installed game
-    and the plugin's item cache (names and descriptions)."""
+    """Generate the item and world-type documents, per language, into a Codex library folder (argument), from the
+    installed game and the plugin's item cache (names and descriptions)."""
     import argparse
     from .game_install import find_game
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
@@ -355,18 +418,21 @@ def main(argv: list[str] | None = None) -> int:
     if book.error:
         print(f"Recipes unavailable: {book.error}")
         return 1
-    items = json.loads(Path(args.items).read_text(encoding="utf-8")).get("items") or {}
-    docs = documents(book, items.get)
-    print(f"{len(book.recipes)} recipes, {len(book.crafting)} crafting recipes -> {len(docs)} documents")
-    print("items:", write_documents(Path(args.folder), docs))
     from . import worlds
+    terms = game_terms.load(install)
     world_book = worlds.load(install)
     if world_book.error:
         print(f"World types unavailable: {world_book.error}")
         return 1
-    world_docs = world_book.documents(items.get)
+    items = json.loads(Path(args.items).read_text(encoding="utf-8")).get("items") or {}
+    roots = tuple(_label(lang) for lang in languages_of(terms))
+    docs = documents(book, items.get, terms)
+    print(f"{len(book.recipes)} recipes, {len(book.crafting)} crafting recipes -> {len(docs)} item documents "
+          f"in {', '.join(roots)}")
+    print("items:", write_documents(Path(args.folder), docs, GENERATED_MARK, roots + LEGACY_DIRS))
+    world_docs = world_book.documents(items.get, terms)
     print(f"{len(world_docs)} world-type documents ->",
-          write_documents(Path(args.folder), world_docs, worlds.GENERATED_MARK, worlds.WORLDS_DIR))
+          write_documents(Path(args.folder), world_docs, worlds.GENERATED_MARK, roots + LEGACY_DIRS))
     return 0
 
 

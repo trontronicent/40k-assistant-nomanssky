@@ -33,7 +33,15 @@ PERSONA_PROMPT = (
     "give the range and say so. For trade goods the block groups them by kind (Technology, Minerals, ...) with the "
     "game's base value, what a buyer pays and the nearest known system that needs the kind: answer \"what kind\" and "
     "\"where to sell\" questions from it, the most valuable kind first. For a question about planets (\"where are "
-    "scorching hot planets?\") the block lists the recorded planets that match it, nearest first.\n\n"
+    "scorching hot planets?\") the block lists the recorded planets that match it, nearest first; when it says "
+    "\"N recorded planets match ... the nearest M of them\", N is the answer to \"how many\", not M.\n\n"
+    "Game words mean what the game means by them. A \"Game term\" line in the block says what a word of the "
+    "question is in the game (the German game's \"stickig\" is airless - a dead world without atmosphere - not "
+    "sticky): use that meaning. Never translate game names yourself - planet types, weathers, items, refiners and "
+    "buildings are named in the block in English and the game's language, so use the name in the player's "
+    "language exactly as given. \"How to get\" lines come from the game's own recipe tables: prefer them to Codex "
+    "excerpts and to your memory, which may be from an older version of the game. Codex excerpts may be in German "
+    "or English; quote names from them as they are written.\n\n"
     "For general No Man's Sky questions (recipes, mechanics, lore) use the Codex excerpts or web search results when "
     "you are given them and cite them as given; otherwise answer from your own knowledge and say that it is not from "
     "their save. The player's own numbers come only from the game data. Be concise and friendly; answer in the "
@@ -332,7 +340,7 @@ class PluginCompanion:
             if entry.get("desc_en"):
                 out.append("  where it comes from: " + " ".join(entry["desc_en"].split()))
             for r in refined[:MAX_RECIPES_PER_ITEM]:
-                out.append("  refiner: " + recipes.recipe_line(lookup, r))
+                out.append("  refiner: " + recipes.recipe_line(lookup, r, getattr(c.tables, "terms", None)))
             if len(refined) > MAX_RECIPES_PER_ITEM:
                 out.append(f"  ... {len(refined) - MAX_RECIPES_PER_ITEM} more refiner recipes")
             if crafted:

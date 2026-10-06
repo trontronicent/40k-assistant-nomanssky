@@ -4,6 +4,7 @@
   "id": "nomanssky",
   "name": "No Man's Sky",
   "version": "0.12.0",
+  "data_version": 1,
   "description": "Connector to No Man's Sky: inventories, storage and equipment (what each part does, base values), galaxy and system maps with names, economies and trade routes, settlements, frigates and timers, a persona that answers from your game data, and route planner and star positions (prototypes).",
   "author": {
     "name": "Reto Kummer alias Reat Kay",
@@ -42,7 +43,7 @@
     }
   ],
   "app": {
-    "min_version": "3.7.0",
+    "min_version": "3.12.0",
     "plugin_api": 2
   },
   "contributes": {
