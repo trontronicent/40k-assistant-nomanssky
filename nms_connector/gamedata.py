@@ -277,6 +277,8 @@ class GameData:
         self.build_id: str | None = None
         self.language = "english"
         self.stored = False                            # True: adopted from the cache without the game files
+        self._names: dict[str, list[str]] = {}
+        self._names_for: dict | None = None            # the items dict `_names` was built from
         self.built_at: str | None = None
         self.build_seconds: float | None = None
         self.error: str | None = None
@@ -295,6 +297,20 @@ class GameData:
 
     def matches(self, install: GameInstall) -> bool:
         return self.ready and self.build_id == install.build_id and self.language == install.language
+
+    def names(self) -> dict[str, list[str]]:
+        """{item id: [English name, game-language name]} of every item (names the game lacks left out). Built once
+        per item database; what the persona matches a question's words against."""
+        if self._names_for is not self.items:
+            self._names = {i: [n for n in (e.get("en"), e.get("local")) if n] for i, e in (self.items or {}).items()}
+            self._names_for = self.items
+        return self._names
+
+    def release(self) -> None:
+        """Drop the item database, the texts and the name index from memory (the cache on disk stays)."""
+        self.items = {}
+        self._texts, self._texts_for, self._unknown_texts = {}, None, set()
+        self._names, self._names_for = {}, None
 
     def lookup(self, item_id: str) -> dict | None:
         return self.items.get(item_key(item_id))

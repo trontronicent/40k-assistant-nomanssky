@@ -234,16 +234,17 @@ class PluginCompanion:
         extra += self._block("inventory worth", self.worth_lines, question, words, snap, name_of)
         extra += self._block("expeditions", self.expedition_lines, question, snap)
         extra += self._block("game terms", self.world_lines, question)
-        all_names = {i: [n for n in (e.get("en"), e.get("local")) if n] for i, e in (c.gamedata.items or {}).items()}
+        all_names = c.gamedata.names()
 
         def item_notes(item_id):
             hint = ctx.trade_hint(item_id)        # trade goods: who pays well, the nearest known such system
             return " ".join(hint.split("\n")) if hint else None
 
-        return {"title": "No Man's Sky", "text": assistant.build_context(
-            question, snap, name_of, names_of, all_names, status, extra, planets_offering, item_notes,
+        lookups = assistant.ItemLookups(
+            name_of, names_of, all_names, planets_offering, item_notes,
             lambda place_names: self.kind_lines(snap, place_names, ctx, name_of),
-            lambda item_id: (c.gamedata.lookup(item_id) or {}).get("value")),
+            lambda item_id: (c.gamedata.lookup(item_id) or {}).get("value"))
+        return {"title": "No Man's Sky", "text": assistant.build_context(question, snap, lookups, status, extra),
             # How the plugin asks its data to be answered - outside the data block (app 3.12.0).
             "instructions": answer_rules,
             # The Settings tab's "Single Context Per Question": this plugin's persona gets no earlier turns (3.11.0).
@@ -410,7 +411,7 @@ class PluginCompanion:
         if book is None or not book.recipes:
             return []
         lookup = c.gamedata.lookup
-        names = {i: [n for n in (e.get("en"), e.get("local")) if n] for i, e in (c.gamedata.items or {}).items()}
+        names = c.gamedata.names()
         have = {i: e["total"] for i, e in assistant.holdings(snap).items()} if snap else {}
         edible = {i for i in cooking.dishes(book) if (lookup(i) or {}).get("cat_en") in cooking.DISH_CATEGORIES}
         return cooking.cooking_lines(
@@ -424,7 +425,7 @@ class PluginCompanion:
         if not (words & assistant.WORTH_WORDS):
             return []
         c = self.connector
-        names = {i: [n for n in (e.get("en"), e.get("local")) if n] for i, e in (c.gamedata.items or {}).items()}
+        names = c.gamedata.names()
         if assistant.match_items(question, names, whole_only=True) and not (words & assistant.WHOLE_WORDS):
             return []
         return assistant.inventory_worth(snap, lambda i: (c.gamedata.lookup(i) or {}).get("value"), name_of)
@@ -437,7 +438,7 @@ class PluginCompanion:
         book = getattr(c.tables, "recipes", None)
         if not (words & RECIPE_WORDS) or book is None or not book.recipes:
             return []
-        names = {i: [n for n in (e.get("en"), e.get("local")) if n] for i, e in (c.gamedata.items or {}).items()}
+        names = c.gamedata.names()
         lookup = c.gamedata.lookup
         out = []
         for item in assistant.match_items(question, names)[:MAX_RECIPE_ITEMS]:

@@ -92,7 +92,7 @@ class Pak:
             self._f.close()
             raise
 
-    def __enter__(self) -> "Pak":
+    def __enter__(self) -> Pak:
         return self
 
     def __exit__(self, *exc) -> None:
@@ -238,7 +238,7 @@ class PakSet:
         # ones, whose indexes are the expensive ones to build.
         self._by_size = sorted(self._paths, key=lambda p: (_size(p), p.name.lower()))
 
-    def __enter__(self) -> "PakSet":
+    def __enter__(self) -> PakSet:
         return self
 
     def __exit__(self, *exc) -> None:

@@ -158,7 +158,7 @@ class WorldBook:
     error: str | None = None
 
     @classmethod
-    def from_texts(cls, english: dict[str, str], local: dict[str, str] | None, language: str | None = None) -> "WorldBook":
+    def from_texts(cls, english: dict[str, str], local: dict[str, str] | None, language: str | None = None) -> WorldBook:
         local = local or {}
         worlds = {}
         for wt in WORLD_TYPES:

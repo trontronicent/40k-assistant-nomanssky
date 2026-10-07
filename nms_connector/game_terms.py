@@ -105,7 +105,7 @@ class GameTerms:
     error: str | None = None
 
     @classmethod
-    def from_texts(cls, english: dict[str, str], local: dict[str, str] | None, language: str = "english") -> "GameTerms":
+    def from_texts(cls, english: dict[str, str], local: dict[str, str] | None, language: str = "english") -> GameTerms:
         def pick(texts):
             return {c: " ".join((mbin.clean_text(texts.get(k)) or "").split()) for c, k in TERM_KEYS.items()
                     if texts.get(k)}

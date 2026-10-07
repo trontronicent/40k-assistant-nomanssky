@@ -22,6 +22,8 @@ one, predicted ones marked).
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import datetime
 
 WORD_RE = re.compile(r"[\w'-]+", re.UNICODE)
@@ -242,81 +244,115 @@ def inventory_worth(snap: dict | None, value_of, name_of) -> list[str]:
     return out
 
 
-def build_context(question: str, snap: dict | None, name_of, names_of, all_names: dict[str, list[str]],
-                  status_lines: list[str], extra_lines: list[str], planets_offering=None, item_notes=None,
-                  kind_lines=None, value_of=None) -> str:
-    """The data text for one question. `name_of(id)` -> display name, `names_of(id)` -> [English, local],
-    `all_names` = every item the game knows (id -> names), `status_lines`/`extra_lines` ready-made lines,
-    `planets_offering(id)` -> ["Planet (System, distance)", ...] or None, `item_notes(id)` -> a line for an item
-    (where a trade good sells) or None, `kind_lines(place names or None)` -> lines on the trade goods grouped by kind
-    with their value and where each kind sells (asked for every trade-goods question)."""
+@dataclass
+class ItemLookups:
+    """What `build_context` needs to name and describe items (supplied by the connector, so the builder stays pure).
+
+    `name_of(id)` -> display name; `names_of(id)` -> [English, local]; `all_names` = every item the game knows
+    (id -> names); `planets_offering(id)` -> ["Planet (System, distance)", ...] or None; `item_notes(id)` -> a line
+    for an item (where a trade good sells) or None; `kind_lines(place names or None)` -> lines on the trade goods
+    grouped by kind (asked for every trade-goods question); `value_of(id)` -> base value, 0 = cannot be sold, None
+    = unknown."""
+    name_of: Callable[[str], str]
+    names_of: Callable[[str], list[str]]
+    all_names: dict[str, list[str]]
+    planets_offering: Callable[[str], list[str] | None] | None = None
+    item_notes: Callable[[str], str | None] | None = None
+    kind_lines: Callable[[list[str] | None], list[str]] | None = None
+    value_of: Callable[[str], int | None] | None = None
+
+
+def _named_item_lines(item_id: str, entry: dict | None, lk: ItemLookups, noted: dict[str, str]) -> list[str]:
+    """The lines of one item the question names: total and places (when owned), its value, where a trade good sells
+    (once per kind: identical notes say 'sells like ...'), and the nearest planets offering it."""
+    name = lk.name_of(item_id)
+    if entry is None:
+        out = [f"- {name} [{item_id}]: 0 - not in any of your inventories"]
+    else:
+        where = "; ".join(f"{place}: {_fmt(amount)}" for place, amount in entry["places"])
+        out = [f"- {name} [{item_id}]: {_fmt(entry['total'])} in total - {where}"]
+    worth = value_note(lk.value_of(item_id), entry["total"] if entry else None) if lk.value_of else ""
+    if worth:
+        out.append(f"  {worth}")
+    note = lk.item_notes(item_id) if lk.item_notes and entry is not None else None
+    if note and note in noted:
+        out.append(f"  sells like {noted[note]} (above)")
+    elif note:
+        noted[note] = name
+        out.append(f"  {note}")
+    nearest = lk.planets_offering(item_id) if lk.planets_offering else None
+    if nearest:
+        out.append(f"  found on: {'; '.join(nearest[:NEAREST_PLANETS])}")
+    return out
+
+
+def _named_items_section(matched: list[str], missing: list[str], have: dict, lk: ItemLookups) -> list[str]:
+    out = ["", "Items the question names (totals across all your inventories, as of the last save):"]
+    noted: dict[str, str] = {}      # a trade good's sell note is the same for its whole kind: once each
+    for item_id in matched[:MAX_ITEMS]:
+        out += _named_item_lines(item_id, have[item_id], lk, noted)
+    if len(matched) > MAX_ITEMS:
+        out.append(f"- ... and {len(matched) - MAX_ITEMS} more items with these words in their names")
+    for item_id in missing:
+        out += _named_item_lines(item_id, None, lk, noted)
+    return out
+
+
+def _place_sections(asked: list[str], snap: dict, lk: ItemLookups) -> list[str]:
+    out: list[str] = []
+    for place, rows in places(snap):
+        if place not in asked:
+            continue
+        out += ["", f"Contents of {place} ({len(rows)} stacks):"]
+        for item_id, amount, _maximum in [r for r in rows if ITEM_ID_RE.match(str(r[0]))][:MAX_PLACE_ROWS]:
+            note = lk.item_notes(item_id) if lk.item_notes and item_id.startswith("TRA_") else None
+            out.append(f"- {lk.name_of(item_id)} [{item_id}]: {_fmt(int(amount or 0))}" + (f" - {note}" if note else ""))
+    return out
+
+
+def _largest_stacks(have: dict, lk: ItemLookups) -> list[str]:
+    out = ["", f"Your largest stacks in all (top {TOP_STACKS}, totals across all inventories):"]
+    for item_id, entry in sorted(have.items(), key=lambda kv: -kv[1]["total"])[:TOP_STACKS]:
+        out.append(f"- {lk.name_of(item_id)} [{item_id}]: {_fmt(entry['total'])}")
+    return out
+
+
+def _missing_items(question: str, have: dict, all_names: dict[str, list[str]]) -> list[str]:
+    """Items the question names that the player does not have: whole names of every item the game knows (not word
+    matches - too broad), at most five."""
+    q_text = " " + " ".join(_words(question)) + " "
+    return [i for i, names in all_names.items() if i not in have and any(
+        len(n) >= MIN_WORD and f" {' '.join(_words(n))} " in q_text for n in names if n)][:5]
+
+
+def build_context(question: str, snap: dict | None, lookups: ItemLookups, status_lines: list[str],
+                  extra_lines: list[str]) -> str:
+    """The data text for one question: `status_lines` (ready-made), the trade goods by kind when asked, the items the
+    question names with totals and places, or the contents of a named inventory, or the largest stacks; then the
+    inventory overview and `extra_lines` (ready-made)."""
     if not snap:
         return "No save has been read yet, so there is no game data."
     out = list(status_lines)
     have = holdings(snap)
-    owned_names = {item_id: names_of(item_id) for item_id in have}
-    matched = match_items(question, owned_names)
-    if TRADE_GOODS_RE.search(question or ""):
+    matched = match_items(question, {item_id: lookups.names_of(item_id) for item_id in have})
+    trade_goods = bool(TRADE_GOODS_RE.search(question or ""))
+    if trade_goods:
         matched = list(dict.fromkeys([i for i in have if i.startswith("TRA_")] + [m for m in matched if m.startswith("TRA_")]))
-    # Named items you do not have: whole names of every item the game knows (not word matches - too broad).
-    if kind_lines and TRADE_GOODS_RE.search(question or ""):
-        lines = kind_lines(places_asked(question, snap) or None)
+        lines = lookups.kind_lines(places_asked(question, snap) or None) if lookups.kind_lines else []
         if lines:
-            out.append("")
-            out += lines
-    q_text = " " + " ".join(_words(question)) + " "
-    missing = [i for i, names in all_names.items() if i not in have and any(
-        len(n) >= MIN_WORD and f" {' '.join(_words(n))} " in q_text for n in names if n)][:5]
+            out += [""] + lines
+    missing = _missing_items(question, have, lookups.all_names)
     if matched or missing:
-        out.append("")
-        out.append("Items the question names (totals across all your inventories, as of the last save):")
-        noted: dict[str, str] = {}      # a trade good's sell note is the same for its whole kind: once each
-        for item_id in matched[:MAX_ITEMS]:
-            entry = have[item_id]
-            where = "; ".join(f"{place}: {_fmt(amount)}" for place, amount in entry["places"])
-            out.append(f"- {name_of(item_id)} [{item_id}]: {_fmt(entry['total'])} in total - {where}")
-            worth = value_note(value_of(item_id), entry["total"]) if value_of else ""
-            if worth:
-                out.append(f"  {worth}")
-            note = item_notes(item_id) if item_notes else None
-            if note and note in noted:
-                out.append(f"  sells like {noted[note]} (above)")
-            elif note:
-                noted[note] = name_of(item_id)
-                out.append(f"  {note}")
-            nearest = planets_offering(item_id) if planets_offering else None
-            if nearest:
-                out.append(f"  found on: {'; '.join(nearest[:NEAREST_PLANETS])}")
-        if len(matched) > MAX_ITEMS:
-            out.append(f"- ... and {len(matched) - MAX_ITEMS} more items with these words in their names")
-        for item_id in missing:
-            out.append(f"- {name_of(item_id)} [{item_id}]: 0 - not in any of your inventories")
-            worth = value_note(value_of(item_id)) if value_of else ""
-            if worth:
-                out.append(f"  {worth}")
-            nearest = planets_offering(item_id) if planets_offering else None
-            if nearest:
-                out.append(f"  found on: {'; '.join(nearest[:NEAREST_PLANETS])}")
-    asked = places_asked(question, snap) if not (matched or missing) else []   # named items answer it already
-    if asked:
-        for place, rows in places(snap):
-            if place not in asked:
-                continue
-            out.append("")
-            out.append(f"Contents of {place} ({len(rows)} stacks):")
-            for item_id, amount, _maximum in [r for r in rows if ITEM_ID_RE.match(str(r[0]))][:MAX_PLACE_ROWS]:
-                note = item_notes(item_id) if item_notes and item_id.startswith("TRA_") else None
-                out.append(f"- {name_of(item_id)} [{item_id}]: {_fmt(int(amount or 0))}" + (f" - {note}" if note else ""))
-    elif not (matched or missing) and INVENTORY_WORDS & set(_words(question)):
-        out.append("")
-        out.append(f"Your largest stacks in all (top {TOP_STACKS}, totals across all inventories):")
-        for item_id, entry in sorted(have.items(), key=lambda kv: -kv[1]["total"])[:TOP_STACKS]:
-            out.append(f"- {name_of(item_id)} [{item_id}]: {_fmt(entry['total'])}")
-    out.append("")
+        out += _named_items_section(matched, missing, have, lookups)
+    else:        # named items answer the question already; otherwise a named place, otherwise "what do I have"
+        asked = places_asked(question, snap)
+        if asked:
+            out += _place_sections(asked, snap, lookups)
+        elif INVENTORY_WORDS & set(_words(question)):
+            out += _largest_stacks(have, lookups)
     counts = [(place, sum(1 for r in rows if ITEM_ID_RE.match(str(r[0])))) for place, rows in places(snap)]
-    out.append("Inventories: " + "; ".join(f"{place} ({n} stacks)" for place, n in counts if n))
-    out += extra_lines
-    return "\n".join(out)
+    out += ["", "Inventories: " + "; ".join(f"{place} ({n} stacks)" for place, n in counts if n)]
+    return "\n".join(out + extra_lines)
 
 
 def saved_text(iso: str | None) -> str:

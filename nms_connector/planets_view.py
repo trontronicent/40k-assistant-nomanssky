@@ -534,7 +534,7 @@ def _star(key: int, visit: dict, planets: list[dict], ctx: Context) -> dict:
         special = "an Atlas interface system"
     elif index in PURPLE_SYSTEMS:
         color, special = PURPLE_STAR, "purple star"
-    known = {p.get("index") for p in planets} | set((visit.get("planets") or {}))
+    known = {p.get("index") for p in planets} | set(visit.get("planets") or {})
     last = max((p.get("last_seen") or "" for p in planets), default="") or None
     bases = [b["name"] for b in ctx.bases if b.get("system") == key]
     items = [

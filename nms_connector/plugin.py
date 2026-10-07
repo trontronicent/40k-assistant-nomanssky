@@ -22,6 +22,7 @@ import json
 import time
 import urllib.request
 from datetime import datetime
+from functools import cached_property
 from pathlib import Path
 
 from . import equipment, frigates, galaxy, hgpak, logs, memory, planet_search, planets_view, positions, route, saves, settlements, ships, starmap, timers, trade
@@ -84,6 +85,10 @@ def _snapshot_item_ids(snap: dict) -> list[str]:
     for chest in snap.get("storage") or []:
         rows = rows + chest["rows"]
     return list(dict.fromkeys(row[0] for row in rows))
+
+
+def _on_off(flag: bool) -> str:
+    return "on" if flag else "off"
 
 
 class NmsConnector:
@@ -217,17 +222,16 @@ class NmsConnector:
         snapshot and its derived lists, the recorded planets and the module caches. All of it is on disk (or re-read from
         the game files) when the plugin starts again; the app unloads the plugin's modules on stop/update, and this makes
         sure nothing a task or the app still references keeps ~30-60 MB alive. Safe to call twice."""
-        self.gamedata.items = {}
-        self.gamedata._texts, self.gamedata._texts_for, self.gamedata._unknown_texts = {}, None, set()
+        self.gamedata.release()
         self.tables = GameTables(TableStore(self.data_dir))
         self.gamedata.tech, self.gamedata.recipes, self.gamedata.terms = self.tables.tech, self.tables.recipes, self.tables.terms
         self.snapshot, self.visits, self.settlements, self.timers = None, {}, [], []
         self.ships, self.freighter, self.equipment, self.frigates = [], None, None, []
         self.history.planets.clear()
         self.degraded.clear()
-        starmap._predictions.clear()
-        galaxy._positions.clear()
-        self.starmap._table, self.starmap._table_for = None, None
+        starmap.clear_predictions()
+        galaxy.clear_positions()
+        self.starmap.release()
         gc.collect()
 
     def _load_route(self) -> dict:
@@ -608,78 +612,112 @@ class NmsConnector:
 
     # ------------------------------------------------------------------ UI
 
+    @cached_property
+    def _actions(self) -> dict:
+        """action id -> async handler(params); one small method per action instead of one long if-chain."""
+        return {
+            planets_view.PLAN_ROUTE: self._act_plan_route,
+            planets_view.OPEN_SYSTEM: self._act_open_system,
+            planets_view.GALAXY_COLORS: self._act_galaxy_colors,
+            planets_view.SEARCH_PLANETS: self._act_search_planets,
+            planets_view.NAME_FIX: self._act_name_fix,
+            "rescan": self._act_rescan,
+            "update_mapping": self._act_update_mapping,
+            "write_codex": lambda params: self._write_codex(),
+            "rebuild_names": self._act_rebuild_names,
+            "scan_memory": self._act_scan_memory,
+            "clear_history": self._act_clear_history,
+            SAVE_SETTINGS: self._act_save_settings,
+            SET_SETTING: self._act_set_setting,
+        }
+
     async def action(self, action_id: str, params: dict) -> dict:
         """Run one of the page's actions (buttons, forms, row clicks); params are untrusted input."""
-        if action_id == planets_view.PLAN_ROUTE:
-            return await self.ctx.run_blocking(self._plan_route, params or {})
-        if action_id == planets_view.OPEN_SYSTEM:
-            key = planets_view.parse_system_key((params or {}).get("key"))
-            if key is None:
-                return {"ok": False, "message": "Unknown system."}
-            self.selected_system = key
-            return {"ok": True, "focus": planets_view.SYSTEM_MAP_ID}
-        if action_id == planets_view.GALAXY_COLORS:
-            mode = str((params or {}).get("color_by") or "")
-            if mode not in planets_view.COLOR_MODES:
-                return {"ok": False, "message": "Unknown colouring."}
-            self.galaxy_colors = mode
-            return {"ok": True, "focus": planets_view.GALAXY_MAP_ID}
-        if action_id == "rescan":
-            self.snapshot = None
-            self._force.set()
-            return {"ok": True, "message": "Reading the newest save again."}
-        if action_id == "update_mapping":
-            await self._ensure_mapping(force=True)
-            if self.mapping_error:
-                return {"ok": False, "message": f"Download failed: {self.mapping_error}"}
-            self.snapshot = None
-            self._force.set()
-            return {"ok": True, "message": f"Key mapping {self.mapping_meta.get('tag')} downloaded."}
-        if action_id == "write_codex":
-            return await self._write_codex()
-        if action_id == "rebuild_names":
-            await self._ensure_gamedata(force=True)
-            if self.install is None:
-                return {"ok": False, "message": "No Man's Sky installation not found (set NMS_GAME_DIR)."}
-            if self.gamedata.error:
-                return {"ok": False, "message": f"Reading the game files failed: {self.gamedata.error}"}
-            return {"ok": True, "message": f"{len(self.gamedata.items):,} item names read from the game "
-                                           f"({self.gamedata.language_label})."}
-        if action_id == "scan_memory":
-            await self._read_memory(force=True)
-            if self.live.status != "ok":
-                return {"ok": False, "message": self.live.error or "No Man's Sky is not running."}
-            return {"ok": True, "message": f"Read {self.live.last_scan_planets} planet(s) from the game in "
-                                           f"{self.live.last_scan_seconds} s."}
-        if action_id == planets_view.SEARCH_PLANETS:
-            # Untrusted form value: a string, cut to the field's length.
-            self.planet_query = str((params or {}).get("query") or "").strip()[:planet_search.MAX_QUERY_CHARS]
-            if not self.planet_query:
-                return {"ok": True, "message": "Planet search cleared."}
-            found = len(planets_view.planet_index(self.context()).search(self.planet_query))
-            return {"ok": True, "focus": planets_view.PLANET_SEARCH_ID,
-                    "message": f"{found} planet(s) match \"{self.planet_query}\"."}
-        if action_id == SAVE_SETTINGS:
-            problem = self.settings.update(params or {})
-            if problem:
-                return {"ok": False, "message": problem}
-            await self.ctx.run_blocking(self.settings.save, self.settings_path)
-            return {"ok": True, "message": f"Settings saved: codeword \"{self.settings.codeword}\", single context per "
-                                           f"question {'on' if self.settings.single_context else 'off'}."}
-        if action_id == SET_SETTING:
-            problem = self.settings.set_switch(params or {})
-            if problem:
-                return {"ok": False, "message": problem}
-            await self.ctx.run_blocking(self.settings.save, self.settings_path)
-            return {"ok": True, "message": f"Single context per question "
-                                           f"{'on' if self.settings.single_context else 'off'}."}
-        if action_id == planets_view.NAME_FIX:
-            return await self.ctx.run_blocking(self._name_fix, params or {})
-        if action_id == "clear_history":
-            self.watcher.events.clear()
-            await self.ctx.run_blocking(self._save_events)
-            return {"ok": True, "message": "Save history cleared."}
-        raise ValueError(f"unknown action {action_id}")
+        handler = self._actions.get(action_id)
+        if handler is None:
+            raise ValueError(f"unknown action {action_id}")
+        return await handler(params or {})
+
+    async def _act_plan_route(self, params: dict) -> dict:
+        return await self.ctx.run_blocking(self._plan_route, params)
+
+    async def _act_name_fix(self, params: dict) -> dict:
+        return await self.ctx.run_blocking(self._name_fix, params)
+
+    async def _act_open_system(self, params: dict) -> dict:
+        key = planets_view.parse_system_key(params.get("key"))
+        if key is None:
+            return {"ok": False, "message": "Unknown system."}
+        self.selected_system = key
+        return {"ok": True, "focus": planets_view.SYSTEM_MAP_ID}
+
+    async def _act_galaxy_colors(self, params: dict) -> dict:
+        mode = str(params.get("color_by") or "")
+        if mode not in planets_view.COLOR_MODES:
+            return {"ok": False, "message": "Unknown colouring."}
+        self.galaxy_colors = mode
+        return {"ok": True, "focus": planets_view.GALAXY_MAP_ID}
+
+    async def _act_search_planets(self, params: dict) -> dict:
+        # Untrusted form value: a string, cut to the field's length.
+        self.planet_query = str(params.get("query") or "").strip()[:planet_search.MAX_QUERY_CHARS]
+        if not self.planet_query:
+            return {"ok": True, "message": "Planet search cleared."}
+        found = len(planets_view.planet_index(self.context()).search(self.planet_query))
+        return {"ok": True, "focus": planets_view.PLANET_SEARCH_ID,
+                "message": f"{found} planet(s) match \"{self.planet_query}\"."}
+
+    async def _act_rescan(self, params: dict) -> dict:
+        self._read_save_again()
+        return {"ok": True, "message": "Reading the newest save again."}
+
+    async def _act_update_mapping(self, params: dict) -> dict:
+        await self._ensure_mapping(force=True)
+        if self.mapping_error:
+            return {"ok": False, "message": f"Download failed: {self.mapping_error}"}
+        self._read_save_again()
+        return {"ok": True, "message": f"Key mapping {self.mapping_meta.get('tag')} downloaded."}
+
+    def _read_save_again(self) -> None:
+        """Forget the decoded snapshot and wake the work loop: the newest save is read at once."""
+        self.snapshot = None
+        self._force.set()
+
+    async def _act_rebuild_names(self, params: dict) -> dict:
+        await self._ensure_gamedata(force=True)
+        if self.install is None:
+            return {"ok": False, "message": "No Man's Sky installation not found (set NMS_GAME_DIR)."}
+        if self.gamedata.error:
+            return {"ok": False, "message": f"Reading the game files failed: {self.gamedata.error}"}
+        return {"ok": True, "message": f"{len(self.gamedata.items):,} item names read from the game "
+                                       f"({self.gamedata.language_label})."}
+
+    async def _act_scan_memory(self, params: dict) -> dict:
+        await self._read_memory(force=True)
+        if self.live.status != "ok":
+            return {"ok": False, "message": self.live.error or "No Man's Sky is not running."}
+        return {"ok": True, "message": f"Read {self.live.last_scan_planets} planet(s) from the game in "
+                                       f"{self.live.last_scan_seconds} s."}
+
+    async def _act_clear_history(self, params: dict) -> dict:
+        self.watcher.events.clear()
+        await self.ctx.run_blocking(self._save_events)
+        return {"ok": True, "message": "Save history cleared."}
+
+    async def _act_save_settings(self, params: dict) -> dict:
+        problem = self.settings.update(params)
+        if problem:
+            return {"ok": False, "message": problem}
+        await self.ctx.run_blocking(self.settings.save, self.settings_path)
+        return {"ok": True, "message": f"Settings saved: codeword \"{self.settings.codeword}\", single context per "
+                                       f"question {_on_off(self.settings.single_context)}."}
+
+    async def _act_set_setting(self, params: dict) -> dict:
+        problem = self.settings.set_switch(params)
+        if problem:
+            return {"ok": False, "message": problem}
+        await self.ctx.run_blocking(self.settings.save, self.settings_path)
+        return {"ok": True, "message": f"Single context per question {_on_off(self.settings.single_context)}."}
 
     # ------------------------------------------------------------------ what the app calls
 

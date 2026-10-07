@@ -365,7 +365,7 @@ def find_aligned(buf, needle: bytes, valid: int, length: int, address: int = 0, 
         return []
     words = np.frombuffer(buf, np.uint64, valid // 8)          # buf[0] is 8-aligned: a bytearray's data is
     found = []
-    for phase in sorted({(i - address) % 8 for i in range(0, 8) if i % align == 0}):
+    for phase in sorted({(i - address) % 8 for i in range(8) if i % align == 0}):
         # A needle starting at buffer offset 8 * j + phase has its byte k on a word boundary when k = -phase mod 8.
         pieces = range((-phase) % 8, size - 7, 8)
         probe = max(pieces, key=lambda k: (sum(b not in (0, 0xFF) for b in needle[k:k + 8]), -k))
@@ -597,7 +597,7 @@ def find_star_attributes(reader, planets_by_system: dict[int, list[dict]], prefe
             if system in found:
                 continue
             start = i * 8 - STAR_PLANET_SEEDS - index * 0x10
-            blob = bytes(buf[start:start + STAR_SIZE]) if 0 <= start and start + STAR_SIZE <= valid \
+            blob = bytes(buf[start:start + STAR_SIZE]) if start >= 0 and start + STAR_SIZE <= valid \
                 else reader.read(address + start, STAR_SIZE)
             attrs = parse_star_attributes(blob) if blob else None
             if attrs and _star_matches(blob, planets_by_system[system]):

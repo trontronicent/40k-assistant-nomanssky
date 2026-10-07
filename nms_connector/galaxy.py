@@ -33,6 +33,11 @@ class ExactLy(float):
     """A distance between two star positions read on the galaxy map (PROTOTYPE): shown as exact."""
 
 
+def clear_positions() -> None:
+    """Forget the star positions (set again from the history when the plugin starts)."""
+    _positions.clear()
+
+
 def set_positions(positions: dict[int, tuple]) -> None:
     """The exact positions known (named star fixes, history.positions); distances and the map use them."""
     global _positions

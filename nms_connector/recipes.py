@@ -145,7 +145,7 @@ class RecipeBook:
                 "substances": sorted(self.substances)}
 
     @classmethod
-    def from_json(cls, data: dict | None) -> "RecipeBook":
+    def from_json(cls, data: dict | None) -> RecipeBook:
         """The book of `to_json` ("stored" with an error when the data is not in that shape)."""
         try:
             return cls([Recipe(rid, result, int(amount), tuple((i, int(a)) for i, a in ingredients), bool(cooking))

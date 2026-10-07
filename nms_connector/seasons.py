@@ -131,7 +131,7 @@ def _reward_tokens(*names: str | None) -> list[set[str]]:
     return out
 
 
-def rewards_named_in(book: "SeasonBook", question: str) -> list[int]:
+def rewards_named_in(book: SeasonBook, question: str) -> list[int]:
     """The expeditions that gave a reward the question names ("Which expedition gave the Wraith?"): every
     distinctive word of a reward's name must be in the question."""
     q = set(re.findall(r"[a-z0-9]+", fold(question)))

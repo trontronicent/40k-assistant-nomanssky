@@ -47,7 +47,7 @@ class SeedTable:
         return len(self.first)
 
     @classmethod
-    def from_rows(cls, rows: dict[int, tuple[int, int]]) -> "SeedTable":
+    def from_rows(cls, rows: dict[int, tuple[int, int]]) -> SeedTable:
         """From {first seed: (system key, second seed or 0)}."""
         import numpy as np
         order = sorted(rows)
@@ -102,7 +102,7 @@ def find_records(reader, table: dict, chunker=None) -> dict[int, dict]:
             if key in found:
                 continue
             start = i * 8 - memory.STAR_PLANET_SEEDS
-            blob = bytes(buf[start:start + memory.STAR_SIZE]) if 0 <= start and start + memory.STAR_SIZE <= valid \
+            blob = bytes(buf[start:start + memory.STAR_SIZE]) if start >= 0 and start + memory.STAR_SIZE <= valid \
                 else reader.read(address + start, memory.STAR_SIZE)
             attrs = memory.parse_star_attributes(blob) if blob else None
             if not attrs:
@@ -129,6 +129,10 @@ class StarmapReader:
         self.last_scan_seconds: float | None = None
         self.last_found = 0
 
+    def release(self) -> None:
+        """Forget the seed table (rebuilt for the region at the next scan)."""
+        self._table, self._table_for = None, None
+
     def due(self, now: float) -> bool:
         return self.last_scan_at is None or now - self.last_scan_at >= self.SCAN_EVERY_S
 
@@ -147,6 +151,12 @@ class StarmapReader:
 
 
 _predictions: dict[int, dict] = {}
+
+
+def clear_predictions() -> None:
+    """Forget the predicted economies (recomputed on demand)."""
+    _predictions.clear()
+
 MAX_PREDICTIONS = 5000        # a map of a few hundred systems is shown at a time; never let this grow without bound
 
 

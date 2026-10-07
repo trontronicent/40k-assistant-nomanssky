@@ -16,7 +16,7 @@ from . import frigates, game_terms, hgpak, logs, recipes, seasons, settlements, 
 class GameTables:
     """The tables of one game build, each with its fallback; ``load`` again when the build changes."""
 
-    def __init__(self, table_store: "store.TableStore | None" = None):
+    def __init__(self, table_store: store.TableStore | None = None):
         self.store = table_store                    # gamedata/tables.json: what the persona needs without the game files
         self.stored_build: str | None = None        # set when the tables came from the store (build id of the game then)
         self.loaded = False
