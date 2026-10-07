@@ -385,7 +385,8 @@ def test_view_shows_english_and_game_language_names_with_icons(tmp_path, monkeyp
 
     view, result = asyncio.run(scenario())
     table = section(view, "Exosuit inventory")
-    assert table["columns"] == ["Name (English)", "Name (Deutsch)", "Category", "Item id", "Amount", "Max"]
+    assert table["columns"] == ["Name (English)", "Name (Deutsch)", "Category", "Item id", "Amount", "Max",
+                                "Value (stack)", "Value (each)"]
     rows = {r[3]: r for r in table["rows"]}
     assert rows["CATALYST1"][0] == {"text": "Sodium", "hint": "Category: Catalytic Element"}
     assert rows["CATALYST1"][1:3] == ["Natrium", "Catalytic Element"]
@@ -412,7 +413,7 @@ def test_view_without_the_game_explains_where_names_come_from(tmp_path, monkeypa
 
     view, columns = asyncio.run(scenario())
     assert any("NMS_GAME_DIR" in s.get("text", "") for s in view["sections"])
-    assert columns == ["Name", "Category", "Item id", "Amount", "Max"]
+    assert columns == ["Name", "Category", "Item id", "Amount", "Max", "Value (stack)", "Value (each)"]
 
 
 def test_ids_that_are_not_items_get_the_games_icons_too(tmp_path):
@@ -464,3 +465,28 @@ def test_base_values_are_read_only_when_the_product_ids_check_out():
     assert gamedata.product_values(data, {"TRA_TECH1", "TRA_TECH4", "FREEBIE"}) == {"TRA_TECH1": 1000, "TRA_TECH4": 30000}
     assert gamedata.product_values(data, {"SOMETHING", "ELSE"}) == {}
     assert gamedata.product_values(b"short", {"X"}) == {}
+
+
+def test_substances_carry_their_base_value_too():
+    """GcRealitySubstanceData.BaseValue (0x10C) beside the ID (0xC8): without it Tritium, Carbon and Cobalt - the
+    bulk of what a player carries - showed no value at all, because only the product table was read. Calibrated
+    against the game's own tooltip (Tritium 6 units each) and guarded exactly like the products: ids that do not
+    match the calibrated parse, or implausible numbers, give no values rather than wrong prices."""
+    from nms_connector import gamedata, mbin
+
+    def table(records):
+        root, start, size = 0x10, 0x20, 0x1A0
+        data = bytearray(start + size * len(records))
+        struct.pack_into("<QI4s", data, root, start - root, len(records), mbin.MARK)
+        for k, (sid, value) in enumerate(records):
+            p = start + k * size
+            data[p + 0xC8:p + 0xC8 + len(sid)] = sid.encode()
+            struct.pack_into("<i", data, p + 0x10C, value)
+        return bytes(data)
+
+    known = {"ROCKETSUB", "FUEL1", "CAVE1", "NOTHING"}
+    data = table([("ROCKETSUB", 6), ("FUEL1", 12), ("CAVE1", 76), ("NOTHING", 0)])
+    assert gamedata.substance_values(data, known) == {"ROCKETSUB": 6, "FUEL1": 12, "CAVE1": 76}
+    assert gamedata.substance_values(data, {"OTHER", "IDS"}) == {}          # layout moved: no values
+    assert gamedata.substance_values(b"short", {"X"}) == {}
+    assert gamedata.substance_values(table([("ROCKETSUB", -5)]), {"ROCKETSUB"}) == {}

@@ -29,7 +29,7 @@ MAPPING = {
     "INV": "Inventory", "SLT": "Slots", "ID1": "Id", "AM1": "Amount", "MX1": "MaxAmount", "TY1": "Type",
     "IT1": "InventoryType", "SHO": "ShipOwnership", "NM1": "Name", "RS1": "Resource", "FN1": "Filename",
     "PPB": "PersistentPlayerBases", "BT1": "BaseType", "PBT": "PersistentBaseTypes", "OBJ": "Objects",
-    "PRS": "PrimaryShip", "TPT": "TotalPlayTime",
+    "PRS": "PrimaryShip", "TPT": "TotalPlayTime", "OID": "ObjectID", "LUT": "LastUpdateTimestamp",
 }
 
 
@@ -75,7 +75,8 @@ def obfuscated_save() -> dict:
                 {"NM1": "", "RS1": {"FN1": ""}},
             ],
             "PPB": [
-                {"NM1": "Home", "GA1": 4611351810039424, "BT1": {"PBT": "HomePlanetBase"}, "OBJ": [1, 2, 3]},
+                {"NM1": "Home", "GA1": 4611351810039424, "BT1": {"PBT": "HomePlanetBase"},
+                 "OBJ": [{"OID": "^W_WALL"}, {"OID": "^W_WALL"}, {"OID": "^BASE_FLAG"}], "LUT": 1757075039},
                 {"NM1": "Far", "GA1": "0x20B70002925E80", "BT1": {"PBT": "HomePlanetBase"}, "OBJ": []},
             ],
             "XXX": "a key the mapping does not know",

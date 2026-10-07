@@ -24,7 +24,14 @@ PERSONA_PROMPT = (
     "get a [GAME DATA: No Man's Sky] block: live data from the player's game - inventories with totals per "
     "item and per place, currencies, location, ships and warp range, equipment and what it does, settlements, "
     "frigates and timers.\n\n"
-    "Answer questions about their game from that block, every part of a question. For amounts, give the total first, "
+    "Answer questions about their game from that block, every part of a question, in full sentences that repeat "
+    "what was asked - never as bare labels or a list of fields ('Location: ...', 'Portal Address: ...'). Asked "
+    "where they are, begin with the block's position sentence as it stands, only translated into the player's "
+    "language: it already reads \"You are currently on the planet Corrodia in the system Delta Sol\" or \"You are "
+    "currently in space in the system Delta Sol\". The planet and the system belong inside that sentence - do not "
+    "split them off and do not put the name in front of it (not \"Delta Sol. You are currently in space\") - and "
+    "never name a planet the block does not name. "
+    "For amounts, give the total first, "
     "then where it is (\"You have 1,234 Copper: 500 in the exosuit, 734 in Storage Container 0.\"). Name items in the "
     "player's language - the block gives the English name and, in brackets, the game's language - and leave out the "
     "item ids in square brackets unless asked. If the block does not contain what was asked, say so plainly and "
@@ -61,6 +68,8 @@ PERSONA_SETUP = {
 }
 
 SETTLEMENT_WORDS = {"settlement", "settlements", "siedlung", "siedlungen", "overseer", "aufseher", "colony", "town"}
+BASE_WORDS = {"base", "bases", "basis", "basen", "homestead", "outpost", "aussenposten", "außenposten",
+              "freighter base", "frachterbasis", "built", "gebaut", "build", "baue", "teleporter"}
 ECONOMY_WORDS = {"economy", "economies", "wirtschaft", "trade", "sell", "buy", "verkaufen", "kaufen", "handel"}
 # A question about equipment: the installed technology of what it names (all of it when it names nothing).
 EQUIPMENT_WORDS = {
@@ -154,8 +163,14 @@ class PluginCompanion:
             status.append(f"Units {snap.get('units') or 0:,}, Nanites {snap.get('nanites') or 0:,}, "
                           f"Quicksilver {snap.get('quicksilver') or 0:,}")
             if here is not None:
-                status.append(f"You are in the system {planets_view._system_label(here, ctx.visit(here))} "
-                              f"({snap['location'].get('galaxy')}), portal address {snap['location'].get('portal')}")
+                # A full sentence with the planet you are on (or "in space"), and the instruction right next to
+                # it: every other status line is "Label: value", and a model asked where it is mirrors that
+                # shape unless the data itself says to use the sentence ("System Ovester IX." was a whole reply).
+                said = planets_view.where_sentence(
+                    ctx, here, snap["location"].get("galaxy"), snap["location"].get("portal"),
+                    live=c.live.current_system is not None)
+                status.append(f'Where you are - answer a "where am I" question with this sentence, translated '
+                              f'into the player\'s language and nothing in front of it: "{said}"')
             status.append(f"Primary ship: {text.primary_ship()}")
             status.append(f"Freighter: {text.freighter(snap['freighter']['name'])}")
             status.append(f"Current mission: {text.mission(snap.get('current_mission'))}")
@@ -172,6 +187,7 @@ class PluginCompanion:
             extra.append(f"Frigates: {len(c.frigates)} ({len(out_on)} out on an expedition)")
         words = set(re.findall(r"[\w'-]+", (question or "").lower()))
         extra += self.settlement_lines(words, now)
+        extra += self.base_lines(words, ctx)
         extra += self.economy_lines(question, ctx, here)
         extra += self.equipment_lines(words, ctx.texts)
         extra += self.planet_lines(question, words, ctx)
@@ -231,11 +247,10 @@ class PluginCompanion:
         ctx = c.context()
         out = [f"You are in {planets_view._system_label(here, ctx.visit(here))}"]
         try:
-            section = planets_view.where_you_are(ctx)
+            planet = planets_view.current_planet(ctx, here)["text"] if c.live.current_system is not None else None
         except (AttributeError, KeyError, TypeError) as exc:    # live data not ready: the system line stands alone
             c.ctx.logger.debug("[NMS] overlay planet line skipped: %s", exc)
-            section = None
-        planet = next((i["value"] for i in (section or {}).get("items", []) if i.get("label") == "Planet"), None)
+            planet = None
         if planet and not str(planet).startswith("unknown"):
             out.append(f"Planet: {planet}")
         galaxy_name = ((c.snapshot or {}).get("location") or {}).get("galaxy")
@@ -358,6 +373,32 @@ class PluginCompanion:
                 out.append("  crafted from: " + " + ".join(f"{a} {recipes.item_label(lookup, i)}" for i, a in crafted))
             if not (refined or crafted):
                 out.append("  no refiner or crafting recipe makes it: it is gathered only")
+        return out
+
+    def base_lines(self, words: set[str], ctx) -> list[str]:
+        """Bases for a question about them (or naming one): where each stands - the planet for a planet base -
+        how many parts it has, when it was last built on, and the parts it is made of.
+
+        Without this the persona only knew the bases' names from the status block, so "which bases do I have?"
+        was answered with a bare list and "where is my base?" could not be answered at all.
+        """
+        c = self.connector
+        bases = ((c.snapshot or {}).get("bases")) or []
+        if not bases:
+            return []
+        names = {str(b.get("name") or "").lower() for b in bases}
+        if not (words & BASE_WORDS or any(w for n in names for w in n.split() if w in words)):
+            return []
+        page = c.page
+        out = [f"Bases ({len(bases)}), newest first:"]
+        for b in sorted(bases, key=lambda x: x.get("last_update") or 0, reverse=True):
+            built = page.fmt_time_of(b.get("last_update"))
+            out.append(f"- {b['name']} ({b['type']}) at {page.base_place(b, ctx)}"
+                       + (f", {b['objects']} parts" if b.get("objects") else "")
+                       + (f", last built on {built}" if built else ""))
+            parts = page.parts_text(b)
+            if parts:
+                out.append(f"  built from: {parts}")
         return out
 
     def settlement_lines(self, words: set[str], now: float) -> list[str]:

@@ -24,14 +24,23 @@ from . import mbin, techstats, trade
 from .game_install import GameInstall, language_label
 from .hgpak import PakError, PakSet, ZstdUnavailable
 
-CACHE_FORMAT = 5                 # 2: categories, descriptions (0.9.0); 3-4: upgrade texts, fill-ins; 5: base values (0.10.0)
+CACHE_FORMAT = 6                 # 2: categories, descriptions (0.9.0); 3-4: upgrade texts, fill-ins; 5: product
+                                 # base values (0.10.0); 6: substance base values too (2026-10-07)
 DESC_CHARS = 600
 ICON_PX = 64
 TABLE_DIR = "metadata/reality/tables/"
 # Tables that hold everything an inventory slot can contain; first one wins an id clash.
 PROC_TABLE = "nms_reality_gcproceduraltechnologytable"
 PRODUCT_TABLE = "nms_reality_gcproducttable"
+SUBSTANCE_TABLE = "nms_reality_gcsubstancetable"
 PRODUCT_ID_AT, PRODUCT_VALUE_AT = 0x150, 0x194  # GcProductData ID / BaseValue (libMBIN 7.04; checked by the ids, below)
+# GcRealitySubstanceData ID / BaseValue. Substances (Tritium, Carbon, Cobalt ...) are the other half of what a
+# player carries and have their own table; without this they showed no value at all. Calibrated against the
+# game on 2026-10-07 (build 25732212) from the value the game's own tooltip shows for Tritium, 6 units each:
+# 0x10C is the only plausible currency field that matches (Carbon 12, Ferrite Dust 14, Oxygen 34, Cobalt 76 -
+# the game's numbers). A second field at 0x110 is also 6 for Tritium but 0 or 1 for most substances, so it is
+# not a price. Checked at load like the product offsets, below.
+SUBSTANCE_ID_AT, SUBSTANCE_VALUE_AT = 0xC8, 0x10C
 ITEM_TABLES = ("nms_reality_gcproducttable", "nms_reality_gcsubstancetable", "nms_reality_gctechnologytable",
                "nms_reality_gcproceduraltechnologytable", "nms_basepartproducts",
                "nms_modularcustomisationproducts")
@@ -117,6 +126,7 @@ def build_items(paks: PakSet, language: str) -> dict[str, dict]:
     records: dict[str, mbin.ItemRecord] = {}
     upgrade_texts: dict[str, tuple[str, str]] = {}   # procedural upgrades: (description key, upgraded tech's name key)
     product_data = b""
+    substance_data = b""
     for table in ITEM_TABLES:
         try:
             data = paks.read(f"{TABLE_DIR}{table}.mbin")
@@ -126,6 +136,8 @@ def build_items(paks: PakSet, language: str) -> dict[str, dict]:
             upgrade_texts = techstats.procedural_texts(data)
         if table == PRODUCT_TABLE:
             product_data = data
+        if table == SUBSTANCE_TABLE:
+            substance_data = data
         try:
             parsed = mbin.parse_item_table(data)
         except mbin.MbinError:
@@ -151,6 +163,9 @@ def build_items(paks: PakSet, language: str) -> dict[str, dict]:
         strings[lang] = merged
 
     values = product_values(product_data, set(records)) if product_data else {}
+    # Substances carry their base value in their own table, with its own offsets.
+    if substance_data:
+        values.update(substance_values(substance_data, set(records)))
     items: dict[str, dict] = {}
     for key, record in records.items():
         icon = record.icon or (records[record.template].icon if record.template in records else "")
@@ -171,28 +186,43 @@ def build_items(paks: PakSet, language: str) -> dict[str, dict]:
     return items
 
 
-def product_values(data: bytes, known_ids: set[str]) -> dict[str, int]:
-    """{product id: base value in units} from the product table (GcProductData.BaseValue - what a trade good, a
-    product or a curiosity is worth before an economy's price factor: trade goods 1,000 / 6,000 / 15,000 / 30,000
-    / 50,000 by tier, read 2026-10-05). The fixed offsets are trusted only when the ids found there are the ids the
-    calibrated table parse found (>= 90 %) and the values are plausible; else {} (no values rather than wrong ones)."""
+def substance_values(data: bytes, known_ids: set[str]) -> dict[str, int]:
+    """{substance id: base value in units} from the substance table (GcRealitySubstanceData.BaseValue - what one
+    unit of Tritium, Carbon or Cobalt is worth before an economy's price factor). Same guard as the products:
+    the ids at the fixed offset must be the ids the calibrated parse found (>= 90 %) and the values plausible,
+    else {} - no values rather than wrong ones."""
+    return _table_values(data, known_ids, SUBSTANCE_ID_AT, SUBSTANCE_VALUE_AT)
+
+
+def _table_values(data: bytes, known_ids: set[str], id_at: int, value_at: int) -> dict[str, int]:
+    """{id: base value} read at fixed offsets of a table's records, or {} when the offsets do not hold up."""
     try:
         start, count = mbin.root_list(data)
         size = mbin.record_size(data, start, count)
         out = {}
         for k in range(count):
             p = start + k * size
-            pid = mbin.fixed_str(data, p + PRODUCT_ID_AT, 0x10)
-            if pid:
-                value, = struct.unpack_from("<i", data, p + PRODUCT_VALUE_AT)
-                out[pid] = value
+            item_id = mbin.fixed_str(data, p + id_at, 0x10)
+            if item_id:
+                value, = struct.unpack_from("<i", data, p + value_at)
+                out[item_id] = value
     except (struct.error, mbin.MbinError, IndexError):
         return {}
     if not out or sum(1 for i in out if i in known_ids) < 0.9 * len(out):
         return {}
-    if not all(0 <= v <= 100_000_000 for v in out.values()) or out.get("TRA_TECH1", 1) <= 0:
+    if not all(0 <= v <= 100_000_000 for v in out.values()):
         return {}
     return {i: v for i, v in out.items() if v > 0}
+
+
+def product_values(data: bytes, known_ids: set[str]) -> dict[str, int]:
+    """{product id: base value in units} from the product table (GcProductData.BaseValue - what a trade good, a
+    product or a curiosity is worth before an economy's price factor: trade goods 1,000 / 6,000 / 15,000 / 30,000
+    / 50,000 by tier, read 2026-10-05). The fixed offsets are trusted only when the ids found there are the ids the
+    calibrated table parse found (>= 90 %) and the values are plausible; else {} (no values rather than wrong ones).
+    The trade-good anchor (TRA_TECH1 must be worth something) catches a layout change the id check would pass."""
+    out = _table_values(data, known_ids, PRODUCT_ID_AT, PRODUCT_VALUE_AT)
+    return out if out.get("TRA_TECH1", 1) > 0 else {}
 
 
 def _add_upgrade_texts(entry: dict, template: mbin.ItemRecord | None, keys: tuple[str, str],

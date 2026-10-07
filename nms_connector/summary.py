@@ -17,8 +17,11 @@ SHIP_CLASSES = {"FIGHTERS": "Fighter", "DROPSHIPS": "Hauler", "SCIENTIFIC": "Exp
                 "SAILSHIP": "Solar", "BIOPARTS": "Living Ship", "S-CLASS": "Living Ship",
                 "SENTINELSHIP": "Interceptor", "ROYAL": "Exotic", "CORVETTE": "Corvette"}
 
+# PersistentBaseTypes as the save writes them. PlayerShipBase is the living space inside a ship
+# (read from a real save on 2026-10-07); an unknown type keeps the game's own word.
 BASE_TYPES = {"HomePlanetBase": "Planet base", "FreighterBase": "Freighter base",
-              "ExternalPlanetBase": "Other base (settlement)"}
+              "ExternalPlanetBase": "Other base (settlement)", "PlayerShipBase": "Ship interior",
+              "GeneratedPlanetBase": "Abandoned base", "GeneratedPlanetBaseEdits": "Abandoned base (edited)"}
 
 
 def _get(d, *path, default=None):
@@ -154,10 +157,24 @@ def summarize(save: dict) -> dict:
         packed = base.get("GalacticAddress")
         addr = unpack_address(packed) or {}
         kind = _get(base, "BaseType", "PersistentBaseTypes", default="")
+        objects = base.get("Objects") or []
+        # What the base is built from: the game stores one entry per part with an ObjectID like "^W_WALL"
+        # (the item id without the caret, so the item database names it). Counted here, named at render time.
+        parts: dict[str, int] = {}
+        for obj in objects:
+            part = str(obj.get("ObjectID") or "").lstrip("^").strip() if isinstance(obj, dict) else ""
+            if part:
+                parts[part] = parts.get(part, 0) + 1
         bases.append({"name": base.get("Name") or "(unnamed)", "type": BASE_TYPES.get(kind, kind or "unknown"),
                       "system": system_key_of(packed),
                       "galaxy": galaxy_name(addr.get("RealityIndex")), "portal": address_portal(addr) if addr else None,
-                      "objects": len(base.get("Objects") or []),
+                      "objects": len(objects),
+                      # A planet base sits on one planet of its system; the index is the save's (1 = first planet,
+                      # 0 = none), so it is stored as the game counts it and resolved against recorded planets.
+                      "planet_index": addr.get("PlanetIndex") if addr else None,
+                      "parts": parts,
+                      "last_update": base.get("LastUpdateTimestamp") or None,
+                      "owner": (base.get("Owner") or {}).get("USN") or None,
                       "here": bool(addr) and addr.get("SolarSystemIndex") == ga.get("SolarSystemIndex")
                       and all(addr.get(k) == ga.get(k) for k in ("VoxelX", "VoxelY", "VoxelZ"))})
 

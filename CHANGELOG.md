@@ -5,6 +5,21 @@
 Needs the 40k Assistant 3.12.0 (the plugin now declares its data format, which older
 versions do not accept).
 
+- **What your items are worth**: every inventory table has **Value (stack)** and
+  **Value (each)** - the whole stack at its base value and one unit, the two numbers
+  the game's own tooltip shows. Substances (Tritium, Carbon, Cobalt ...) now carry a
+  base value too; before, only products had one, so most of a player's cargo showed
+  nothing. Read from the game's substance table and checked against the game (Tritium
+  6 units each).
+- **Bases**: the Bases table says where each base stands - the **planet** for a planet
+  base - how many parts it has, **what it is built from** (hover for every part, in the
+  game's own words) and when you **last built on it**, newest first. Ship interiors and
+  freighter bases are named as such. The persona can answer "which bases do I have?"
+  and "where is my base?" from the same data.
+- **"Where am I?" is answered as a sentence**: the persona is given "You are currently
+  on the planet X in the system Y" or "You are currently in space in the system Y"
+  (with the galaxy and portal address) and answers in that form, in your language,
+  instead of a bare label. It never names a planet the game did not reveal.
 - **Wealth and conflict say where they sit**: a system's wealth now reads
   *Average - 2 of 3* and its conflict level *Low - 1 of 4*, in the system
   details, the economies table and the visited systems. Sorting the Wealth or

@@ -11,6 +11,7 @@ where a trade good sells). The page reads the state on every call (every 5 s pol
 from __future__ import annotations
 
 import time
+from datetime import datetime
 
 from . import equipment, frigates, planets_view, settlements, ships, timers
 
@@ -48,6 +49,26 @@ ACTIONS = [
 ]
 
 
+#: How many kinds of part the Bases table names before "+N more" (the tooltip lists them all).
+BASE_PARTS_SHOWN = 4
+
+
+def system_label(key, ctx):
+    """A system's name as the rest of the page writes it, or None when nothing is known about it."""
+    visit = ctx.visit(key)
+    return planets_view._system_label(key, visit) if visit else None
+
+
+def fmt_time(unix: int | None) -> str | None:
+    """A save timestamp as 'YYYY-MM-DD HH:MM', or None."""
+    if not unix:
+        return None
+    try:
+        return datetime.fromtimestamp(int(unix)).strftime("%Y-%m-%d %H:%M")
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
 class ConnectorPage:
     """Builds the view of one connector (its state is read on every call)."""
 
@@ -58,13 +79,21 @@ class ConnectorPage:
 
     def item_columns(self) -> list[str]:
         gamedata = self.connector.gamedata
-        if gamedata.ready and gamedata.language != "english":
-            return ["Name (English)", f"Name ({gamedata.language_label})", "Category", "Item id", "Amount", "Max"]
-        return ["Name", "Category", "Item id", "Amount", "Max"]
+        names = (["Name (English)", f"Name ({gamedata.language_label})"]
+                 if gamedata.ready and gamedata.language != "english" else ["Name"])
+        # "Value" like the game's own tooltip, which shows the stack first and the single unit under it
+        # ("Insgesamt 6.426 Units / Je 6 Units").
+        return names + ["Category", "Item id", "Amount", "Max", "Value (stack)", "Value (each)"]
 
     def item_rows(self, rows: list[list], ctx) -> list[list]:
-        """[id, amount, max] -> [{text, icon, hint}, (local name,) category, id, amount, max]: the game's names,
-        icon and category; the tooltip holds the description and, for trade goods, where they sell."""
+        """[id, amount, max] -> [{text, icon, hint}, (local name,) category, id, amount, max, stack value, unit
+        value]: the game's names, icon and category; the tooltip holds the description and, for trade goods,
+        where they sell.
+
+        The two value cells are what the game's own tooltip says ("Insgesamt 6.426 Units" above "Je 6 Units"):
+        what the whole stack is worth at the base value, and what one unit is worth. Both stay numbers so the
+        column sorts by size; an item the game gives no base value keeps the cells empty rather than showing a
+        wrong 0 (procedural upgrades and most technology have no base value)."""
         gamedata = self.connector.gamedata
         bilingual = gamedata.ready and gamedata.language != "english"
         out = []
@@ -72,8 +101,10 @@ class ConnectorPage:
             entry = gamedata.lookup(item_id) or {}
             name = ctx.texts.item(item_id, entry.get("en") or item_id)
             category = ctx.texts.category(item_id)
-            out.append([name, entry.get("local"), category, item_id, amount, maximum] if bilingual
-                       else [name, category, item_id, amount, maximum])
+            unit = entry.get("value")
+            stack = unit * amount if unit and isinstance(amount, int) else None
+            head = [name, entry.get("local")] if bilingual else [name]
+            out.append(head + [category, item_id, amount, maximum, stack, unit])
         return out
 
     def storage_tab(self, snap: dict, ctx, columns: list[str]) -> dict:
@@ -175,15 +206,70 @@ class ConnectorPage:
         if not snap:
             return [{"type": "text", "text": "Ships and bases appear once a save has been read."}]
 
-        def system_label(key):
-            visit = ctx.visit(key)
-            return planets_view._system_label(key, visit) if visit else None
-
         return ships.ship_sections(c.ships, c.tables.ship_ranges, ctx.texts) + frigates.frigate_sections(
-            c.frigates, c.tables.trait_names, ctx.texts, system_label) + [
-            {"type": "table", "title": "Bases", "columns": ["Name", "Type", "Galaxy", "Portal address", "Parts"],
-             "rows": [[b["name"], b["type"], b["galaxy"], b["portal"], b["objects"]] for b in snap["bases"]]},
-        ]
+            c.frigates, c.tables.trait_names, ctx.texts, lambda key: system_label(key, ctx)) + [self.bases_table(snap, ctx)]
+
+    def bases_table(self, snap: dict, ctx) -> dict:
+        """The Bases table: where each base is (system and, for a planet base, the planet), what it is built
+        from and when it was last built on.
+
+        The save holds every part of a base as an ObjectID ("^W_WALL"); counted in `summary.bases` and named
+        here from the item database, so the *What is in it* cell reads "7x Wooden Wall, 4x Wood Floor Panel"
+        and its tooltip lists all of them. Newest first - the base you are working on is the one you ask about.
+        """
+        rows = []
+        for b in sorted(snap["bases"], key=lambda x: x.get("last_update") or 0, reverse=True):
+            system = system_label(b["system"], ctx) if b.get("system") is not None else None
+            rows.append([b["name"], b["type"], {"text": self.base_place(b, ctx), "hint": b["portal"] or None},
+                         b["galaxy"], b["objects"], self.parts_cell(b, ctx),
+                         fmt_time(b.get("last_update")) or "–"])
+        return {"type": "table", "title": f"Bases ({len(rows)})",
+                "columns": ["Name", "Type", "Where", "Galaxy", "Parts", "What is in it", "Last built on"],
+                "rows": rows,
+                "empty": "No base in this save yet - a base starts with a Base Computer.",
+                "row_hint": "Hover a base to see every part it is built from."}
+
+    def base_place(self, base: dict, ctx) -> str:
+        """Where a base stands: 'Planet (System)' for a planet base, the system for a freighter base."""
+        key = base.get("system")
+        system = system_label(key, ctx) if key is not None else None
+        system = system or (f"System {base['portal']}" if base.get("portal") else "an unknown system")
+        index = base.get("planet_index")
+        if not index:                       # 0 or None: a freighter base, or no planet in the address
+            return system
+        # The address counts the first planet as 1, the recorded planets from 0.
+        planet = next((p for p in ctx.recorded.get(key, []) if p.get("index") == index - 1), None)
+        name = planets_view._planet_name(planet, ctx.visit(key)) if planet else f"planet {index}"
+        return f"{name} ({system})"
+
+    def named_parts(self, base: dict) -> list[str]:
+        """['7x Wooden Wall', '4x Wood Floor Panel', ...] - the game's own part names, most used first."""
+        parts = base.get("parts") or {}
+        out = []
+        for part_id, count in sorted(parts.items(), key=lambda kv: (-kv[1], kv[0])):
+            entry = self.connector.gamedata.lookup(part_id) or {}
+            out.append(f"{count}x {entry.get('en') or part_id}")
+        return out
+
+    def parts_text(self, base: dict, limit: int = BASE_PARTS_SHOWN) -> str | None:
+        """'7x Wooden Wall, 4x Wood Floor Panel, +6 more' - the short form the table and the persona share."""
+        named = self.named_parts(base)
+        if not named:
+            return None
+        more = len(named) - limit
+        return ", ".join(named[:limit]) + (f", +{more} more" if more > 0 else "")
+
+    def fmt_time_of(self, unix) -> str | None:
+        """The save-timestamp formatter, reachable from the companion (which does not import this module)."""
+        return fmt_time(unix)
+
+    def parts_cell(self, base: dict, ctx):
+        """The *What is in it* cell: the short list, every part in the tooltip, sorted by how many parts."""
+        named = self.named_parts(base)
+        if not named:
+            return None
+        return {"text": self.parts_text(base), "hint": "Built from:\n" + "\n".join(f"• {n}" for n in named),
+                "sort": base.get("objects") or 0}
 
     def saves(self, snap: dict | None, ctx) -> list[dict]:
         """The Saves & source tab: how often the game saves, recent writes, where the data comes from, scans."""
