@@ -18,6 +18,7 @@ import re
 import shutil
 import struct
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 from . import logs, mbin, techstats, trade
@@ -169,10 +170,20 @@ def _item_values(raw: dict[str, bytes], known_ids: set[str]) -> dict[str, int]:
     return values
 
 
-def _item_entry(key: str, record: mbin.ItemRecord, records: dict[str, mbin.ItemRecord], strings: dict[str, dict[str, str]],
-                language: str, values: dict[str, int], upgrade_texts: dict[str, tuple[str, str]]) -> dict:
+@dataclass
+class _ItemSources:
+    """What every item entry of one database build is made from."""
+    records: dict[str, mbin.ItemRecord]
+    strings: dict[str, dict[str, str]]                  # {language: {key: text}}
+    language: str
+    values: dict[str, int]
+    upgrade_texts: dict[str, tuple[str, str]]
+
+
+def _item_entry(key: str, record: mbin.ItemRecord, src: _ItemSources) -> dict:
     """One item of the database: names, icon, category, description (each in English and, when it differs, the game's
     language), base value."""
+    records, strings, language = src.records, src.strings, src.language
     icon = record.icon or (records[record.template].icon if record.template in records else "")
     entry = {"en": mbin.display_name(record, strings["english"]), "icon": icon}
     entry["local"] = mbin.display_name(record, strings[language]) if language != "english" else entry["en"]
@@ -183,10 +194,10 @@ def _item_entry(key: str, record: mbin.ItemRecord, records: dict[str, mbin.ItemR
             local = _plain(strings[language].get(text_key)) if language != "english" else None
             if local and local != en:
                 entry[f"{field}_local"] = local
-    if key in values:
-        entry["value"] = values[key]
-    if key in upgrade_texts and "desc_en" not in entry:
-        _add_upgrade_texts(entry, records.get(record.template), upgrade_texts[key], strings, language)
+    if key in src.values:
+        entry["value"] = src.values[key]
+    if key in src.upgrade_texts and "desc_en" not in entry:
+        _add_upgrade_texts(entry, records.get(record.template), src.upgrade_texts[key], strings, language)
     return entry
 
 
@@ -201,8 +212,8 @@ def build_items(paks: PakSet, language: str) -> dict[str, dict]:
     wanted |= {k for keys in upgrade_texts.values() for k in keys}
     strings = _read_item_strings(paks, wanted, language)
     values = _item_values(raw, set(records))
-    return {key: _item_entry(key, record, records, strings, language, values, upgrade_texts)
-            for key, record in records.items()}
+    src = _ItemSources(records, strings, language, values, upgrade_texts)
+    return {key: _item_entry(key, record, src) for key, record in records.items()}
 
 
 def substance_values(data: bytes, known_ids: set[str], keep_zero: bool = False) -> dict[str, int]:

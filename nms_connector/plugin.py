@@ -101,7 +101,6 @@ class NmsConnector:
         logs.bind(ctx.logger)        # every module logs through the host's plugin logger (category tag)
         self.data_dir: Path = ctx.data_dir
         self._heavy_load = False                # set by a pass over the game files; the next collect resets it
-        self.degraded: dict[str, str] = {}      # parts of the newest save that could not be read: name -> reason
         self.mapping_path = self.data_dir / "mapping.json"
         self.events_path = self.data_dir / "save_events.json"
         self.watcher = SaveWatcher(events=self._load_events())
@@ -110,23 +109,12 @@ class NmsConnector:
         self.mapping_error: str | None = None
         self._last_mapping_attempt = 0.0
         self.save_dir: Path | None = None
-        self.snapshot: dict | None = None
         self.tables = GameTables(TableStore(self.data_dir))                # timers, frigate traits, warp range, settlements, tech stats
-        self.timers: list[dict] = []              # settlement constructions, expeditions (timers.py)
-        self.settlements: list[dict] = []         # your settlements' economy (settlements.py)
         self.settlement_live = settlements.LiveSettlements(self.data_dir / "settlement_screen.json")  # screen values
-        self.ships: list[dict] = []               # your starships (ships.py)
-        self.freighter: dict | None = None        # your freighter's technology (ships.freighter_from_save)
-        self.equipment: equipment.Equipment | None = None   # exosuit, multi-tools, exocraft, freighter technology
-        self.frigates: list[dict] = []            # your frigates (frigates.py)
         self.galaxy_colors = "kind"               # how the galaxy map colours systems (planets_view.COLOR_MODES)
         self.planet_query = ""                    # Systems -> Planets search (planet_search)
         self.settings_path = self.data_dir / "settings.json"
         self.settings = PluginSettings.load(self.settings_path)   # Settings tab: single context, codeword
-        self.snapshot_file: str | None = None
-        self.decoded_at: str | None = None
-        self.decode_seconds: float | None = None
-        self.unknown_keys = 0
         self.error: str | None = None
         self.gamedata = GameData(self.data_dir, getattr(ctx, "assets_dir", None))
         self.install: GameInstall | None = None
@@ -139,13 +127,9 @@ class NmsConnector:
         self.star_fixer = positions.StarFixer(self.history.star_fixes)
         self.starmap = starmap.StarmapReader()        # the galaxy map's star records around you (game memory)
         self.live = LiveMemory(self.history)
-        self.visits: dict[int, dict] = {}
-        self.anchor: bytes | None = None
-        self.save_system: int | None = None
-        self.save_position: dict | None = None   # {system, planet, at} of the newest save (where_you_are)
+        self._reset_save_state()
         self.route_path = self.data_dir / "route.json"
         self.route_state: dict = self._load_route()
-        self.combat_timer: str | None = None
         self._live_checked = 0.0
         self.selected_system: int | None = None   # clicked in the visited-systems table
         self._planet_icons_ready = False          # names/icons of the recorded planets ensured since the last build
@@ -153,6 +137,26 @@ class NmsConnector:
         self.describe = StateText(self)
         self.page = ConnectorPage(self)
         self.companion = PluginCompanion(self)
+
+    def _reset_save_state(self) -> None:
+        """Everything derived from the newest save, empty: at the start, and when the plugin lets go of its memory."""
+        self.snapshot: dict | None = None
+        self.visits: dict[int, dict] = {}
+        self.timers: list[dict] = []              # settlement constructions, expeditions (timers.py)
+        self.settlements: list[dict] = []         # your settlements' economy (settlements.py)
+        self.ships: list[dict] = []               # your starships (ships.py)
+        self.freighter: dict | None = None        # your freighter's technology (ships.freighter_from_save)
+        self.equipment: equipment.Equipment | None = None   # exosuit, multi-tools, exocraft, freighter technology
+        self.frigates: list[dict] = []            # your frigates (frigates.py)
+        self.anchor: bytes | None = None
+        self.save_system: int | None = None
+        self.save_position: dict | None = None    # {system, planet, at} of the newest save (where_you_are)
+        self.combat_timer: str | None = None
+        self.snapshot_file: str | None = None
+        self.decoded_at: str | None = None
+        self.decode_seconds: float | None = None
+        self.unknown_keys = 0
+        self.degraded: dict[str, str] = {}        # parts of the newest save that could not be read: name -> reason
 
     # ------------------------------------------------------------------ shared views of the state
 
@@ -226,10 +230,8 @@ class NmsConnector:
         self.gamedata.release()
         self.tables = GameTables(TableStore(self.data_dir))
         self.gamedata.tech, self.gamedata.recipes, self.gamedata.terms = self.tables.tech, self.tables.recipes, self.tables.terms
-        self.snapshot, self.visits, self.settlements, self.timers = None, {}, [], []
-        self.ships, self.freighter, self.equipment, self.frigates = [], None, None, []
+        self._reset_save_state()
         self.history.planets.clear()
-        self.degraded.clear()
         starmap.clear_predictions()
         galaxy.clear_positions()
         self.starmap.release()

@@ -28,14 +28,15 @@ the star-record pass another ~10 s; see ``scan`` for where the time went.
 
 from __future__ import annotations
 
+import os
 import re
 import struct
 import sys
-import os
 import threading
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
+from typing import NamedTuple
 
 try:
     import numpy as np
@@ -408,10 +409,19 @@ def planet_system_at(reader, address: int) -> int | None:
     return system_key(ua)
 
 
-def _scan_chunk(reader, buf, valid: int, address: int, length: int, anchor: bytes | None,
+class Chunk(NamedTuple):
+    """One read of the game's memory: ``buf[:valid]`` holds the bytes from `address`; things starting in the first
+    `length` bytes belong to this chunk, the rest only overlaps the next one."""
+    buf: bytearray
+    valid: int
+    address: int
+    length: int
+
+
+def _scan_chunk(reader, chunk: Chunk, anchor: bytes | None,
                 substances: set[str] | None) -> tuple[list[int], dict[int, str], list[tuple[int, dict]]]:
-    """Player-state copies, system names and (slot, planet) records in one chunk (``buf[:valid]`` from `address`;
-    things starting in the first `length` bytes belong to it, the rest overlaps the next chunk)."""
+    """Player-state copies, system names and (slot, planet) records in one chunk."""
+    buf, valid, address, length = chunk
     player_states: list[int] = []
     if anchor:
         for at in find_aligned(buf, anchor, valid, length, address):
@@ -448,7 +458,7 @@ def _chunk_results(reader, anchor, substances, workers: int):
     """
     if not hasattr(reader, "read_into") or workers <= 1:
         for base, address, buf, valid, length in chunks(reader, PLANET_SIZE):
-            yield base, length, _scan_chunk(reader, buf, valid, address, length, anchor, substances)
+            yield base, length, _scan_chunk(reader, Chunk(buf, valid, address, length), anchor, substances)
         return
     local = threading.local()
 
@@ -460,7 +470,8 @@ def _chunk_results(reader, anchor, substances, workers: int):
         valid = reader.read_into(address, buf, want)
         if not valid:
             return None
-        return base, min(valid, length), _scan_chunk(reader, buf, valid, address, min(valid, length), anchor, substances)
+        owned = min(valid, length)
+        return base, owned, _scan_chunk(reader, Chunk(buf, valid, address, owned), anchor, substances)
 
     # Overlap the next chunk a little so a record split across chunks is still seen whole.
     jobs = [(base, base + offset, min(min(CHUNK, size - offset) + PLANET_SIZE, size - offset), min(CHUNK, size - offset))

@@ -155,34 +155,42 @@ def voxel_attributes(code: int) -> dict:
     return out
 
 
-def system_attributes(key: int) -> dict:
-    """Star colour, planet counts and the predicted economy, wealth, conflict and race of a system."""
+def _system_rng(key: int) -> tuple[int, dict, int, "PRNG"]:
+    """(the system's index in its region minus one, its voxel's attributes, the seed, the generator seeded from it)."""
     code, galaxy = portal_code(key)
     code &= 0xFFFFFFFFFFF
     system_id = (code & 0xFFF00000000) >> 32
     ua = (((system_id << 8) | (galaxy & 0xFF)) << 32) | (code & 0xFFFFFFFF)
     va = voxel_attributes(code)
-    system_id -= 1
     system_seed = _index_primed(ua) & 0xFFFFFFFF
     rol16 = (((system_seed & 0x0000FFFF) << 16) | ((system_seed & 0xFFFF0000) >> 16)) ^ system_seed
     rol16 &= 0xFFFFFFFF
     seed = ((system_seed + 1) if system_seed == 0 else system_seed) * MULTIPLIER + rol16
-    rng = PRNG(seed)
-    star_type, safe_start, prime, anomaly = 0, 0, 2, 0
+    return system_id - 1, va, seed, PRNG(seed)
+
+
+def _star_and_planets(system_id: int, va: dict, seed: int, rng: "PRNG") -> tuple[int, int, int, int]:
+    """(star type, planet count, safe start planet, anomaly): a guide star, a black hole, an Atlas station or an
+    ordinary system, in the order the game draws them."""
+    star_type, anomaly = 0, 0
     if system_id < va["guide_star_count"]:
         planet_count = (((seed & 0xFFFFFFFF) * 4) >> 0x20) + 3
-        safe_start = rng.random(planet_count) + 1
-    else:
-        if (((seed & 0xFFFFFFFF) * 0x64) >> 0x20) < 0x1E:
-            star_type = rng.random(3) + 1
-        diff = system_id - va["guide_star_count"]
-        if va["black_hole_count"] > 0 and 0 <= diff < va["black_hole_count"]:
-            anomaly, star_type = 2, 0
-        if (va["atlas_station_count"] > 0 and diff - va["black_hole_count"] >= 0
-                and diff - va["black_hole_count"] < va["atlas_station_count"]):
-            anomaly, star_type = 1, 0
-        planet_count = rng.random(6) + 1
-        safe_start = 0 if (va["renegade"] >= 10 or star_type != 0 or anomaly != 0) else rng.random(planet_count + 1)
+        return star_type, planet_count, rng.random(planet_count) + 1, anomaly
+    if (((seed & 0xFFFFFFFF) * 0x64) >> 0x20) < 0x1E:
+        star_type = rng.random(3) + 1
+    diff = system_id - va["guide_star_count"]
+    if va["black_hole_count"] > 0 and 0 <= diff < va["black_hole_count"]:
+        anomaly, star_type = 2, 0
+    if (va["atlas_station_count"] > 0 and diff - va["black_hole_count"] >= 0
+            and diff - va["black_hole_count"] < va["atlas_station_count"]):
+        anomaly, star_type = 1, 0
+    planet_count = rng.random(6) + 1
+    safe_start = 0 if (va["renegade"] >= 10 or star_type != 0 or anomaly != 0) else rng.random(planet_count + 1)
+    return star_type, planet_count, safe_start, anomaly
+
+
+def _economy_traits(rng: "PRNG") -> tuple[int, int, int, int]:
+    """(economy, wealth, conflict, race) indexes: one generator step and one draw each, in the game's order."""
     rng.update()
     economy = {0: 4, 1: 6, 2: 1, 3: 5, 4: 2, 5: 3, 6: 7}[((rng.seed & 0xFFFFFFFF) * 7) >> 32]
     rng.update()
@@ -192,6 +200,34 @@ def system_attributes(key: int) -> dict:
     conflict = {0: 1, 1: 2, 2: 3}[((rng.seed & 0xFFFFFFFF) * 3) >> 32]
     rng.update()
     race = {0: 1, 1: 3, 2: 2}[((rng.seed & 0xFFFFFFFF) * 3) >> 32]
+    return economy, wealth, conflict, race
+
+
+def _prime_planets(rng: "PRNG", planet_count: int, star_type: int) -> tuple[int, int, bool]:
+    """(planet count, prime planet count, gas giant): how many of the six body slots are prime planets, and whether an
+    exotic-star system is a gas giant (which has no planets of its own)."""
+    prime = 2
+    left = 6 - planet_count
+    if left < 1:
+        prime = 0
+    elif rng.random(100) >= 33 or left < 2:
+        prime = 1
+    gas_giant = False
+    if star_type == 4:
+        prime += planet_count
+        planet_count = 0
+        if rng.random(100) < 15:
+            gas_giant = True
+            if rng.random(100) < 66:
+                planet_count, prime = 0, 6
+    return planet_count, prime, gas_giant
+
+
+def system_attributes(key: int) -> dict:
+    """Star colour, planet counts and the predicted economy, wealth, conflict and race of a system."""
+    system_id, va, seed, rng = _system_rng(key)
+    star_type, planet_count, safe_start, anomaly = _star_and_planets(system_id, va, seed, rng)
+    economy, wealth, conflict, race = _economy_traits(rng)
     if system_id < va["renegade"]:
         star_type = rng.random(3) + 1
     if 0x3E7 < system_id < 0x429:
@@ -206,19 +242,7 @@ def system_attributes(key: int) -> dict:
         race = 0
     if abandoned:
         wealth, conflict = 1, 1
-    left = 6 - planet_count
-    if left < 1:
-        prime = 0
-    elif rng.random(100) >= 33 or left < 2:
-        prime = 1
-    gas_giant = False
-    if star_type == 4:
-        prime += planet_count
-        planet_count = 0
-        if rng.random(100) < 15:
-            gas_giant = True
-            if rng.random(100) < 66:
-                planet_count, prime = 0, 6
+    planet_count, prime, gas_giant = _prime_planets(rng, planet_count, star_type)
     pirate = False
     if not abandoned and not uncharted and (star_type != 0 or safe_start <= 0):
         peek = PRNG(rng.seed)
