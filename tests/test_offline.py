@@ -49,6 +49,9 @@ def test_game_tables_load_from_the_store_when_the_game_files_are_missing(tmp_pat
     first = tables.GameTables(store.TableStore(tmp_path))
     first.build_id = "25732212"
     first.recipes = _book()
+    first.ships = {"fixed": {"HYPERDRIVE": 100.0}, "procedural": {"UP_HYP4": (220, 265)}, "freighter_fixed": {},
+                   "freighter_procedural": {}, "source": "game files"}
+    first.settlements = {"source": "built-in (measured)"}          # a fallback is never stored
     first._build_texts(ENGLISH, {"UI_SEASON_23_NAME": "Unsere Reise geht weiter"}, "german", None)
     first._store(object(), ENGLISH, {"UI_SEASON_23_NAME": "Unsere Reise geht weiter"}, "german")
 
@@ -58,7 +61,9 @@ def test_game_tables_load_from_the_store_when_the_game_files_are_missing(tmp_pat
     assert offline.loaded and offline.stored_build == "25732212" and not offline.needs_load(None)
     assert len(offline.recipes.recipes) == 2 and offline.recipes.crafting == {"BOOK": [("PAPER", 3)]}
     assert offline.seasons.name(23) == "Our Journey Continues (Unsere Reise geht weiter)"
-    assert offline.timers is None and offline.timer_durations      # the measured fallbacks stay in use
+    assert offline.ships["fixed"] == {"HYPERDRIVE": 100.0} and list(offline.ships["procedural"]["UP_HYP4"]) == [220, 265]
+    assert offline.settlements is None and offline.timers is None   # fallbacks were not stored: the built-ins stay
+    assert offline.timer_durations and offline.settlement_rules
 
 
 def test_without_a_store_the_tables_fall_back_as_before(tmp_path):

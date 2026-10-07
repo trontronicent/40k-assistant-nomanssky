@@ -100,14 +100,14 @@ def test_best_dish_question_lists_what_can_be_cooked_and_what_is_missing():
     """"best cooking recipe I can make right now" lists the dishes cookable from the holdings and the game's most
     valuable dishes with the ingredients still missing - never an invented ingredient list."""
     text = "\n".join(_lines("What is the best cooking recipe I can make right now?", {"veg": 1, "bean": 1}, []))
-    assert "Best dish you can cook right now: Stew: 6,400 each, up to 1 time - Veg + Bean" in text
-    assert "The most valuable dish in the game is Cake: 90,000 each" in text and "you lack Egg, Milk" in text
+    assert "Best dish you can cook right now: Stew: 6,400 units each, up to 1 time - Veg + Bean" in text
+    assert "The most valuable dish in the game is Cake: 90,000 units each" in text and "you lack Egg, Milk" in text
 
 
 def test_an_ingredient_question_lists_the_dishes_it_goes_into():
     """"What can I cook with veg?" names an ingredient: the dishes that use it, the valuable ones first."""
     text = "\n".join(_lines("What can I cook with veg?", {"veg": 1}, ["veg"]))
-    assert "Veg is an ingredient of 1 dishes" in text and "Stew (6,400 each) with Bean" in text
+    assert "Veg is an ingredient of 1 dishes" in text and "Stew (6,400 units each) with Bean" in text
 
 
 def test_cooking_is_added_to_the_persona_data_for_a_cooking_question(tmp_path, monkeypatch):

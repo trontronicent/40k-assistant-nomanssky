@@ -189,7 +189,7 @@ def cooking_lines(book, question: str, have: dict[str, int], named_items: list[s
         if item in all_dishes:
             recs = dish_recipes(book, item)
             value = value_of(item)
-            out.append(f"  How to cook {label(item)} - base value {_fmt(value) + ' each' if value else 'unknown'}; "
+            out.append(f"  How to cook {label(item)} - base value {_fmt(value) + ' units each' if value else 'unknown'}; "
                        f"{len(recs)} ingredient combinations, folded:")
             for line in fold_lines(pools(recs), label):
                 out.append(f"    {line}")
@@ -204,7 +204,7 @@ def cooking_lines(book, question: str, have: dict[str, int], named_items: list[s
             out.append(f"  {label(item)} is an ingredient of {len(uses)} dishes; the most valuable:")
             for d in ranked[:MAX_DISHES]:
                 partner = sorted({label(i) for r in uses[d] for i, _ in r.ingredients if i != item})
-                out.append(f"    {label(d)} ({_fmt(value_of(d) or 0)} each) with " +
+                out.append(f"    {label(d)} ({_fmt(value_of(d) or 0)} units each) with " +
                            (" or ".join(partner[:MAX_POOL_NAMES]) or f"a second {label(item)}"))
             shown += 1
     generic = not named or words & (GOOD_WORDS | NOW_WORDS)
@@ -225,7 +225,7 @@ def cooking_lines(book, question: str, have: dict[str, int], named_items: list[s
             for d in ranked[:MAX_DISHES - 2]:
                 easiest = min(dish_recipes(book, d), key=lambda r: len(missing_for(r, have)))
                 gap = missing_for(easiest, have)
-                lines.append(f"{label(d)}: {_fmt(value_of(d) or 0)} each - e.g. "
+                lines.append(f"{label(d)}: {_fmt(value_of(d) or 0)} units each - e.g. "
                              f"{' + '.join(label(i) for i, _ in easiest.ingredients)}"
                              + (f" (you lack {', '.join(label(i) for i in gap)})" if gap else " (you can cook it now)"))
             out.append(f"  The most valuable dish in the game is {lines[0]}")
@@ -236,5 +236,5 @@ def cooking_lines(book, question: str, have: dict[str, int], named_items: list[s
 def _dish_now(entry: dict, label) -> str:
     """"Furball Jelly: 9,000 each, up to 4 times - Leopard-Fruit + Processed Sugar" for one cookable dish."""
     r = entry["recipe"]
-    return (f"{label(entry['dish'])}: {_fmt(entry['value'])} each, up to {entry['times']} time"
+    return (f"{label(entry['dish'])}: {_fmt(entry['value'])} units each, up to {entry['times']} time"
             f"{'s' if entry['times'] != 1 else ''} - {' + '.join(label(i) for i, _ in r.ingredients)}")

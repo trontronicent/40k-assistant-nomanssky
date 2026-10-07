@@ -96,8 +96,13 @@ class GameTables:
         """Keep the recipes and texts of this build so the persona can answer without the game files."""
         if self.store is None or install is None or not self.recipes.recipes or not english:
             return
+        plain = {"timers": self.timers, "frigate_traits": self.frigate_traits, "ships": self.ships,
+                 "settlements": self.settlements}
+        # Only tables that were really read: a fallback or an error is not worth keeping.
+        plain = {k: v for k, v in plain.items() if isinstance(v, dict) and not v.get("error")
+                 and v.get("source") == "game files"}
         self.store.save(self.build_id, language, self.recipes.to_json(),
-                        {"english": english, "local": local, "language": language})
+                        {"english": english, "local": local, "language": language}, plain)
 
     def _load_stored(self) -> bool:
         """Adopt the stored tables (no installation): True when there were some. Timers, frigate traits, warp range,
@@ -111,6 +116,9 @@ class GameTables:
             return False
         self.recipes = book
         self._build_texts(texts["english"], texts.get("local"), texts.get("language"), None)
+        stored = data.get("tables") or {}
+        self.timers, self.frigate_traits = stored.get("timers"), stored.get("frigate_traits")
+        self.ships, self.settlements = stored.get("ships"), stored.get("settlements")
         self.stored_build = data.get("build_id") or "unknown"
         self.loaded = True
         return True
