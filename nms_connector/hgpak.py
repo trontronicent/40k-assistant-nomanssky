@@ -22,7 +22,11 @@ raised and the plugin explains that names and icons need it.
 from __future__ import annotations
 
 import struct
+import threading
+from contextlib import contextmanager
 from pathlib import Path
+
+from . import logs
 
 try:  # Python 3.14+
     from compression import zstd as _stdlib_zstd  # type: ignore[import-not-found]
@@ -33,11 +37,25 @@ try:
 except ImportError:
     _zstandard = None
 
+# The paks that hold the tables the plugin reads (checked 2026-10-08 on build 25732212 by scanning every pak). A wrong
+# hint costs a scan that opens up to 21 paks - each open builds the file index (up to ~29 MB, 0.4 s) - so these matter.
+TABLE_PAK = "NMSARC.Precache.pak"            # metadata/reality/tables/*.mbin
+GLOBALS_PAK = "NMSARC.globals.pak"           # gc*globals.mbin
+LANGUAGE_PAK = "NMSARC.MetadataEtc.pak"      # language/*.mbin
+SCAN_WARN_OPENS = 3          # a file found only after opening this many paks means a stale hint (logged)
+
 MAGIC = b"HGPAK"
 FORMAT_VERSION = 2
 CHUNK_SIZE = 0x10000
 HEADER = struct.Struct("<QQQ?7xQ")
 ENTRY = struct.Struct("<16sQQ")
+
+
+def _size(path: Path) -> int:
+    try:
+        return path.stat().st_size
+    except OSError:
+        return 0
 
 
 class PakError(ValueError):
@@ -67,6 +85,7 @@ class Pak:
     def __init__(self, path: Path):
         self.path = Path(path)
         self._f = open(self.path, "rb")
+        self._lock = threading.RLock()          # a shared pak (see `session`) may be read by two threads
         try:
             self._read_index()
         except Exception:
@@ -81,6 +100,8 @@ class Pak:
 
     def close(self) -> None:
         self._f.close()
+        self.names = {}                     # the index is the pak's memory: let it go with the file
+        self._index = b""
 
     def _read_index(self) -> None:
         """Read the header, the file index and (compressed paks) the chunk index; PakError when malformed."""
@@ -96,7 +117,10 @@ class Pak:
         index = self._f.read(ENTRY.size * files)
         if len(index) != ENTRY.size * files:
             raise PakError(f"{self.path.name}: file index is truncated")
-        self._entries = [ENTRY.unpack_from(index, i * ENTRY.size) for i in range(files)]
+        # The raw index stays as bytes and entries are unpacked on demand: a Python tuple per file cost ~100 bytes of
+        # the ~400 per file an open pak held (50,000 files in MetadataEtc).
+        self._index = index
+        self._files = files
         self.compressed = bool(compressed)
         self._data_offset = data_offset
         self._chunk_sizes: tuple[int, ...] = ()
@@ -114,8 +138,9 @@ class Pak:
                 raise PakError(f"{self.path.name}: chunks run past the end of the file")
             self._decompress = _decompressor()
         self._cached_chunk = (-1, b"")
-        manifest = self._read_entry(0).rstrip(b"\r\n").split(b"\r\n")
-        self.names = {name.decode("utf-8", "replace").lower(): i + 1 for i, name in enumerate(manifest) if name}
+        manifest = self._read_entry(0).rstrip(b"\r\n").decode("utf-8", "replace").lower().split("\r\n")
+        self.names = {name: i + 1 for i, name in enumerate(manifest) if name}
+        del manifest
 
     def _chunk(self, index: int) -> bytes:
         """One 64 KiB chunk, decompressed (a stored size of exactly 64 KiB is raw); the last one is cached."""
@@ -136,7 +161,9 @@ class Pak:
 
     def _read_entry(self, k: int) -> bytes:
         """The bytes of file entry k: read directly, or assembled from the chunks it spans."""
-        _, offset, size = self._entries[k]
+        if not 0 <= k < self._files:
+            raise PakError(f"{self.path.name}: entry {k} does not exist")
+        _, offset, size = ENTRY.unpack_from(self._index, k * ENTRY.size)
         if not self.compressed:
             self._f.seek(offset)
             data = self._f.read(size)
@@ -159,7 +186,36 @@ class Pak:
 
     def read(self, name: str) -> bytes:
         """The file's bytes; KeyError when this pak does not contain it."""
-        return self._read_entry(self.names[name.lower()])
+        with self._lock:
+            return self._read_entry(self.names[name.lower()])
+
+
+_session_lock = threading.RLock()
+_session: dict[str, Pak] | None = None      # path -> open Pak while a `session` is active
+_session_depth = 0
+
+
+@contextmanager
+def session():
+    """Share the opened paks between every PakSet created inside the block, and free them all at its end.
+
+    Reading the game's tables opens the same few paks again and again (each open builds the file index, up to 29 MB
+    and 0.4 s for MetadataEtc); inside one load pass they are opened once. Nothing stays open or in memory after
+    the block - the plugin must not hold ~20 MB of file names between reads. Re-entrant (the outermost block frees)."""
+    global _session, _session_depth
+    with _session_lock:
+        if _session is None:
+            _session = {}
+        _session_depth += 1
+    try:
+        yield
+    finally:
+        with _session_lock:
+            _session_depth -= 1
+            if _session_depth == 0:
+                paks, _session = _session, None
+                for pak in paks.values():
+                    pak.close()
 
 
 class PakSet:
@@ -174,10 +230,13 @@ class PakSet:
     def __init__(self, pcbanks: Path, hints: dict[str, str] | None = None):
         self.pcbanks = Path(pcbanks)
         self.hints = hints or {}
-        self._open: dict[str, Pak] = {}
+        self._open: dict[str, Pak] = {}         # the paks this set opened itself (a session's are not its to close)
         self._paths = sorted(self.pcbanks.glob("*.pak"), key=lambda p: p.name.lower())
         if not self._paths:
             raise PakError(f"no .pak files in {self.pcbanks}")
+        # Where nothing is hinted, the small paks (metadata, globals) are tried before the big texture and audio
+        # ones, whose indexes are the expensive ones to build.
+        self._by_size = sorted(self._paths, key=lambda p: (_size(p), p.name.lower()))
 
     def __enter__(self) -> "PakSet":
         return self
@@ -191,6 +250,11 @@ class PakSet:
         self._open.clear()
 
     def _pak(self, path: Path) -> Pak:
+        with _session_lock:
+            if _session is not None:
+                if str(path) not in _session:
+                    _session[str(path)] = Pak(path)
+                return _session[str(path)]
         if path.name not in self._open:
             self._open[path.name] = Pak(path)
         return self._open[path.name]
@@ -198,13 +262,18 @@ class PakSet:
     def _order(self, name: str) -> list[Path]:
         preferred = [hint for prefix, hint in self.hints.items() if name.startswith(prefix)]
         first = [p for p in self._paths if p.name in preferred]
-        return first + [p for p in self._paths if p.name not in preferred]
+        return first + [p for p in self._by_size if p.name not in preferred]
 
     def find(self, name: str) -> Pak | None:
         name = name.lower()
+        opened = 0
         for path in self._order(name):
             pak = self._pak(path)
+            opened += 1
             if name in pak.names:
+                if opened >= SCAN_WARN_OPENS:
+                    logs.warn_once(f"pakscan:{name}", "%s was found in %s only after opening %d paks - its pak hint "
+                                   "is stale (slow and memory-hungry); update the hint in the plugin", name, path.name, opened)
                 return pak
         return None
 

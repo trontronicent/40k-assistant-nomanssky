@@ -21,7 +21,7 @@ import struct
 from . import mbin
 
 TRAIT_FILE = "metadata/reality/tables/frigatetraittable.mbin"
-TRAIT_PAK = "NMSARC.MetadataEtc.pak"
+TRAIT_PAK = "NMSARC.Precache.pak"      # metadata/reality/tables (was MetadataEtc: every load scanned 21 paks)
 TRAIT_RECORD = 0x68
 STATS = ["Combat", "Exploration", "Mining", "Diplomatic", "FuelBurnRate", "FuelCapacity", "Speed", "ExtraLoot",
          "Repair", "Invulnerable", "Stealth"]

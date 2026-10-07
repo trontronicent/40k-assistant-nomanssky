@@ -41,7 +41,8 @@ from . import mbin
 from .timers import BUILDING_NAMES, MBIN_HEADER, SETTLEMENT_FILE, clock, player_uid
 
 PERKS_FILE = "metadata/reality/tables/settlementperkstable.mbin"
-PERKS_PAK = "NMSARC.MetadataEtc.pak"
+PERKS_PAK = "NMSARC.Precache.pak"      # metadata/reality/tables (was MetadataEtc: every load scanned 21 paks)
+GLOBALS_PAK = "NMSARC.globals.pak"
 
 # GcSettlementStatType.SettlementStatTypeEnum, in order, with the names the game's settlement screen uses.
 STATS = ["MaxPopulation", "Happiness", "Production", "Upkeep", "Sentinels", "Debt", "Alert", "BugAttack"]
@@ -157,7 +158,7 @@ def load_tables(install) -> dict:
     if install is None:
         return dict(FALLBACK, error="game installation not found")
     try:
-        with PakSet(install.pcbanks, {SETTLEMENT_FILE: PERKS_PAK, PERKS_FILE: PERKS_PAK}) as paks:
+        with PakSet(install.pcbanks, {SETTLEMENT_FILE: GLOBALS_PAK, PERKS_FILE: PERKS_PAK}) as paks:
             stats = parse_globals(paks.read(SETTLEMENT_FILE))
             perks = parse_perks(paks.read(PERKS_FILE))
     except (KeyError, OSError, PakError, ZstdUnavailable) as exc:

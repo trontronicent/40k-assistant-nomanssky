@@ -83,11 +83,11 @@ def parse_tables(settlement: bytes, fleet: bytes) -> dict | None:
 
 def load_tables(install) -> dict:
     """The timer tables of the installed game, else FALLBACK (``source`` says which, ``error`` why)."""
-    from .hgpak import PakError, PakSet, ZstdUnavailable
+    from .hgpak import PakError, PakSet, ZstdUnavailable, GLOBALS_PAK
     if install is None:
         return dict(FALLBACK, error="game installation not found")
     try:
-        with PakSet(install.pcbanks, {SETTLEMENT_FILE: "NMSARC.MetadataEtc.pak", FLEET_FILE: "NMSARC.MetadataEtc.pak"}) as paks:
+        with PakSet(install.pcbanks, {SETTLEMENT_FILE: GLOBALS_PAK, FLEET_FILE: GLOBALS_PAK}) as paks:
             tables = parse_tables(paks.read(SETTLEMENT_FILE), paks.read(FLEET_FILE))
     except (KeyError, OSError, PakError, ZstdUnavailable) as exc:
         return dict(FALLBACK, error=f"{type(exc).__name__}: {exc}")

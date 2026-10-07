@@ -10,7 +10,7 @@ Blocking (file reads); the connector calls ``load`` through ``ctx.run_blocking``
 
 from __future__ import annotations
 
-from . import frigates, game_terms, logs, recipes, seasons, settlements, ships, store, techstats, timers, worlds
+from . import frigates, game_terms, hgpak, logs, recipes, seasons, settlements, ships, store, techstats, timers, worlds
 
 
 class GameTables:
@@ -42,6 +42,12 @@ class GameTables:
         self.stored_build = None
         if install is None and self._load_stored():
             return [f"Game files not found: using the tables stored from game build {self.stored_build}"]
+        # One pak session for the whole pass: each pak is opened (its file index built) once, shared by every table,
+        # and freed at the end - not held between reads.
+        with hgpak.session():
+            return self._load_tables(install)
+
+    def _load_tables(self, install) -> list[str]:
         # Each table on its own: an unexpected failure in one (a game update that broke a layout in a way its parser
         # did not expect) leaves that table on its built-in values with an error, and the others are still read.
         self.timers = self._guard("timers", lambda: timers.load_tables(install), {"error": None})

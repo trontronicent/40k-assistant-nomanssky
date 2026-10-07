@@ -17,13 +17,14 @@ memory) and the page's actions. Presenting it is delegated:
 from __future__ import annotations
 
 import asyncio
+import gc
 import json
 import time
 import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from . import equipment, frigates, galaxy, logs, memory, planet_search, planets_view, positions, route, saves, settlements, ships, starmap, timers, trade
+from . import equipment, frigates, galaxy, hgpak, logs, memory, planet_search, planets_view, positions, route, saves, settlements, ships, starmap, timers, trade
 from .companion import PluginCompanion
 from .describe import StateText
 from .game_install import GameInstall, find_game
@@ -93,6 +94,7 @@ class NmsConnector:
         self.ctx = ctx
         logs.bind(ctx.logger)        # every module logs through the host's plugin logger (category tag)
         self.data_dir: Path = ctx.data_dir
+        self._heavy_load = False                # set by a pass over the game files; the next collect resets it
         self.degraded: dict[str, str] = {}      # parts of the newest save that could not be read: name -> reason
         self.mapping_path = self.data_dir / "mapping.json"
         self.events_path = self.data_dir / "save_events.json"
@@ -208,6 +210,25 @@ class NmsConnector:
     async def stop(self) -> None:
         await self.ctx.run_blocking(self._save_events)
         await self.ctx.run_blocking(self.live.close)
+        self.release_memory()
+
+    def release_memory(self) -> None:
+        """Let go of everything the plugin holds in RAM: the item database and texts, the game-file tables, the save
+        snapshot and its derived lists, the recorded planets and the module caches. All of it is on disk (or re-read from
+        the game files) when the plugin starts again; the app unloads the plugin's modules on stop/update, and this makes
+        sure nothing a task or the app still references keeps ~30-60 MB alive. Safe to call twice."""
+        self.gamedata.items = {}
+        self.gamedata._texts, self.gamedata._texts_for, self.gamedata._unknown_texts = {}, None, set()
+        self.tables = GameTables(TableStore(self.data_dir))
+        self.gamedata.tech, self.gamedata.recipes, self.gamedata.terms = self.tables.tech, self.tables.recipes, self.tables.terms
+        self.snapshot, self.visits, self.settlements, self.timers = None, {}, [], []
+        self.ships, self.freighter, self.equipment, self.frigates = [], None, None, []
+        self.history.planets.clear()
+        self.degraded.clear()
+        starmap._predictions.clear()
+        galaxy._positions.clear()
+        self.starmap._table, self.starmap._table_for = None, None
+        gc.collect()
 
     def _load_route(self) -> dict:
         """The last route request (target, portal, range) and its result - kept across restarts."""
@@ -379,13 +400,22 @@ class NmsConnector:
             self._force.clear()
 
     async def _ensure_gamedata(self, force: bool = False) -> None:
-        """Find the game and (re)build the item database when the build or language changed."""
+        """Find the game and (re)build the item database when the build or language changed. The whole pass shares one
+        pak session: each pak's file index is built once and freed at the end (hgpak.session)."""
+        with hgpak.session():
+            await self._ensure_gamedata_inner(force)
+        if self._heavy_load:
+            self._heavy_load = False
+            gc.collect()        # the table/item passes leave cyclic garbage and a fragmented heap: collect once
+
+    async def _ensure_gamedata_inner(self, force: bool) -> None:
         now = time.time()
         if not force and now - self._game_checked < GAME_CHECK_S:
             return
         self._game_checked = now
         self.install = await self.ctx.run_blocking(find_game)
         if self.tables.needs_load(self.install):
+            self._heavy_load = True
             for warning in await self.ctx.run_blocking(self.tables.load, self.install):
                 self.ctx.logger.warning("[NMS] %s", warning)
             self.gamedata.tech = self.tables.tech       # Texts.modifiers: what each technology does
@@ -404,6 +434,7 @@ class NmsConnector:
         if not force and self.gamedata.error and now - self._game_failed < GAME_RETRY_S:
             return
         await self.ctx.run_blocking(self.gamedata.load, self.install, force)
+        self._heavy_load = True
         self._planet_icons_ready = False
         if self.gamedata.error:
             self._game_failed = now
@@ -571,8 +602,9 @@ class NmsConnector:
         self.unknown_keys = len(unknown)
         self.decode_seconds = round(time.perf_counter() - started, 2)
         self.decoded_at = datetime.now().isoformat(timespec="seconds")
-        await self._ensure_icons()
-        await self._ensure_texts()
+        with hgpak.session():           # icons and texts of a new save may need two paks: open each once
+            await self._ensure_icons()
+            await self._ensure_texts()
 
     # ------------------------------------------------------------------ UI
 

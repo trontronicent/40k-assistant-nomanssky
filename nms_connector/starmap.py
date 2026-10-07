@@ -34,14 +34,42 @@ def neighbourhood(center: int, radius: int = REGION_RADIUS) -> list[int]:
     return keys
 
 
-def seed_table(keys: list[int]) -> dict[int, tuple[int, list[int]]]:
-    """{first planet's seed: (system key, all planet seeds)} for the given systems."""
-    out = {}
+class SeedTable:
+    """The planet seeds of a set of systems, as numpy arrays sorted by the first planet's seed: ``first``, the system
+    ``keys`` and the second planet's seed (``second``, 0 = the system has one body). The scan needs nothing else
+    of a system. As a dict of tuples holding a list of Python ints per system, the ~29,000 systems of 27 regions held
+    ~12 MB for as long as the game ran; as arrays they take under 1 MB. An empty table is falsy."""
+
+    def __init__(self, first, keys, second):
+        self.first, self.keys, self.second = first, keys, second
+
+    def __len__(self) -> int:
+        return len(self.first)
+
+    @classmethod
+    def from_rows(cls, rows: dict[int, tuple[int, int]]) -> "SeedTable":
+        """From {first seed: (system key, second seed or 0)}."""
+        import numpy as np
+        order = sorted(rows)
+        return cls(np.array(order, np.uint64), np.array([rows[s][0] for s in order], np.uint64),
+                   np.array([rows[s][1] for s in order], np.uint64))
+
+
+def seed_table(keys: list[int]) -> SeedTable:
+    """The SeedTable of the given systems (one pass of procgen over them, ~0.9 s for 29,000)."""
+    rows: dict[int, tuple[int, int]] = {}
     for key in keys:
         seeds = procgen.planet_seeds(key)
         if seeds:
-            out[seeds[0]] = (key, seeds)
-    return out
+            rows[seeds[0]] = (key, seeds[1] if len(seeds) > 1 else 0)
+    return SeedTable.from_rows(rows)
+
+
+def _as_table(table) -> SeedTable:
+    """A SeedTable from either form: the dict {first seed: (key, all seeds)} older code and tests build is converted."""
+    if isinstance(table, SeedTable):
+        return table
+    return SeedTable.from_rows({s: (key, seeds[1] if len(seeds) > 1 else 0) for s, (key, seeds) in (table or {}).items()})
 
 
 def find_records(reader, table: dict, chunker=None) -> dict[int, dict]:
@@ -50,10 +78,11 @@ def find_records(reader, table: dict, chunker=None) -> dict[int, dict]:
 
     from . import memory
     chunker = chunker or memory.chunks
-    if not table:
+    table = _as_table(table)
+    if not len(table):
         return {}
-    seeds = np.array(sorted(table), np.uint64)
-    low = np.zeros(1 << LOW_BITS, bool)
+    seeds = table.first
+    low = np.zeros(1 << LOW_BITS, bool)      # 16 MB, freed with this call
     low[(seeds & np.uint64((1 << LOW_BITS) - 1)).astype(np.intp)] = True
     found: dict[int, dict] = {}
     for _base, address, buf, valid, _length in chunker(reader, 0):
@@ -67,8 +96,9 @@ def find_records(reader, table: dict, chunker=None) -> dict[int, dict]:
         vals = words[cand]
         pos = np.searchsorted(seeds, vals)
         pos[pos >= len(seeds)] = 0
-        for i in cand[seeds[pos] == vals].tolist():
-            key, planet_seeds = table[int(words[i])]
+        hit = seeds[pos] == vals
+        for i, p in zip(cand[hit].tolist(), pos[hit].tolist()):
+            key = int(table.keys[p])
             if key in found:
                 continue
             start = i * 8 - memory.STAR_PLANET_SEEDS
@@ -77,9 +107,9 @@ def find_records(reader, table: dict, chunker=None) -> dict[int, dict]:
             attrs = memory.parse_star_attributes(blob) if blob else None
             if not attrs:
                 continue
-            if len(planet_seeds) > 1:     # a second planet's seed must sit in its slot too
+            if table.second[p]:     # a second planet's seed must sit in its slot too
                 second = int.from_bytes(blob[memory.STAR_PLANET_SEEDS + 0x10:memory.STAR_PLANET_SEEDS + 0x18], "little")
-                if second != planet_seeds[1]:
+                if second != int(table.second[p]):
                     continue
             found[key] = attrs
     return found
@@ -94,7 +124,7 @@ class StarmapReader:
         self._chunker = chunker
         self._clock = clock
         self._table_for: int | None = None
-        self._table: dict = {}
+        self._table: SeedTable | None = None
         self.last_scan_at: float | None = None
         self.last_scan_seconds: float | None = None
         self.last_found = 0
@@ -117,12 +147,15 @@ class StarmapReader:
 
 
 _predictions: dict[int, dict] = {}
+MAX_PREDICTIONS = 5000        # a map of a few hundred systems is shown at a time; never let this grow without bound
 
 
 def predicted(key: int) -> dict:
     """procgen's attributes for a system (cached), marked ``predicted``."""
     key = key & ~(0xF << 52)
     if key not in _predictions:
+        if len(_predictions) >= MAX_PREDICTIONS:
+            _predictions.clear()
         a = procgen.system_attributes(key)
         # A pirate system shows conflict "Pirate" in the game (0x079 next to Yibrazh, read 2026-10-05); upstream
         # reports the flag only.

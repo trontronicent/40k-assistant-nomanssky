@@ -31,6 +31,7 @@ from __future__ import annotations
 import re
 import struct
 import sys
+import os
 import threading
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
@@ -42,7 +43,18 @@ except ImportError:  # pragma: no cover - the host ships numpy
     np = None
 
 GAME_EXE = "nms.exe"
-CHUNK = 16 << 20
+def _chunk_bytes() -> int:
+    """Bytes read per scan step: 8 MB, or NMS_SCAN_CHUNK_MB (1-64). Each of the SCAN_WORKERS threads holds one buffer of
+    this size while a scan runs. Measured 2026-10-08 on the running game (6 planets found every time): 16 MB 1.7-2.8 s
+    / 84 MB peak, 8 MB 2.3-3.0 s / 46 MB, 4 MB 3.1 s / 27 MB - the scan runs every few minutes, so 8 MB gives back
+    ~40 MB of RAM for ~0.4 s."""
+    try:
+        return min(64, max(1, int(os.environ.get("NMS_SCAN_CHUNK_MB", "8")))) << 20
+    except ValueError:
+        return 8 << 20
+
+
+CHUNK = _chunk_bytes()
 # Threads for a scan. On a hybrid CPU (measured on an i9-14900K, 2026-10-04) Windows moves a busy background thread
 # to an efficiency core after a few seconds and the scan slows 2.5x (2.2 s -> 6 s); four threads, each with its own
 # 16 MB buffer, keep it at ~1.2-2 s. numpy and ReadProcessMemory release the GIL, so the threads run in parallel.

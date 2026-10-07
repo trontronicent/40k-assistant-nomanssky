@@ -215,8 +215,9 @@ def _dyn_key(data: bytes, start: int, offset: int | None) -> str:
     return text if KEY_RE.match(text) else ""
 
 
-def parse_language_table(data: bytes, wanted: set[str] | None = None) -> dict[str, str]:
-    """Localisation entries {key: text} of one language file (only `wanted` keys when given).
+def parse_language_table(data: bytes, wanted=None) -> dict[str, str]:
+    """Localisation entries {key: text} of one language file (only `wanted` keys when given: a set of keys, or a
+    function key -> bool; texts of other keys are never decoded, which is most of this table's memory and time).
 
     Each entry is the key (0x20 fixed string) followed by one dynamic string
     per language; a language file fills only its own slot.
@@ -226,7 +227,7 @@ def parse_language_table(data: bytes, wanted: set[str] | None = None) -> dict[st
     for i in range(count):
         base = start + i * size
         key = fixed_str(data, base, 0x20)
-        if not key or (wanted is not None and key not in wanted):
+        if not key or (wanted is not None and not (wanted(key) if callable(wanted) else key in wanted)):
             continue
         for slot in range(base + 0x20, base + size - 15, 0x10):
             text = dyn_bytes(data, slot)

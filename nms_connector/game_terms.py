@@ -136,9 +136,7 @@ def read_language(install, wanted) -> tuple[dict[str, str], dict[str, str] | Non
     with hgpak.PakSet(install.pcbanks, PAK_HINTS) as paks:
         for lang in dict.fromkeys(("english", language)):
             for name in paks.names_matching("language/", f"_{lang}.mbin"):
-                for key, text in mbin.parse_language_table(paks.read(name)).items():
-                    if wanted(key):
-                        texts[lang][key] = text
+                texts[lang].update(mbin.parse_language_table(paks.read(name), wanted))
     return texts["english"], (texts[language] if language not in ("english", "usenglish") else None), language
 
 
