@@ -11,7 +11,6 @@ where a trade good sells). The page reads the state on every call (every 5 s pol
 from __future__ import annotations
 
 import time
-from datetime import datetime
 
 from . import equipment, frigates, planets_view, settlements, ships, timers
 
@@ -49,24 +48,33 @@ ACTIONS = [
 ]
 
 
-#: How many kinds of part the Bases table names before "+N more" (the tooltip lists them all).
-BASE_PARTS_SHOWN = 4
+#: How many kinds of part the Bases table names before "+N more" (the tooltip lists them all). Three, because
+#: a part is named in both languages ("Wooden Wall (Holzwand)") like every other item.
+BASE_PARTS_SHOWN = 3
+
+
+def parts_short(named: list[str], limit: int = BASE_PARTS_SHOWN) -> str | None:
+    """'7x Wooden Wall, 4x Wood Floor Panel, +6 more' from already-named parts - the form the table and the
+    persona share."""
+    if not named:
+        return None
+    more = len(named) - limit
+    return ", ".join(named[:limit]) + (f", +{more} more" if more > 0 else "")
+
+
+def parts_cell(named: list[str]):
+    """The *What is in it* cell: the short list, every part in its tooltip. It sorts by how many *kinds* of
+    part a base has - the total is already the Parts column beside it, so sorting by that would say nothing."""
+    if not named:
+        return None
+    return {"text": parts_short(named), "hint": "Built from:\n" + "\n".join(f"• {n}" for n in named),
+            "sort": len(named)}
 
 
 def system_label(key, ctx):
     """A system's name as the rest of the page writes it, or None when nothing is known about it."""
     visit = ctx.visit(key)
     return planets_view._system_label(key, visit) if visit else None
-
-
-def fmt_time(unix: int | None) -> str | None:
-    """A save timestamp as 'YYYY-MM-DD HH:MM', or None."""
-    if not unix:
-        return None
-    try:
-        return datetime.fromtimestamp(int(unix)).strftime("%Y-%m-%d %H:%M")
-    except (OverflowError, OSError, ValueError):
-        return None
 
 
 class ConnectorPage:
@@ -209,6 +217,18 @@ class ConnectorPage:
         return ships.ship_sections(c.ships, c.tables.ship_ranges, ctx.texts) + frigates.frigate_sections(
             c.frigates, c.tables.trait_names, ctx.texts, lambda key: system_label(key, ctx)) + [self.bases_table(snap, ctx)]
 
+    def bases_newest_first(self, snap: dict) -> list[dict]:
+        """The save's bases, the one you built on last at the top - the order the table and the persona share."""
+        return sorted(snap.get("bases") or [], key=lambda b: b.get("last_update") or 0, reverse=True)
+
+    def base_facts(self, base: dict, ctx) -> dict:
+        """One base as both the table and the persona describe it: ``{name, type, place, parts, named_parts,
+        built}``. Kept in one place so the page and the persona can never say different things about a base."""
+        named = self.named_parts(base, ctx)
+        return {"name": base["name"], "type": base["type"], "place": self.base_place(base, ctx),
+                "parts": base.get("objects") or 0, "named_parts": named,
+                "built": timers.fmt_time(base.get("last_update"))}
+
     def bases_table(self, snap: dict, ctx) -> dict:
         """The Bases table: where each base is (system and, for a planet base, the planet), what it is built
         from and when it was last built on.
@@ -218,11 +238,10 @@ class ConnectorPage:
         and its tooltip lists all of them. Newest first - the base you are working on is the one you ask about.
         """
         rows = []
-        for b in sorted(snap["bases"], key=lambda x: x.get("last_update") or 0, reverse=True):
-            system = system_label(b["system"], ctx) if b.get("system") is not None else None
-            rows.append([b["name"], b["type"], {"text": self.base_place(b, ctx), "hint": b["portal"] or None},
-                         b["galaxy"], b["objects"], self.parts_cell(b, ctx),
-                         fmt_time(b.get("last_update")) or "–"])
+        for base in self.bases_newest_first(snap):
+            f = base_facts = self.base_facts(base, ctx)
+            rows.append([f["name"], f["type"], {"text": f["place"], "hint": base["portal"] or None},
+                         base["galaxy"], f["parts"], parts_cell(base_facts["named_parts"]), f["built"] or "–"])
         return {"type": "table", "title": f"Bases ({len(rows)})",
                 "columns": ["Name", "Type", "Where", "Galaxy", "Parts", "What is in it", "Last built on"],
                 "rows": rows,
@@ -242,34 +261,13 @@ class ConnectorPage:
         name = planets_view._planet_name(planet, ctx.visit(key)) if planet else f"planet {index}"
         return f"{name} ({system})"
 
-    def named_parts(self, base: dict) -> list[str]:
-        """['7x Wooden Wall', '4x Wood Floor Panel', ...] - the game's own part names, most used first."""
+    def named_parts(self, base: dict, ctx) -> list[str]:
+        """['7x Wooden Wall', '4x Wood Floor Panel', ...] - most used first, named through `Texts.name` like
+        every other item, so a part is shown in the game's language too and the language-table fallback
+        applies (a raw "W_WALL" only remains for a part the game itself does not name)."""
         parts = base.get("parts") or {}
-        out = []
-        for part_id, count in sorted(parts.items(), key=lambda kv: (-kv[1], kv[0])):
-            entry = self.connector.gamedata.lookup(part_id) or {}
-            out.append(f"{count}x {entry.get('en') or part_id}")
-        return out
-
-    def parts_text(self, base: dict, limit: int = BASE_PARTS_SHOWN) -> str | None:
-        """'7x Wooden Wall, 4x Wood Floor Panel, +6 more' - the short form the table and the persona share."""
-        named = self.named_parts(base)
-        if not named:
-            return None
-        more = len(named) - limit
-        return ", ".join(named[:limit]) + (f", +{more} more" if more > 0 else "")
-
-    def fmt_time_of(self, unix) -> str | None:
-        """The save-timestamp formatter, reachable from the companion (which does not import this module)."""
-        return fmt_time(unix)
-
-    def parts_cell(self, base: dict, ctx):
-        """The *What is in it* cell: the short list, every part in the tooltip, sorted by how many parts."""
-        named = self.named_parts(base)
-        if not named:
-            return None
-        return {"text": self.parts_text(base), "hint": "Built from:\n" + "\n".join(f"• {n}" for n in named),
-                "sort": base.get("objects") or 0}
+        return [f"{count}x {ctx.texts.name(part_id) or part_id}"
+                for part_id, count in sorted(parts.items(), key=lambda kv: (-kv[1], kv[0]))]
 
     def saves(self, snap: dict | None, ctx) -> list[dict]:
         """The Saves & source tab: how often the game saves, recent writes, where the data comes from, scans."""

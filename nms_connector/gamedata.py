@@ -41,6 +41,9 @@ PRODUCT_ID_AT, PRODUCT_VALUE_AT = 0x150, 0x194  # GcProductData ID / BaseValue (
 # the game's numbers). A second field at 0x110 is also 6 for Tritium but 0 or 1 for most substances, so it is
 # not a price. Checked at load like the product offsets, below.
 SUBSTANCE_ID_AT, SUBSTANCE_VALUE_AT = 0xC8, 0x10C
+#: Common substances the game always charges for - the anchor that tells BaseValue from the look-alike field
+#: beside it (see substance_values). Ids, not names: ROCKETSUB is Tritium, FUEL1 Carbon, CAVE1 Cobalt.
+ANCHOR_SUBSTANCES = ("ROCKETSUB", "FUEL1", "CAVE1", "OXYGEN")
 ITEM_TABLES = ("nms_reality_gcproducttable", "nms_reality_gcsubstancetable", "nms_reality_gctechnologytable",
                "nms_reality_gcproceduraltechnologytable", "nms_basepartproducts",
                "nms_modularcustomisationproducts")
@@ -189,9 +192,16 @@ def build_items(paks: PakSet, language: str) -> dict[str, dict]:
 def substance_values(data: bytes, known_ids: set[str]) -> dict[str, int]:
     """{substance id: base value in units} from the substance table (GcRealitySubstanceData.BaseValue - what one
     unit of Tritium, Carbon or Cobalt is worth before an economy's price factor). Same guard as the products:
-    the ids at the fixed offset must be the ids the calibrated parse found (>= 90 %) and the values plausible,
-    else {} - no values rather than wrong ones."""
-    return _table_values(data, known_ids, SUBSTANCE_ID_AT, SUBSTANCE_VALUE_AT)
+    the ids at the fixed offset must be the ids the calibrated parse found (>= 90 %) and the values plausible.
+
+    Plus an anchor, because the id check alone cannot tell this field from its neighbours: a second int sits at
+    0x110 that is *also* 6 for Tritium but 0 for Carbon and Oxygen, so a one-field layout shift would pass every
+    other check and silently price the player's whole cargo wrong. Every one of ANCHOR_SUBSTANCES is something
+    the game charges for, so a field where any of them is free is not the price field."""
+    out = _table_values(data, known_ids, SUBSTANCE_ID_AT, SUBSTANCE_VALUE_AT)
+    if any(out.get(i, 0) <= 0 for i in ANCHOR_SUBSTANCES if i in known_ids):
+        return {}
+    return out
 
 
 def _table_values(data: bytes, known_ids: set[str], id_at: int, value_at: int) -> dict[str, int]:

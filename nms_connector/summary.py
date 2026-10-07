@@ -17,11 +17,11 @@ SHIP_CLASSES = {"FIGHTERS": "Fighter", "DROPSHIPS": "Hauler", "SCIENTIFIC": "Exp
                 "SAILSHIP": "Solar", "BIOPARTS": "Living Ship", "S-CLASS": "Living Ship",
                 "SENTINELSHIP": "Interceptor", "ROYAL": "Exotic", "CORVETTE": "Corvette"}
 
-# PersistentBaseTypes as the save writes them. PlayerShipBase is the living space inside a ship
-# (read from a real save on 2026-10-07); an unknown type keeps the game's own word.
+# PersistentBaseTypes as the save writes them; only types actually seen in a save are translated. An unknown
+# type keeps the game's own word, which is more honest than a guessed label nobody would notice is wrong.
+# PlayerShipBase is the living space inside a ship (read from a real save on 2026-10-07).
 BASE_TYPES = {"HomePlanetBase": "Planet base", "FreighterBase": "Freighter base",
-              "ExternalPlanetBase": "Other base (settlement)", "PlayerShipBase": "Ship interior",
-              "GeneratedPlanetBase": "Abandoned base", "GeneratedPlanetBaseEdits": "Abandoned base (edited)"}
+              "ExternalPlanetBase": "Other base (settlement)", "PlayerShipBase": "Ship interior"}
 
 
 def _get(d, *path, default=None):
@@ -174,7 +174,6 @@ def summarize(save: dict) -> dict:
                       "planet_index": addr.get("PlanetIndex") if addr else None,
                       "parts": parts,
                       "last_update": base.get("LastUpdateTimestamp") or None,
-                      "owner": (base.get("Owner") or {}).get("USN") or None,
                       "here": bool(addr) and addr.get("SolarSystemIndex") == ga.get("SolarSystemIndex")
                       and all(addr.get(k) == ga.get(k) for k in ("VoxelX", "VoxelY", "VoxelZ"))})
 

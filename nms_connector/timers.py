@@ -166,6 +166,17 @@ def expedition_timers(player_state: dict, tables: dict) -> list[dict]:
     return out
 
 
+def fmt_time(unix) -> str | None:
+    """A save timestamp as 'YYYY-MM-DD HH:MM' in local time, or None when there is none. Lives beside clock()
+    so the plugin has one place that turns a game timestamp into text."""
+    if not unix:
+        return None
+    try:
+        return datetime.fromtimestamp(int(unix)).strftime("%Y-%m-%d %H:%M")
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
 def clock(epoch: float) -> str:
     """'13:21' in this computer's time zone (the player's)."""
     return datetime.fromtimestamp(epoch).strftime("%H:%M")

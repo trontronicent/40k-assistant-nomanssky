@@ -445,11 +445,12 @@ def live_notices(live) -> list[dict]:
 
 
 def current_planet(ctx: Context, key: int) -> dict:
-    """Where in the system *key* the player is: ``{text, in_space, known, exact}``.
+    """Where in the system *key* the player is: ``{text, where, exact}``.
 
-    `text` is what the page and the overlay show ("Corrodia (Yaksh Primus)", "in space", "unknown (...)"),
-    `in_space` says the player is not on a planet, and `known` is False when the position cannot be read at
-    all. One place decides this, so the page, the overlay and the persona can never disagree.
+    `where` is "planet", "space" or "unknown" - one three-state fact rather than two booleans that could
+    contradict each other - and `text` is what the page and the overlay show ("Corrodia (Yaksh Primus)",
+    "in space", "unknown (...)"). One place decides this, so the page, the overlay and the persona can never
+    disagree, and no caller has to read the answer out of the text.
     """
     visit = ctx.visit(key)
     index = ctx.current_planet_index()
@@ -457,21 +458,21 @@ def current_planet(ctx: Context, key: int) -> dict:
     exact = getattr(ctx.live, "current_source", "player") == "player"
     saved = ctx.save_position if not exact and ctx.save_position and ctx.save_position.get("system") == key else None
     if here:
-        return {"text": _planet_name(here, visit), "in_space": False, "known": True, "exact": exact}
+        return {"text": _planet_name(here, visit), "where": "planet", "exact": exact}
     if saved:
         # The game saves about once a minute while you play: in the same system, the save's planet is the best
         # answer when memory has no exact position (it may be a minute old, so the time is shown).
         on = saved.get("planet") or 0
         there = next((p for p in ctx.recorded.get(key, []) if p.get("index") == on - 1), None) if on else None
         name = _planet_name(there, visit) if there else (f"planet {on}" if on else "in space")
-        return {"text": f"{name} (at the last save, {saved.get('at')})", "in_space": not on, "known": True,
-                "exact": False}
+        return {"text": f"{name} (at the last save, {saved.get('at')})",
+                "where": "space" if not on else "planet", "exact": False}
     if not exact:
-        return {"text": "unknown (your exact position cannot be read right now)", "in_space": False,
-                "known": False, "exact": False}
+        return {"text": "unknown (your exact position cannot be read right now)", "where": "unknown",
+                "exact": False}
     if index is None:
-        return {"text": "in space", "in_space": True, "known": True, "exact": True}
-    return {"text": f"planet {index + 1}", "in_space": False, "known": True, "exact": True}
+        return {"text": "in space", "where": "space", "exact": True}
+    return {"text": f"planet {index + 1}", "where": "planet", "exact": True}
 
 
 def where_sentence(ctx: Context, key: int | None, galaxy_label: str | None = None,
@@ -492,9 +493,9 @@ def where_sentence(ctx: Context, key: int | None, galaxy_label: str | None = Non
     if not live:
         return f"At the last save you were in {where}{tail}."
     planet = current_planet(ctx, key)
-    if planet["in_space"]:
+    if planet["where"] == "space":
         return f"You are currently in space in {where}{tail}."
-    if not planet["known"]:
+    if planet["where"] == "unknown":
         return (f"You are currently in {where}{tail}. Which planet you are on cannot be read right now - "
                 f"the game only reveals the exact position around saves and loads.")
     return f"You are currently on the planet {planet['text']} in {where}{tail}."

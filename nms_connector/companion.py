@@ -17,7 +17,7 @@ from __future__ import annotations
 import re
 import time
 
-from . import assistant, galaxy, planet_search, planets_view, recipes, settlements, timers, trade
+from . import assistant, galaxy, page as page_module, planet_search, planets_view, recipes, settlements, timers, trade
 
 PERSONA_PROMPT = (
     "You are the No Man's Sky Plugin Persona, the player's companion for No Man's Sky. With every message you "
@@ -159,6 +159,7 @@ class PluginCompanion:
 
         status = [f"No Man's Sky - data of the save written {assistant.saved_text((snap or {}).get('saved_at'))}"
                   + (", position live from the running game" if c.live.current_system is not None else "")]
+        answer_rules: list[str] = []      # how to answer this turn; sent apart from the data (see below)
         if snap:
             status.append(f"Units {snap.get('units') or 0:,}, Nanites {snap.get('nanites') or 0:,}, "
                           f"Quicksilver {snap.get('quicksilver') or 0:,}")
@@ -169,8 +170,13 @@ class PluginCompanion:
                 said = planets_view.where_sentence(
                     ctx, here, snap["location"].get("galaxy"), snap["location"].get("portal"),
                     live=c.live.current_system is not None)
-                status.append(f'Where you are - answer a "where am I" question with this sentence, translated '
-                              f'into the player\'s language and nothing in front of it: "{said}"')
+                status.append(said)
+                # How to answer it travels apart from the data (app 3.12.0 `instructions`): the data block
+                # tells the model its contents are data, never instructions, so a rule written into it would
+                # contradict the block it sits in. A rule beside the data also reaches a persona whose own
+                # prompt the user has edited, which PERSONA_PROMPT no longer does.
+                answer_rules.append(f'Asked where they are, answer with this sentence, translated into the '
+                                    f'player\'s language and nothing in front of it: "{said}"')
             status.append(f"Primary ship: {text.primary_ship()}")
             status.append(f"Freighter: {text.freighter(snap['freighter']['name'])}")
             status.append(f"Current mission: {text.mission(snap.get('current_mission'))}")
@@ -202,6 +208,8 @@ class PluginCompanion:
         return {"title": "No Man's Sky", "text": assistant.build_context(
             question, snap, name_of, names_of, all_names, status, extra, planets_offering, item_notes,
             lambda place_names: self.kind_lines(snap, place_names, ctx, name_of)),
+            # How the plugin asks its data to be answered - outside the data block (app 3.12.0).
+            "instructions": answer_rules,
             # The Settings tab's "Single Context Per Question": this plugin's persona gets no earlier turns (3.11.0).
             "single_context": bool(getattr(getattr(c, "settings", None), "single_context", False))}
 
@@ -247,12 +255,12 @@ class PluginCompanion:
         ctx = c.context()
         out = [f"You are in {planets_view._system_label(here, ctx.visit(here))}"]
         try:
-            planet = planets_view.current_planet(ctx, here)["text"] if c.live.current_system is not None else None
+            where = planets_view.current_planet(ctx, here) if c.live.current_system is not None else None
         except (AttributeError, KeyError, TypeError) as exc:    # live data not ready: the system line stands alone
             c.ctx.logger.debug("[NMS] overlay planet line skipped: %s", exc)
-            planet = None
-        if planet and not str(planet).startswith("unknown"):
-            out.append(f"Planet: {planet}")
+            where = None
+        if where and where["where"] != "unknown":
+            out.append(f"Planet: {where['text']}")
         galaxy_name = ((c.snapshot or {}).get("location") or {}).get("galaxy")
         if galaxy_name:
             out.append(f"Galaxy: {galaxy_name}")
@@ -375,6 +383,14 @@ class PluginCompanion:
                 out.append("  no refiner or crafting recipe makes it: it is gathered only")
         return out
 
+    @staticmethod
+    def _asked_about(words: set[str], keywords: set[str], names) -> bool:
+        """True when the question uses one of *keywords* or names one of the things (any word of a name, so
+        "Kay City" is found by "kay" as well as by "city")."""
+        if words & keywords:
+            return True
+        return any(word in words for name in names for word in str(name or "").lower().split())
+
     def base_lines(self, words: set[str], ctx) -> list[str]:
         """Bases for a question about them (or naming one): where each stands - the planet for a planet base -
         how many parts it has, when it was last built on, and the parts it is made of.
@@ -386,17 +402,16 @@ class PluginCompanion:
         bases = ((c.snapshot or {}).get("bases")) or []
         if not bases:
             return []
-        names = {str(b.get("name") or "").lower() for b in bases}
-        if not (words & BASE_WORDS or any(w for n in names for w in n.split() if w in words)):
+        if not self._asked_about(words, BASE_WORDS, (b.get("name") for b in bases)):
             return []
         page = c.page
         out = [f"Bases ({len(bases)}), newest first:"]
-        for b in sorted(bases, key=lambda x: x.get("last_update") or 0, reverse=True):
-            built = page.fmt_time_of(b.get("last_update"))
-            out.append(f"- {b['name']} ({b['type']}) at {page.base_place(b, ctx)}"
-                       + (f", {b['objects']} parts" if b.get("objects") else "")
-                       + (f", last built on {built}" if built else ""))
-            parts = page.parts_text(b)
+        for base in page.bases_newest_first(c.snapshot or {}):
+            f = page.base_facts(base, ctx)
+            out.append(f"- {f['name']} ({f['type']}) at {f['place']}"
+                       + (f", {f['parts']} parts" if f["parts"] else "")
+                       + (f", last built on {f['built']}" if f["built"] else ""))
+            parts = page_module.parts_short(f["named_parts"])
             if parts:
                 out.append(f"  built from: {parts}")
         return out
@@ -405,8 +420,7 @@ class PluginCompanion:
         """Settlement details for a question about them (or naming one): stats as the screen shows them when read,
         production, perks, the waiting decision, the construction."""
         c = self.connector
-        names = {s["name"].lower() for s in c.settlements}
-        if not (words & SETTLEMENT_WORDS or any(n.split()[0] in words for n in names if n)):
+        if not self._asked_about(words, SETTLEMENT_WORDS, (s["name"] for s in c.settlements)):
             return []
         rules = c.tables.settlement_rules
         out = []

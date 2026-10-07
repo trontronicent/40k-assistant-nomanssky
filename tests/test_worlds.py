@@ -157,12 +157,12 @@ def test_the_overlay_location_area_names_the_planet_when_known(tmp_path, monkeyp
     plugin = create_plugin(FakeCtx(tmp_path / "data"))
     monkeypatch.setattr(type(plugin), "here", lambda self: 0x79)
     plugin.live.current_system = 0x79          # the planet is only known while the game runs
-    monkeypatch.setattr(planets_view, "current_planet", lambda ctx, key: {"text": "Corrodia", "in_space": False,
-                                                                         "known": True, "exact": True})
+    monkeypatch.setattr(planets_view, "current_planet",
+                        lambda ctx, key: {"text": "Corrodia", "where": "planet", "exact": True})
     lines = plugin.companion.where_lines()
     assert lines[0].startswith("You are in ") and lines[1] == "Planet: Corrodia"
     monkeypatch.setattr(planets_view, "current_planet", lambda ctx, key: {
-        "text": "unknown (your exact position ...)", "in_space": False, "known": False, "exact": False})
+        "text": "unknown (your exact position ...)", "where": "unknown", "exact": False})
     assert not any(line.startswith("Planet:") for line in plugin.companion.where_lines())
     # Without live data the overlay names no planet at all: the save only says which system.
     plugin.live.current_system = None

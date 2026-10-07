@@ -27,7 +27,7 @@ def test_a_base_carries_its_parts_planet_and_build_time():
                                         {"ObjectID": "^BASE_FLAG"}, {"ObjectID": ""}, 7]))
     base = snap["bases"][0]
     assert base["parts"] == {"W_WALL": 2, "BASE_FLAG": 1}       # blank ids and non-objects are skipped
-    assert base["objects"] == 5 and base["last_update"] == 1757075039 and base["owner"] == "ReatKay"
+    assert base["objects"] == 5 and base["last_update"] == 1757075039
     assert base["type"] == "Planet base" and base["planet_index"] is not None
 
 
@@ -56,7 +56,8 @@ def test_the_bases_table_names_the_parts_and_the_planet(tmp_path, monkeypatch):
     assert table["columns"] == ["Name", "Type", "Where", "Galaxy", "Parts", "What is in it", "Last built on"]
     assert [r[0] for r in table["rows"]] == ["Big", "Small"]            # newest first
     cell = table["rows"][0][5]
-    assert cell["sort"] == 9 and cell["text"].startswith("5x ") and "Built from:" in cell["hint"]
+    # Sorted by how many kinds of part a base has: the total is already the Parts column beside it.
+    assert cell["sort"] == 2 and cell["text"].startswith("5x ") and "Built from:" in cell["hint"]
     assert table["rows"][0][6] and table["rows"][0][6] != "-"           # a readable date
 
 
@@ -83,19 +84,19 @@ def test_where_am_i_is_a_full_sentence_naming_the_planet(tmp_path, monkeypatch):
     ctx = plugin.context()
     key = 0x79
 
-    def planet(text, in_space=False, known=True):
+    def planet(text, where="planet"):
         monkeypatch.setattr(planets_view, "current_planet",
-                            lambda c, k: {"text": text, "in_space": in_space, "known": known, "exact": True})
+                            lambda c, k: {"text": text, "where": where, "exact": True})
 
     planet("Corrodia (Yaksh Primus)")
     said = planets_view.where_sentence(ctx, key, "Euclid", "006202925E80")
     assert said.startswith("You are currently on the planet Corrodia (Yaksh Primus) in the system ")
     assert "(Euclid galaxy, portal address 006202925E80)" in said
 
-    planet("in space", in_space=True)
+    planet("in space", where="space")
     assert planets_view.where_sentence(ctx, key, "Euclid").startswith("You are currently in space in the system ")
 
-    planet("unknown (...)", known=False)
+    planet("unknown (...)", where="unknown")
     unsure = planets_view.where_sentence(ctx, key, "Euclid")
     assert "cannot be read right now" in unsure and "You are currently in the system" in unsure
 
@@ -103,6 +104,26 @@ def test_where_am_i_is_a_full_sentence_naming_the_planet(tmp_path, monkeypatch):
     offline = planets_view.where_sentence(ctx, key, "Euclid", live=False)
     assert offline.startswith("At the last save you were in the system ") and "planet" not in offline
     assert planets_view.where_sentence(ctx, None, "Euclid") is None
+
+
+def test_the_answer_rule_travels_apart_from_the_data(tmp_path, monkeypatch):
+    """How to answer ("answer a 'where am I' question with this sentence") goes in `instructions`, not in the
+    data text: the app's data block tells the model that everything inside it is data and never instructions,
+    so a rule written into the text would contradict the block it sits in. The sentence itself stays in the
+    data, where the facts belong."""
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    plugin.snapshot = {"location": {"galaxy": "Euclid", "portal": "0001"}, "bases": [], "units": 0, "nanites": 0,
+                       "quicksilver": 0, "freighter": {"name": None}, "ships": [], "storage": [],
+                       "exosuit": [], "current_mission": None, "saved_at": None}
+    monkeypatch.setattr(type(plugin), "here", lambda self: 0x79)
+    monkeypatch.setattr(planets_view, "where_sentence", lambda *a, **k: "You are currently in space in X.")
+    block = plugin.companion.chat_context("where am I?")
+    assert block["instructions"] == [
+        "Asked where they are, answer with this sentence, translated into the player's language and nothing in "
+        'front of it: "You are currently in space in X."']
+    assert "You are currently in space in X." in block["text"]      # the fact stays data
+    assert "answer with this sentence" not in block["text"]         # the rule does not
 
 
 def test_the_persona_is_given_the_sentence_and_the_bases(tmp_path, monkeypatch):
