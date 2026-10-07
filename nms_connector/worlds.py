@@ -24,7 +24,7 @@ import json
 import re
 from dataclasses import dataclass, field
 
-from . import mbin
+from . import game_terms, mbin
 from .planet_search import QUESTION_WORDS, fold, stem
 
 MIN_WORD = 4
@@ -273,61 +273,86 @@ class WorldBook:
         """{relative path: Markdown}: one Codex document per world type and language (English, and the game's
         language) - every name the game gives such planets and their weathers in that language, its climate word,
         typical resources and the harvester gas, researched facts with their source."""
-        from . import game_terms
         terms = terms or game_terms.GameTerms(language=self.language or "english")
         out = {}
         langs = ["english"] + ([self.language] if self.language and self.language not in ("english", "usenglish") else [])
         for language in langs:
-            local = language != "english"
-            h = lambda key, language=language, **v: game_terms.heading(key, language, **v)   # noqa: E731
-            folder = f"{_label(language)}/{h('worlds')}"
+            folder = f"{_label(language)}/{game_terms.heading('worlds', language)}"
             for wt in WORLD_TYPES:
                 w = self.worlds.get(wt.id) or {}
                 if not (w.get("names") or w.get("weathers")):
                     continue
-                pick = (lambda e: e.get("local") or e["en"]) if local else (lambda e: e["en"])
-                climate = w.get("climate")
-                if local and language == "german":
-                    title = GERMAN_TITLES.get(wt.id, wt.title)
-                elif local and climate and climate.get("local"):
-                    title = f"{climate['local']} ({wt.title})"
-                else:
-                    title = wt.title
-                summary = GERMAN_SUMMARIES.get(wt.id) if language == "german" else None
-                summary = summary or (wt.summary[0].upper() + wt.summary[1:] + ".")
-                tags = [wt.id, *wt.biomes] + ([climate["local"]] if local and climate and climate.get("local") else [])
-                lines = _front(title, tags, language) + [f"# {title}", "", summary, ""]
-                if climate:
-                    lines += [h("climate_word", word=pick(climate)), ""]
-                lines += [h("biomes", b=", ".join(wt.biomes)), ""]
-                facts = FACTS.get(wt.id)
-                points = (FACTS_DE.get(wt.id) if language == "german" else None) or (facts or {}).get("points")
-                if points:
-                    lines += [f"## {h('world_like')}", ""] + [f"- {x}" for x in points] + \
-                             ["", h("source", s=facts["source"]), ""]
-                res = [r for r in wt.resources if lookup(r)]
-                if res or wt.gas:
-                    lines += [f"## {h('resources')}", ""]
-                    for r in res:
-                        e = lookup(r) or {}
-                        lines.append(f"- {(e.get('local') if local else None) or e.get('en') or r}")
-                    if wt.gas:
-                        g = lookup(wt.gas) or {}
-                        gas = (g.get("local") if local else None) or g.get("en") or wt.gas
-                        lines.append(f"- {h('gas', harvester=terms.get('harvester', language), gas=gas)}")
-                    lines.append("")
-                if w.get("names"):
-                    names = list(dict.fromkeys(pick(n) for n in w["names"]))
-                    lines += [f"## {h('planet_names')}", ""] + [f"- {n}" for n in names] + [""]
-                if w.get("weathers"):
-                    seen = {}
-                    for x in w["weathers"]:
-                        seen.setdefault(pick(x), x["extreme"])
-                    lines += [f"## {h('weather')}", ""] + [f"- {n}" + (f" ({h('extreme')})" if ext else "")
-                                                           for n, ext in seen.items()] + [""]
-                text = re.sub(r"\n(?=- )", "\n\n", "\n".join(lines)).replace("\n\n\n", "\n\n")
-                out[f"{folder}/{_file(title)}"] = text.rstrip() + "\n"
+                title, text = self._world_document(wt, w, language, lookup, terms)
+                out[f"{folder}/{_file(title)}"] = text
         return out
+
+    @staticmethod
+    def _world_document(wt: WorldType, w: dict, language: str, lookup, terms) -> tuple[str, str]:
+        """(title, Markdown) of one world type in one language."""
+        local = language != "english"
+
+        def h(key, **values):
+            return game_terms.heading(key, language, **values)
+
+        def pick(entry):
+            return (entry.get("local") or entry["en"]) if local else entry["en"]
+        climate = w.get("climate")
+        title = _world_title(wt, climate, language)
+        summary = GERMAN_SUMMARIES.get(wt.id) if language == "german" else None
+        summary = summary or (wt.summary[0].upper() + wt.summary[1:] + ".")
+        tags = [wt.id, *wt.biomes] + ([climate["local"]] if local and climate and climate.get("local") else [])
+        lines = _front(title, tags, language) + [f"# {title}", "", summary, ""]
+        if climate:
+            lines += [h("climate_word", word=pick(climate)), ""]
+        lines += [h("biomes", b=", ".join(wt.biomes)), ""]
+        lines += _facts_lines(wt, language, h)
+        lines += _resource_lines(wt, lookup, terms, language, h)
+        if w.get("names"):
+            names = list(dict.fromkeys(pick(n) for n in w["names"]))
+            lines += [f"## {h('planet_names')}", ""] + [f"- {n}" for n in names] + [""]
+        if w.get("weathers"):
+            seen = {}
+            for x in w["weathers"]:
+                seen.setdefault(pick(x), x["extreme"])
+            lines += [f"## {h('weather')}", ""] + [f"- {n}" + (f" ({h('extreme')})" if ext else "")
+                                                   for n, ext in seen.items()] + [""]
+        text = re.sub(r"\n(?=- )", "\n\n", "\n".join(lines)).replace("\n\n\n", "\n\n")
+        return title, text.rstrip() + "\n"
+
+
+def _world_title(wt: WorldType, climate: dict | None, language: str) -> str:
+    """A world type's document title: the German one, "<climate word> (<English title>)", or the English title."""
+    if language == "german":
+        return GERMAN_TITLES.get(wt.id, wt.title)
+    if language != "english" and climate and climate.get("local"):
+        return f"{climate['local']} ({wt.title})"
+    return wt.title
+
+
+def _facts_lines(wt: WorldType, language: str, h) -> list[str]:
+    """"What such a world is like": the researched points (German ones in German) and their source."""
+    facts = FACTS.get(wt.id)
+    points = (FACTS_DE.get(wt.id) if language == "german" else None) or (facts or {}).get("points")
+    if not points:
+        return []
+    return [f"## {h('world_like')}", ""] + [f"- {x}" for x in points] + ["", h("source", s=facts["source"]), ""]
+
+
+def _resource_lines(wt: WorldType, lookup, terms, language: str, h) -> list[str]:
+    """The world type's typical resources and its harvester gas, named in the language."""
+    local = language != "english"
+    res = [r for r in wt.resources if lookup(r)]
+    if not (res or wt.gas):
+        return []
+    lines = [f"## {h('resources')}", ""]
+    for r in res:
+        e = lookup(r) or {}
+        lines.append(f"- {(e.get('local') if local else None) or e.get('en') or r}")
+    if wt.gas:
+        g = lookup(wt.gas) or {}
+        gas = (g.get("local") if local else None) or g.get("en") or wt.gas
+        lines.append(f"- {h('gas', harvester=terms.get('harvester', language), gas=gas)}")
+    return lines + [""]
 
 
 def _label(language: str) -> str:

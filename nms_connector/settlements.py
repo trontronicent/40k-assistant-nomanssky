@@ -401,6 +401,71 @@ def shown(stat: str, value: int, tables: dict, population: int | None = None) ->
     return _fmt(value)
 
 
+def _decision_text(s: dict, tables: dict, now: float) -> str:
+    """When the settlement's next decision comes: waiting for the player, a time window, or unknown."""
+    wait_min, wait_max = tables["judgement_wait"]
+    if s["pending"] and s["pending"] != "None":
+        return f"waiting for you ({_words(s['pending'])})"
+    if not s["last_judgement"]:
+        return "unknown"
+    start, end = s["last_judgement"] + wait_min, s["last_judgement"] + wait_max
+    decision = ("any time now" if end <= now else
+                f"between {clock(start)} and {clock(end)}" if start > now else f"by {clock(end)} at the latest")
+    return decision + f" (last one {clock(s['last_judgement'])}; the game waits {wait_min // 60} min to {wait_max // 3600} h)"
+
+
+def _overview_block(s: dict, tables: dict, now: float) -> dict:
+    return {"type": "kv", "title": s["name"], "items": [
+        {"label": "Population", "value": f"{s['population']} (the game allows up to {tables['max_npcs']} residents)"},
+        {"label": "Race", "value": _words(s["race"]) if s["race"] else "unknown"},
+        {"label": "Next decision", "value": _decision_text(s, tables, now)},
+        {"label": "Construction", "value": s["building"] or "none in progress"},
+    ]}
+
+
+def _stats_table(s: dict, tables: dict, texts, now: float, reading: dict | None) -> dict:
+    """One row per stat: as the settlement screen shows it (read from the game), as stored in the save, the game's range."""
+    game = reading["stats"] if reading else [None] * len(STATS)
+    stored = s["stats"] or [None] * len(STATS)
+    rows = [[_with_icon(texts, STAT_LABELS[stat], stat_icon_id(stat)),
+             shown(stat, game[i], tables, s["population"]) if game[i] is not None else None,
+             _fmt(stored[i]) if stored[i] is not None else None,
+             f"{_fmt(tables['stats_min'][i])} to {_fmt(tables['stats_max'][i])}"]
+            for i, stat in enumerate(STATS)]
+    when = (f"in the game ({'now' if now - reading['at'] < 120 else 'at ' + clock(reading['at'])})" if reading
+            else "in the game (read when you visit the settlement)")
+    return {"type": "table", "title": f"{s['name']}: stats",
+            "columns": ["Stat", when.capitalize(), "Stored in the save", "Game's range"], "rows": rows}
+
+
+def _production_table(s: dict, texts) -> dict:
+    return {"type": "table", "title": f"{s['name']}: production",
+            "columns": ["Product", "Ready at last visit", "Holds up to", "Last collected or updated"],
+            "rows": [[texts.item(p["item"]), _fmt(p["amount"]), _fmt(p["cap"]), clock(p["at"]) if p["at"] else "-"]
+                     for p in s["production"]]}
+
+
+def _perk_row(raw: str, tables: dict, texts) -> list:
+    """[perk, kind, effect, origin] of one perk; a perk the game's table lacks shows its id only."""
+    perk = tables["perks"].get(perk_id(raw))
+    if not perk:
+        return [perk_id(raw), "", "", ""]
+    effect = ", ".join(f"{STAT_LABELS[stat]} {change}" for stat, change in perk["changes"])
+    kind = "negative" if perk["negative"] else "job" if perk["job"] else "blessing" if perk["blessing"] else "positive"
+    desc = texts.key(perk["description"])
+    desc = desc if desc != perk["description"] else None
+    label = texts.key(perk["name"]) or perk_id(raw)
+    if "%" in label:     # procedural ("%PROD_ADJ% %PROD%"): the game builds the name from the perk's seed
+        plain = desc if desc and "%" not in desc else {"job": "A job", "blessing": "A blessing"}.get(kind, "A perk")
+        label = f"{plain} (named in the game)"     # job descriptions hold placeholders too ("%JOB_STAT%")
+        desc = None
+    origin = "founding" if perk["starter"] else "a decision" if perk["procedural"] else "an event"
+    cell = {"text": label, "hint": desc} if desc else label
+    if perk["changes"]:
+        cell = _with_icon(texts, cell, stat_icon_id(perk["changes"][0][0], "negative" if perk["negative"] else "positive"))
+    return [cell, kind, effect, origin]
+
+
 def settlement_sections(items: list[dict], tables: dict, texts, now: float, live: dict | None = None) -> list[dict]:
     """The Settlements tab: one block per settlement (status, stats, production, perks). ``live``: seed ->
     {stats, at} from LiveSettlements (the settlement screen's values)."""
@@ -411,66 +476,16 @@ def settlement_sections(items: list[dict], tables: dict, texts, now: float, live
         "Stats as the settlement screen shows them are read from the running game (they include your buildings "
         "and perks); without the game, only what the save stores is known, which differs. Everything else comes "
         "from your save (updated when the game saves)."}]
-    wait_min, wait_max = tables["judgement_wait"]
     for s in items:
-        name = s["name"]
-        if s["pending"] and s["pending"] != "None":
-            decision = f"waiting for you ({_words(s['pending'])})"
-        elif s["last_judgement"]:
-            start, end = s["last_judgement"] + wait_min, s["last_judgement"] + wait_max
-            decision = ("any time now" if end <= now else
-                        f"between {clock(start)} and {clock(end)}" if start > now else f"by {clock(end)} at the latest")
-            decision += f" (last one {clock(s['last_judgement'])}; the game waits {wait_min // 60} min to {wait_max // 3600} h)"
-        else:
-            decision = "unknown"
-        out.append({"type": "kv", "title": name, "items": [
-            {"label": "Population", "value": f"{s['population']} (the game allows up to {tables['max_npcs']} residents)"},
-            {"label": "Race", "value": _words(s["race"]) if s["race"] else "unknown"},
-            {"label": "Next decision", "value": decision},
-            {"label": "Construction", "value": s["building"] or "none in progress"},
-        ]})
+        out.append(_overview_block(s, tables, now))
         reading = live.get(s.get("seed"))
         if s["stats"] or reading:
-            game = reading["stats"] if reading else [None] * len(STATS)
-            stored = s["stats"] or [None] * len(STATS)
-            rows = []
-            for i, stat in enumerate(STATS):
-                rows.append([_with_icon(texts, STAT_LABELS[stat], stat_icon_id(stat)),
-                             shown(stat, game[i], tables, s["population"]) if game[i] is not None else None,
-                             _fmt(stored[i]) if stored[i] is not None else None,
-                             f"{_fmt(tables['stats_min'][i])} to {_fmt(tables['stats_max'][i])}"])
-            when = (f"in the game ({'now' if now - reading['at'] < 120 else 'at ' + clock(reading['at'])})" if reading
-                    else "in the game (read when you visit the settlement)")
-            out.append({"type": "table", "title": f"{name}: stats", "columns": ["Stat", when.capitalize(), "Stored in the save",
-                                                                               "Game's range"], "rows": rows})
+            out.append(_stats_table(s, tables, texts, now, reading))
         if s["production"]:
-            out.append({"type": "table", "title": f"{name}: production",
-                        "columns": ["Product", "Ready at last visit", "Holds up to", "Last collected or updated"],
-                        "rows": [[texts.item(p["item"]), _fmt(p["amount"]), _fmt(p["cap"]), clock(p["at"]) if p["at"] else "-"]
-                                 for p in s["production"]]})
-        perk_rows = []
-        for raw in s["perks"]:
-            perk = tables["perks"].get(perk_id(raw))
-            if not perk:
-                perk_rows.append([perk_id(raw), "", "", ""])
-                continue
-            effect = ", ".join(f"{STAT_LABELS[stat]} {change}" for stat, change in perk["changes"])
-            kind = "negative" if perk["negative"] else "job" if perk["job"] else "blessing" if perk["blessing"] else "positive"
-            desc = texts.key(perk["description"])
-            desc = desc if desc != perk["description"] else None
-            label = texts.key(perk["name"]) or perk_id(raw)
-            if "%" in label:     # procedural ("%PROD_ADJ% %PROD%"): the game builds the name from the perk's seed
-                plain = desc if desc and "%" not in desc else {"job": "A job", "blessing": "A blessing"}.get(kind, "A perk")
-                label = f"{plain} (named in the game)"     # job descriptions hold placeholders too ("%JOB_STAT%")
-                desc = None
-            origin = "founding" if perk["starter"] else "a decision" if perk["procedural"] else "an event"
-            cell = {"text": label, "hint": desc} if desc else label
-            if perk["changes"]:
-                cell = _with_icon(texts, cell, stat_icon_id(perk["changes"][0][0], "negative" if perk["negative"] else "positive"))
-            perk_rows.append([cell, kind, effect, origin])
-        if perk_rows:
-            out.append({"type": "table", "title": f"{name}: perks", "columns": ["Perk", "Kind", "Effect", "From"],
-                        "rows": perk_rows})
+            out.append(_production_table(s, texts))
+        if s["perks"]:
+            out.append({"type": "table", "title": f"{s['name']}: perks", "columns": ["Perk", "Kind", "Effect", "From"],
+                        "rows": [_perk_row(raw, tables, texts) for raw in s["perks"]]})
     if tables.get("error"):
         out.append({"type": "text", "text": f"Stat ranges: built-in values ({tables['error']})."})
     return out

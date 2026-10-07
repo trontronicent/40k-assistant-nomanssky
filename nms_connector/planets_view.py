@@ -942,28 +942,25 @@ def _region_text(region: tuple[int, int, int]) -> str:
     return f"region {x}, {y}, {z}"
 
 
-def route_sections(ctx: Context, state: dict | None, ship_range: dict | None = None) -> list[dict]:
-    """The Route tab: the form (target, portal address, jump range) and the last planned route. ``ship_range``
-    (ships.primary_range) gives the range field its default: the primary ship's lower estimate."""
-    state = state or {}
-    request = state.get("request") or {}
-    out: list[dict] = [{"type": "notice", "level": "warn", "text": ROUTE_WIP_NOTE}]
-    if ctx.origin is None:
-        out.append({"type": "notice", "level": "info", "text":
-                    "Where you are is not known yet (no save read and no live data), so routes cannot start anywhere."})
-    here = galaxy.galaxy_of(ctx.origin) if ctx.origin is not None else None
+def _range_default(ship_range: dict | None) -> tuple[int, str]:
+    """(the jump range field's default, its hint) - the primary ship's lower estimate when it is known."""
     if ship_range and ship_range.get("low"):
-        default_range = max(50, int(ship_range["low"]) // 10 * 10)
         span = (f"{ship_range['low']:,}" if ship_range["low"] == ship_range["high"]
                 else f"{ship_range['low']:,}-{ship_range['high']:,}")
-        range_hint = (f"Your primary ship {ship_range['ship']} reaches about {span} ly (estimated from its hyperdrive "
-                      "technology; see Ships & bases). Leave some margin: distances are approximate.")
-    else:
-        default_range = DEFAULT_RANGE_LY
-        range_hint = "Your hyperdrive's range (see the ship's hyperdrive in the game). Leave some margin: distances are approximate."
+        return (max(50, int(ship_range["low"]) // 10 * 10),
+                f"Your primary ship {ship_range['ship']} reaches about {span} ly (estimated from its hyperdrive "
+                "technology; see Ships & bases). Leave some margin: distances are approximate.")
+    return (DEFAULT_RANGE_LY,
+            "Your hyperdrive's range (see the ship's hyperdrive in the game). Leave some margin: distances are approximate.")
+
+
+def _route_form(ctx: Context, request: dict, ship_range: dict | None) -> dict:
+    """The "Plan a route" form: target system, portal address, jump range."""
+    here = galaxy.galaxy_of(ctx.origin) if ctx.origin is not None else None
+    default_range, range_hint = _range_default(ship_range)
     options = sorted(((_system_label(k, ctx.visit(k)), k) for k in route_nodes(ctx)
                       if here is None or galaxy.galaxy_of(k) == here), key=lambda o: o[0].lower())
-    out.append({
+    return {
         "type": "form", "id": ROUTE_FORM_ID, "title": "Plan a route", "action": PLAN_ROUTE, "submit_label": "Plan route",
         "description": "From where you are to a known system, or to any system by its portal address. A jump costs one "
                        "warp cell however far it goes within your range, so the route has the fewest jumps; your known "
@@ -978,56 +975,43 @@ def route_sections(ctx: Context, state: dict | None, ship_range: dict | None = N
             {"id": "range", "label": "Jump range (light years)", "type": "number", "min": 50, "max": 20000, "step": 10,
              "value": request.get("range") or default_range,
              "hint": range_hint},
-        ]})
-    result = state.get("result")
-    if not result:
-        return out
-    def label(key):
-        return _system_label(key, ctx.visit(key))
+        ]}
 
-    if result.get("arrived"):
-        out.append({"type": "notice", "level": "info", "text": f"You have arrived at {label(result['target'])}."})
-        return out
-    if not result.get("ok"):
-        out.append({"type": "notice", "level": "warn", "text": f"No route: {result.get('reason')}"})
-        return out
 
+def _route_summary(ctx: Context, result: dict, label) -> dict:
+    """The route's key facts: from, to, jumps, distance, the straight line, the range used, the target's economy."""
     legs = result["legs"]
     target = legs[-1]["to"]
-    out.append({"type": "kv", "id": ROUTE_RESULT_ID, "title": f"Route to {label(target)}", "items": [
+    unknown = result["unknown_jumps"]
+    return {"type": "kv", "id": ROUTE_RESULT_ID, "title": f"Route to {label(target)}", "items": [
         {"label": "From", "value": f"{label(legs[0]['from'])} (you)"},
         {"label": "To", "value": f"{label(target)} - portal {address_portal(unpack_address(target) or {})}"},
-        {"label": "Jumps", "value": f"{result['jumps']}" + (f" ({result['unknown_jumps']} of them into unknown space)" if result["unknown_jumps"] else " (all to known systems)")},
+        {"label": "Jumps", "value": f"{result['jumps']}" + (f" ({unknown} of them into unknown space)" if unknown else " (all to known systems)")},
         {"label": "Distance", "value": galaxy.distance_text(result["distance"])},
         {"label": "Straight line", "value": f"{galaxy.distance_text(result['direct_distance'])}, {result['direct_jumps']} jump(s)"},
         {"label": "Jump range used", "value": f"{result['range']:,.0f} ly"},
         {"label": "Economy at the target", "value": ctx.economy_summary(target) or "not read yet"},
-    ]})
-    star = (ctx.economies.get(target) or {}).get("star")
-    allowed = result.get("star_colours")
-    if star and allowed and star not in allowed:
-        out.append({"type": "notice", "level": "warn", "text":
-                    f"{label(target)} has a {star.lower()} star: your primary ship's hyperdrive cannot reach it yet "
-                    f"(it needs the {star.lower()} star upgrade). Stops on the way only use stars you can reach."})
-    rows = []
-    for i, leg in enumerate(legs, 1):
-        if leg["jumps"] == 1:
-            how = "one jump"
-        else:
-            way = leg["waypoints"]
-            shown = way if len(way) <= 6 else way[:3] + [None] + way[-1:]
-            aims = " -> ".join("..." if w is None else _region_text(w) for w in shown)
-            more = f" ({len(way)} regions in all, ~{galaxy.distance_text(leg['distance'] / leg['jumps'])[1:]} per jump)" if len(way) > 6 else ""
-            how = f"{leg['jumps']} jumps through unknown space: aim for {aims}, then the target{more}"
-        rows.append([i, label(leg["from"]), label(leg["to"]), galaxy.distance_text(leg["distance"]), leg["jumps"], how])
-    out.append({"type": "table", "title": "Legs", "columns": ["#", "From", "To", "Distance", "Jumps", "How"], "rows": rows})
+    ]}
 
-    # The route on a map: stops (you, known systems, target) and the regions to aim for in between.
+
+def _leg_how(leg: dict) -> str:
+    """How to fly one leg: one jump, or the regions to aim for through unknown space."""
+    if leg["jumps"] == 1:
+        return "one jump"
+    way = leg["waypoints"]
+    shown = way if len(way) <= 6 else way[:3] + [None] + way[-1:]
+    aims = " -> ".join("..." if w is None else _region_text(w) for w in shown)
+    more = f" ({len(way)} regions in all, ~{galaxy.distance_text(leg['distance'] / leg['jumps'])[1:]} per jump)" if len(way) > 6 else ""
+    return f"{leg['jumps']} jumps through unknown space: aim for {aims}, then the target{more}"
+
+
+def _route_map(legs: list[dict], target: int, label) -> dict:
+    """The route on a map: stops (you, known systems, target) and the regions to aim for in between."""
     points, line = [], []
     for i, leg in enumerate(legs):
-        for key in ([leg["from"]] if i == 0 else []):
-            x, y, z = galaxy.map_position(key)
-            points.append({"key": system_key_text(key), "label": label(key), "x": x, "y": y, "z": z, "marker": "current"})
+        if i == 0:
+            x, y, z = galaxy.map_position(leg["from"])
+            points.append({"key": system_key_text(leg["from"]), "label": label(leg["from"]), "x": x, "y": y, "z": z, "marker": "current"})
             line.append([x, y, z])
         step = max(1, len(leg["waypoints"]) // 50)          # at most ~50 drawn per leg; the table has the count
         for j, w in [(j, w) for j, w in enumerate(leg["waypoints"], 1) if j % step == 0]:
@@ -1042,11 +1026,47 @@ def route_sections(ctx: Context, state: dict | None, ship_range: dict | None = N
             stop["color"] = POINT_COLORS["resources"]
         points.append(stop)
         line.append([x, y, z])
-    out.append({"type": "starmap", "title": "The route", "points": points, "lines": [{"points": line, "label": "Route"}],
-                "action": OPEN_SYSTEM, "action_label": "Open system map",
-                "legend": [{"label": "You", "color": "#ffd27a"}, {"label": "Target", "color": "#ff7a7a"},
-                           {"label": "Known stop", "color": POINT_COLORS["resources"]},
-                           {"label": "Region to aim for", "color": "#8fa3b8"}]})
+    return {"type": "starmap", "title": "The route", "points": points, "lines": [{"points": line, "label": "Route"}],
+            "action": OPEN_SYSTEM, "action_label": "Open system map",
+            "legend": [{"label": "You", "color": "#ffd27a"}, {"label": "Target", "color": "#ff7a7a"},
+                       {"label": "Known stop", "color": POINT_COLORS["resources"]},
+                       {"label": "Region to aim for", "color": "#8fa3b8"}]}
+
+
+def route_sections(ctx: Context, state: dict | None, ship_range: dict | None = None) -> list[dict]:
+    """The Route tab: the form (target, portal address, jump range) and the last planned route. ``ship_range``
+    (ships.primary_range) gives the range field its default: the primary ship's lower estimate."""
+    state = state or {}
+    out: list[dict] = [{"type": "notice", "level": "warn", "text": ROUTE_WIP_NOTE}]
+    if ctx.origin is None:
+        out.append({"type": "notice", "level": "info", "text":
+                    "Where you are is not known yet (no save read and no live data), so routes cannot start anywhere."})
+    out.append(_route_form(ctx, state.get("request") or {}, ship_range))
+    result = state.get("result")
+    if not result:
+        return out
+
+    def label(key):
+        return _system_label(key, ctx.visit(key))
+
+    if result.get("arrived"):
+        return out + [{"type": "notice", "level": "info", "text": f"You have arrived at {label(result['target'])}."}]
+    if not result.get("ok"):
+        return out + [{"type": "notice", "level": "warn", "text": f"No route: {result.get('reason')}"}]
+
+    legs = result["legs"]
+    target = legs[-1]["to"]
+    out.append(_route_summary(ctx, result, label))
+    star = (ctx.economies.get(target) or {}).get("star")
+    allowed = result.get("star_colours")
+    if star and allowed and star not in allowed:
+        out.append({"type": "notice", "level": "warn", "text":
+                    f"{label(target)} has a {star.lower()} star: your primary ship's hyperdrive cannot reach it yet "
+                    f"(it needs the {star.lower()} star upgrade). Stops on the way only use stars you can reach."})
+    rows = [[i, label(leg["from"]), label(leg["to"]), galaxy.distance_text(leg["distance"]), leg["jumps"], _leg_how(leg)]
+            for i, leg in enumerate(legs, 1)]
+    out.append({"type": "table", "title": "Legs", "columns": ["#", "From", "To", "Distance", "Jumps", "How"], "rows": rows})
+    out.append(_route_map(legs, target, label))
     return out
 
 
