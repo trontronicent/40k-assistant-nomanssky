@@ -13,10 +13,11 @@ Trade Terminals; Iteration Cronus in the Anomaly rates dishes and pays 0-130 Nan
 
 from __future__ import annotations
 
-import json
 import re
 from collections import Counter
 from pathlib import Path
+
+from . import logs
 
 RESEARCH_FILE = Path(__file__).resolve().parent.parent / "research" / "cooking.json"
 DISH_CATEGORIES = {"Edible Product", "Compressed Nutrients"}       # the game's category of a cooked dish
@@ -41,10 +42,8 @@ MAX_POOL_NAMES = 8              # ingredient names listed per pool before "... (
 
 def load_research(path: Path | None = None) -> dict:
     """The researched cooking facts ({} when the file is missing)."""
-    try:
-        return json.loads((path or RESEARCH_FILE).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
+    data = logs.read_json(path or RESEARCH_FILE, "The researched cooking file")
+    return data if isinstance(data, dict) else {}
 
 
 def pools(recipes) -> list[tuple[str, tuple[tuple[str, ...], ...]]]:

@@ -10,7 +10,7 @@ Blocking (file reads); the connector calls ``load`` through ``ctx.run_blocking``
 
 from __future__ import annotations
 
-from . import frigates, game_terms, recipes, seasons, settlements, ships, store, techstats, timers, worlds
+from . import frigates, game_terms, logs, recipes, seasons, settlements, ships, store, techstats, timers, worlds
 
 
 class GameTables:
@@ -42,15 +42,24 @@ class GameTables:
         self.stored_build = None
         if install is None and self._load_stored():
             return [f"Game files not found: using the tables stored from game build {self.stored_build}"]
-        self.timers = timers.load_tables(install)
-        self.frigate_traits = frigates.load_traits(install)
-        self.tech = techstats.load(install)
-        self.ships = ships.load_tables(install, self.tech)
-        self.settlements = settlements.load_tables(install)
-        self.recipes = recipes.load(install)
-        english, local, language, reason = self._read_texts(install)
-        self._build_texts(english, local, language, reason)
-        self._store(install, english, local, language)
+        # Each table on its own: an unexpected failure in one (a game update that broke a layout in a way its parser
+        # did not expect) leaves that table on its built-in values with an error, and the others are still read.
+        self.timers = self._guard("timers", lambda: timers.load_tables(install), {"error": None})
+        self.frigate_traits = self._guard("frigate traits", lambda: frigates.load_traits(install),
+                                          {"traits": {}, "source": "none", "error": None})
+        self.tech = self._guard("technology stats", lambda: techstats.load(install), techstats.TechStats())
+        self.ships = self._guard("warp ranges", lambda: ships.load_tables(install, self.tech), {"error": None})
+        self.settlements = self._guard("settlements", lambda: settlements.load_tables(install), {"error": None})
+        self.recipes = self._guard("recipes", lambda: recipes.load(install), recipes.RecipeBook())
+        try:
+            english, local, language, reason = self._read_texts(install)
+            self._build_texts(english, local, language, reason)
+            self._store(install, english, local, language)
+        except Exception as exc:
+            reason = f"{type(exc).__name__}: {exc}"
+            logs.warn_once(f"tables:texts:{reason}", "The game texts (world types, terms, expeditions) could not "
+                           "be built: %s", reason)
+            self._build_texts({}, None, None, reason)
         self.loaded = True
         warnings = []
         for label, table in (("Timer durations: built-in values", self.timers),
@@ -59,12 +68,32 @@ class GameTables:
                              ("Settlement tables: built-in values", self.settlements),
                              ("Technology stats unavailable", self.tech),
                              ("Recipes unavailable", self.recipes),
-                             ("World type names unavailable", self.worlds)):
-            error = (table.error if isinstance(table, (techstats.TechStats, recipes.RecipeBook, worlds.WorldBook))
-                     else table.get("error"))
+                             ("World type names unavailable", self.worlds),
+                             ("Expeditions unavailable", self.seasons)):
+            error = (getattr(table, "error", None) if not isinstance(table, dict) else table.get("error"))
             if error:
                 warnings.append(f"{label} ({error})")
         return warnings
+
+    @staticmethod
+    def _usable(table: dict | None) -> dict | None:
+        """The table, unless it is only an error note (a read that failed: the built-in values apply then)."""
+        return table if table and "error" not in table else None
+
+    @staticmethod
+    def _guard(name: str, read, failed):
+        """`read()`, or - when it raises - `failed` carrying the error (a dict gets an ``error`` key, a book/table its
+        ``error`` attribute) and a warning in the log. The fallbacks of the properties below then apply."""
+        try:
+            return read()
+        except Exception as exc:
+            reason = f"{type(exc).__name__}: {exc}"
+            logs.warn_once(f"tables:{name}:{reason}", "The game's %s could not be read (built-in values are used): %s",
+                           name, reason)
+            if isinstance(failed, dict):
+                return dict(failed, error=reason)
+            failed.error = reason
+            return failed
 
     @staticmethod
     def _wanted_text_key(key: str) -> bool:
@@ -127,15 +156,15 @@ class GameTables:
 
     @property
     def timer_durations(self) -> dict:
-        return self.timers or timers.FALLBACK
+        return self._usable(self.timers) or timers.FALLBACK
 
     @property
     def ship_ranges(self) -> dict:
-        return self.ships or ships.FALLBACK
+        return self._usable(self.ships) or ships.FALLBACK
 
     @property
     def settlement_rules(self) -> dict:
-        return self.settlements or settlements.FALLBACK
+        return self._usable(self.settlements) or settlements.FALLBACK
 
     @property
     def trait_names(self) -> dict:

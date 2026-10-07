@@ -40,6 +40,16 @@ Needs the 40k Assistant 3.12.0 (unchanged).
 - **Cleaner answers**: filler words of a request (*right now*, *best*, *recipe*) no longer
   name items ("Liquidator Right Arm" was printed for *the best recipe I can cook right
   now*); a question that names a whole dish gets that dish, not the forty other stews.
+- **Errors cost only their part**: a failing step of the watch cycle (key mapping, game
+  files, save, game memory) no longer stops the others, an optional part of a save that
+  cannot be read (ships, frigates, settlements, equipment ...) is left out while the rest
+  of the save is shown - with a warning on the page naming it - and one game-file table
+  that fails to parse falls back to its built-in values while the others load. A failing
+  block of the persona's data is replaced by a line saying it is unavailable (the model no
+  longer answers from nothing), and a failure of the whole block says so. Damaged cache
+  and history files, and a disk that cannot be written, are now warnings that name the
+  file instead of being ignored; a failure that repeats every poll is logged once per five
+  minutes. The page says when the stored copy of the game files is in use.
 - The persona prompt explains the new blocks; an unedited persona gets the new prompt when
   the plugin starts.
 

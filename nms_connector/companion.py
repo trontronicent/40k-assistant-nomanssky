@@ -18,7 +18,7 @@ import re
 import time
 from datetime import date
 
-from . import (assistant, cooking, galaxy, page as page_module, planet_search, planets_view, recipes, seasons,
+from . import (assistant, cooking, logs, galaxy, page as page_module, planet_search, planets_view, recipes, seasons,
                settlements, timers, trade)
 
 PERSONA_PROMPT = (
@@ -133,7 +133,31 @@ class PluginCompanion:
         }]
 
     def chat_context(self, question: str) -> dict:
-        """The game data for one chat message (see assistant.py); the app injects it into the system prompt."""
+        """The game data for one chat message (see assistant.py); the app injects it into the system prompt.
+
+        Never raises: if building the data fails, the persona gets a block that says so (an app that gets no block
+        lets the model answer without any game data and invent numbers), and the reason is in the plugin log."""
+        try:
+            return self._chat_context(question)
+        except Exception as exc:
+            reason = f"{type(exc).__name__}: {exc}"
+            logs.warn_once(f"context:{reason}", "The game data for the persona could not be built: %s", reason)
+            return {"title": "No Man's Sky", "instructions": [], "single_context": False,
+                    "text": "The No Man's Sky game data could not be built right now (" + reason + "). Tell the player "
+                            "so and that the plugin log has the details; do not guess any numbers from their game."}
+
+    def _block(self, name: str, build, *args) -> list[str]:
+        """One optional part of the data block. A failure costs that part only: it is logged once per few minutes
+        and the block says it is missing, so the model does not answer from nothing."""
+        try:
+            return build(*args)
+        except Exception as exc:
+            reason = f"{type(exc).__name__}: {exc}"
+            logs.warn_once(f"block:{name}:{reason}", "The %s of the persona data failed: %s", name, reason)
+            return [f"({name} could not be built right now: {reason}. If asked about it, say it is unavailable; "
+                    "do not guess.)"]
+
+    def _chat_context(self, question: str) -> dict:
         c = self.connector
         snap = c.snapshot
         ctx = c.context()
@@ -200,16 +224,16 @@ class PluginCompanion:
             out_on = [f for f in c.frigates if f["on_expedition"]]
             extra.append(f"Frigates: {len(c.frigates)} ({len(out_on)} out on an expedition)")
         words = set(re.findall(r"[\w'-]+", (question or "").lower()))
-        extra += self.settlement_lines(words, now)
-        extra += self.base_lines(words, ctx)
-        extra += self.economy_lines(question, ctx, here)
-        extra += self.equipment_lines(words, ctx.texts)
-        extra += self.planet_lines(question, words, ctx)
-        extra += self.recipe_lines(question, words)
-        extra += self.cooking_lines(question, snap)
-        extra += self.worth_lines(question, words, snap, name_of)
-        extra += self.expedition_lines(question, snap)
-        extra += self.world_lines(question)
+        extra += self._block("settlement details", self.settlement_lines, words, now)
+        extra += self._block("bases", self.base_lines, words, ctx)
+        extra += self._block("economy details", self.economy_lines, question, ctx, here)
+        extra += self._block("equipment", self.equipment_lines, words, ctx.texts)
+        extra += self._block("planet search", self.planet_lines, question, words, ctx)
+        extra += self._block("recipes", self.recipe_lines, question, words)
+        extra += self._block("cooking", self.cooking_lines, question, snap)
+        extra += self._block("inventory worth", self.worth_lines, question, words, snap, name_of)
+        extra += self._block("expeditions", self.expedition_lines, question, snap)
+        extra += self._block("game terms", self.world_lines, question)
         all_names = {i: [n for n in (e.get("en"), e.get("local")) if n] for i, e in (c.gamedata.items or {}).items()}
 
         def item_notes(item_id):

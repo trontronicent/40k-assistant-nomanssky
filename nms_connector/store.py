@@ -18,6 +18,8 @@ import json
 import time
 from pathlib import Path
 
+from . import logs
+
 STORE_FORMAT = 1
 
 
@@ -38,15 +40,14 @@ class TableStore:
                                        "texts": texts, "tables": tables or {}}, ensure_ascii=False), encoding="utf-8")
             tmp.replace(self.file)
             return True
-        except (OSError, TypeError, ValueError):
+        except (OSError, TypeError, ValueError) as exc:
+            logs.warn_once(f"write:{self.file}", "The stored game tables %s could not be written (the persona then "
+                           "needs the game files): %s: %s", self.file, type(exc).__name__, exc)
             return False
 
     def load(self) -> dict | None:
         """The stored tables, or None when there are none (or they are from another store format)."""
-        try:
-            data = json.loads(self.file.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return None
+        data = logs.read_json(self.file, "The stored game tables")
         if not isinstance(data, dict) or data.get("format") != STORE_FORMAT:
             return None
         return data

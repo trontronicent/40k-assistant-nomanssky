@@ -357,10 +357,19 @@ class ConnectorPage:
                         "update). Press 'Update key mapping'."})
         if c.error:
             out.append({"type": "notice", "level": "error", "text": c.error})
+        if getattr(c, "degraded", None):
+            out.append({"type": "notice", "level": "warn", "text":
+                        "Part of the newest save could not be read, the rest is shown: "
+                        + "; ".join(f"{name} ({reason})" for name, reason in c.degraded.items())
+                        + ". The plugin log has the details."})
         if c.install is None and c.game_checked:
+            stored = getattr(c.tables, "stored_build", None)
             out.append({"type": "notice", "level": "info", "text":
                         "Item names and icons come from the game's own files, but the No Man's Sky installation "
-                        "was not found in any Steam library. Set NMS_GAME_DIR to the game folder to use another one."})
+                        "was not found in any Steam library. Set NMS_GAME_DIR to the game folder to use another one."
+                        + (f" Meanwhile the stored copy of game build {stored} is used (item names, values, recipes, "
+                           "expeditions); new items of a game update and equipment stat ranges need the game files."
+                           if stored else "")})
         elif c.gamedata.error:
             out.append({"type": "notice", "level": "warn", "text":
                         f"Item names and icons are unavailable: {c.gamedata.error}"})

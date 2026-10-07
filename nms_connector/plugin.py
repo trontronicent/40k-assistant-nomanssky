@@ -23,7 +23,7 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from . import equipment, frigates, galaxy, memory, planet_search, planets_view, positions, route, saves, settlements, ships, starmap, timers, trade
+from . import equipment, frigates, galaxy, logs, memory, planet_search, planets_view, positions, route, saves, settlements, ships, starmap, timers, trade
 from .companion import PluginCompanion
 from .describe import StateText
 from .game_install import GameInstall, find_game
@@ -91,7 +91,9 @@ class NmsConnector:
 
     def __init__(self, ctx):
         self.ctx = ctx
+        logs.bind(ctx.logger)        # every module logs through the host's plugin logger (category tag)
         self.data_dir: Path = ctx.data_dir
+        self.degraded: dict[str, str] = {}      # parts of the newest save that could not be read: name -> reason
         self.mapping_path = self.data_dir / "mapping.json"
         self.events_path = self.data_dir / "save_events.json"
         self.watcher = SaveWatcher(events=self._load_events())
@@ -209,11 +211,8 @@ class NmsConnector:
 
     def _load_route(self) -> dict:
         """The last route request (target, portal, range) and its result - kept across restarts."""
-        try:
-            data = json.loads(self.route_path.read_text(encoding="utf-8"))
-            return data if isinstance(data, dict) else {}
-        except (OSError, ValueError):
-            return {}
+        data = logs.read_json(self.route_path, "The saved route")
+        return data if isinstance(data, dict) else {}
 
     def _save_route(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -243,7 +242,8 @@ class NmsConnector:
             except OSError as exc:      # the game closed mid-read: the next sample reopens nothing, LiveMemory does
                 self.ctx.logger.debug("[NMS] Map camera not read: %s", exc)
             except Exception as exc:
-                self.ctx.logger.warning("[NMS] Map camera sample failed: %s: %s", type(exc).__name__, exc)
+                logs.warn_once(f"camera:{type(exc).__name__}", "Map camera sample failed (logged again in a few "
+                               "minutes if it keeps failing): %s: %s", type(exc).__name__, exc)
             await asyncio.sleep(CAMERA_EVERY_S)
 
     def _name_fix(self, params: dict) -> dict:
@@ -330,11 +330,8 @@ class NmsConnector:
                 "message": f"Route planned: {result['jumps']} jump(s), {galaxy.distance_text(result['distance'])}."}
 
     def _load_events(self) -> list[dict]:
-        try:
-            events = json.loads(self.events_path.read_text(encoding="utf-8"))
-            return events if isinstance(events, list) else []
-        except (OSError, ValueError):
-            return []
+        events = logs.read_json(self.events_path, "The save-write log")
+        return events if isinstance(events, list) else []
 
     def _save_events(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -347,10 +344,8 @@ class NmsConnector:
         daily); after a failure it waits 60 s before trying again."""
         if self.mapping is None and self.mapping_path.is_file() and not force:
             self.mapping = await self.ctx.run_blocking(saves.load_mapping, self.mapping_path)
-            try:
-                self.mapping_meta = json.loads(self.mapping_path.with_name("mapping_meta.json").read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                self.mapping_meta = {}
+            meta = logs.read_json(self.mapping_path.with_name("mapping_meta.json"), "The key mapping info")
+            self.mapping_meta = meta if isinstance(meta, dict) else {}
         stale = self.unknown_keys > 0 and time.time() - self._last_mapping_attempt > MAPPING_RECHECK_S
         if self.mapping is not None and not force and not stale:
             return
@@ -371,8 +366,7 @@ class NmsConnector:
         """The work loop: a tick every POLL_S seconds, or at once when an action asks (``_force``); never dies."""
         while True:
             try:
-                await self._tick()
-                self.error = None
+                await self._tick()      # sets / clears self.error itself
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
@@ -487,13 +481,41 @@ class NmsConnector:
             await self.ctx.run_blocking(self.gamedata.ensure_icons, self.install, planets_view.resource_ids(planets) + goods)
 
     async def _tick(self) -> None:
-        await self._ensure_mapping()
-        await self._ensure_gamedata()
+        """One watch cycle. The stages are independent: a failing table read must not stop the save from being read,
+        nor a failing save the memory scan. Each failure is logged once per few minutes (it would otherwise repeat
+        every 5 s) and shown on the page; the cycle never raises (CancelledError aside)."""
+        self.error = None
+        failures: list[str] = []
+        await self._stage("key mapping", self._ensure_mapping, failures)
+        await self._stage("game files", self._ensure_gamedata, failures)
+        await self._stage("save", self._tick_saves, failures)
+        # After the save: the memory reader needs the save's anchor to find the player state.
+        await self._stage("game memory", self._read_memory, failures)
+        if failures:
+            self.error = "; ".join(([self.error] if self.error else []) + failures)
+
+    async def _stage(self, name: str, step, failures: list[str]) -> None:
         try:
-            await self._tick_saves()
-        finally:
-            # After the save: the memory reader needs the save's anchor to find the player state.
-            await self._read_memory()
+            await step()
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            reason = f"{type(exc).__name__}: {exc}"
+            failures.append(f"{name}: {reason}")
+            logs.warn_once(f"stage:{name}:{reason}", "The %s step failed (the other steps go on): %s", name, reason)
+
+    def _extract(self, name: str, default, fn, *args):
+        """Read one optional part of a save; if it fails, the rest of the save is still used, `default` stands in
+        for it, and the page says what is missing (`degraded`)."""
+        try:
+            value = fn(*args)
+        except Exception as exc:
+            self.degraded[name] = f"{type(exc).__name__}: {exc}"
+            logs.warn_once(f"extract:{name}:{self.degraded[name]}", "Could not read %s from the save: %s",
+                           name, self.degraded[name])
+            return default
+        self.degraded.pop(name, None)
+        return value
 
     async def _tick_saves(self) -> None:
         """Find the save folder, record new save writes and decode the newest settled save."""
@@ -505,7 +527,10 @@ class NmsConnector:
         before = len(self.watcher.events)
         ready = self.watcher.poll(files, time.time())
         if len(self.watcher.events) != before:
-            await self.ctx.run_blocking(self._save_events)
+            try:
+                await self.ctx.run_blocking(self._save_events)
+            except OSError as exc:      # a full disk must not stop the save from being read
+                logs.warn_once("write:events", "The save-write log could not be saved: %s: %s", type(exc).__name__, exc)
         if ready and self.mapping is not None:
             await self._decode(max(ready, key=lambda f: f.mtime))
         elif self.snapshot is None and files and self.mapping is not None:
@@ -520,16 +545,16 @@ class NmsConnector:
         except saves.SaveFormatError as exc:
             self.error = f"{save_file.path.name}: {exc}"
             return
-        self.snapshot = await self.ctx.run_blocking(summarize, readable)
-        self.visits = await self.ctx.run_blocking(visits_from_save, readable)
-        self.settlements = settlements.settlements_from_save(readable)
-        self.timers = sorted(timers.timers_from_save(readable, self.tables.timer_durations)
-                             + settlements.decision_timers(self.settlements, self.tables.settlement_rules),
-                             key=lambda t: t["ends_at"])
-        self.ships = ships.ships_from_save(readable)
-        self.freighter = ships.freighter_from_save(readable)
-        self.equipment = equipment.Equipment.from_save(readable)
-        self.frigates = frigates.frigates_from_save(readable)
+        self.snapshot = await self.ctx.run_blocking(summarize, readable)       # essential: a failure ends this read
+        self.visits = await self.ctx.run_blocking(self._extract, "visited systems", {}, visits_from_save, readable)
+        self.settlements = self._extract("settlements", [], settlements.settlements_from_save, readable)
+        self.timers = self._extract("timers", [], lambda: sorted(
+            timers.timers_from_save(readable, self.tables.timer_durations)
+            + settlements.decision_timers(self.settlements, self.tables.settlement_rules), key=lambda t: t["ends_at"]))
+        self.ships = self._extract("ships", [], ships.ships_from_save, readable)
+        self.freighter = self._extract("the freighter", None, ships.freighter_from_save, readable)
+        self.equipment = self._extract("equipment", None, equipment.Equipment.from_save, readable)
+        self.frigates = self._extract("frigates", [], frigates.frigates_from_save, readable)
         ps = (readable.get("BaseContext") or {}).get("PlayerStateData") or {}
         try:
             self.anchor = memory.ua_bytes(ps["GameStartAddress1"]) + memory.ua_bytes(ps["GameStartAddress2"])

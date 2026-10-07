@@ -20,7 +20,7 @@ import struct
 import time
 from pathlib import Path
 
-from . import mbin, techstats, trade
+from . import logs, mbin, techstats, trade
 from .game_install import GameInstall, language_label
 from .hgpak import PakError, PakSet, ZstdUnavailable
 
@@ -302,9 +302,8 @@ class GameData:
     def load_stored(self) -> bool:
         """Adopt the cached item database whatever build it is from - for when the game's files cannot be found.
         True when there was one."""
-        try:
-            cached = json.loads(self.cache_file.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+        cached = logs.read_json(self.cache_file, "The item database cache")
+        if not isinstance(cached, dict):
             return False
         if cached.get("format") != CACHE_FORMAT or not isinstance(cached.get("items"), dict) or not cached["items"]:
             return False
@@ -364,9 +363,8 @@ class GameData:
 
     def _load_cache(self, install: GameInstall) -> bool:
         """Adopt the cached item database when it was built for this build and language (True), else False."""
-        try:
-            cached = json.loads(self.cache_file.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+        cached = logs.read_json(self.cache_file, "The item database cache")
+        if not isinstance(cached, dict):
             return False
         if (cached.get("format") != CACHE_FORMAT or cached.get("build_id") != install.build_id
                 or cached.get("language") != install.language or not isinstance(cached.get("items"), dict)):
@@ -381,6 +379,14 @@ class GameData:
         return True
 
     def _write_cache(self) -> None:
+        """Keep the item database for the next start; a disk problem is a warning, the items stay in memory."""
+        try:
+            self._write_cache_file()
+        except OSError as exc:
+            logs.warn_once(f"write:{self.cache_file}", "The item database cache %s could not be written (it is "
+                           "rebuilt at every start until it can): %s: %s", self.cache_file, type(exc).__name__, exc)
+
+    def _write_cache_file(self) -> None:
         self.cache_file.parent.mkdir(parents=True, exist_ok=True)
         tmp = self.cache_file.with_suffix(".tmp")
         tmp.write_text(json.dumps({"format": CACHE_FORMAT, "build_id": self.build_id, "language": self.language,

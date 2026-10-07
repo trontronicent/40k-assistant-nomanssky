@@ -401,4 +401,7 @@ each game update, when the game is found again.
 - Items whose name the game makes up from a seed (salvaged and biological finds such as `PROC_LOOT`) keep their id.
 - The current mission (Overview) is shown with the game's own description of it.
 - The gas per biome is community knowledge, not read from the game.
+- If a part of your save cannot be read (for example after a game update changes it), the page shows a warning naming
+  that part and still shows everything else; the plugin log (header → Cogitator Logs, lines tagged `[No Man's Sky]`)
+  has the reason.
 - Your save data (base and ship names, inventories) is shown to anyone who can open your app.

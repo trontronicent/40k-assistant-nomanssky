@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from pathlib import Path
 
-from . import mbin
+from . import logs, mbin
 from .planet_search import fold
 
 RESEARCH_FILE = Path(__file__).resolve().parent.parent / "research" / "expeditions.json"
@@ -60,10 +60,8 @@ def _kind_of(match: re.Match) -> str:
 
 def load_research(path: Path | None = None) -> dict:
     """The researched dates and facts ({} when the file is missing or unreadable - the persona then says less)."""
-    try:
-        return json.loads((path or RESEARCH_FILE).read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {}
+    data = logs.read_json(path or RESEARCH_FILE, "The researched expeditions file")
+    return data if isinstance(data, dict) else {}
 
 
 @dataclass

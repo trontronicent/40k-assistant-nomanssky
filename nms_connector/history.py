@@ -15,6 +15,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
+from . import logs
 from .memory import system_key
 
 HISTORY_VERSION = 2
@@ -138,9 +139,8 @@ class PlanetHistory:
     def load(self) -> None:
         """Load the history file (the .bak copy when the main file is damaged), migrating version 1 files."""
         for path in (self.path, self.path.with_suffix(".json.bak")):
-            try:
-                raw = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
+            raw = logs.read_json(path, "The planet history")
+            if raw is None:
                 continue
             if not isinstance(raw, dict) or not isinstance(raw.get("planets"), dict):
                 continue
