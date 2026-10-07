@@ -173,7 +173,7 @@ class NmsConnector:
         """Everything the system, planet and item sections are built from, as of now."""
         snap = self.snapshot
         ctx = planets_view.Context(self.live, self.history, self.visits, self.gamedata, self.combat_timer,
-                                   snap["bases"] if snap else [], origin=self.save_system,
+                                   bases=snap["bases"] if snap else [], origin=self.save_system,
                                    save_position=self.save_position)
         # The planet search also knows each planet by its world type's names ("stickige" -> every airless planet).
         ctx.world_words = self.tables.worlds.biome_words() if self.tables.worlds.worlds else {}

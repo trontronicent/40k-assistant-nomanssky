@@ -252,7 +252,9 @@ class TechStats:
         other values are base values that read wrongly as bonuses (LASER's heat time 8, a Fusion Engine's grip 1).
         """
         key = self.key(item_id)
-        name = lambda stat: label(text_key(stat)) or words(stat)      # noqa: E731
+
+        def name(stat):
+            return label(text_key(stat)) or words(stat)
         lines = []
         rule = self.procedural.get(key)
         if rule:

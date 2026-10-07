@@ -264,8 +264,8 @@ def _planet_row(texts: Texts, planet: dict, visit: dict | None, sentinel_index: 
 class Context:
     """Everything the system and planet sections are built from."""
 
-    def __init__(self, live, history, visits: dict, gamedata, combat_timer: str | None, bases=None, origin=None,
-                 save_position: dict | None = None):
+    def __init__(self, live, history, visits: dict, gamedata, combat_timer: str | None, *, bases=None, origin=None,  # noqa: PLR0913
+                 save_position: dict | None = None):      # (the one dependency-injection constructor: everything it is built from)
         self.live, self.history, self.visits = live, history, visits
         self.save_position = save_position     # {system, planet (save layout: 0 = space), at} of the newest save
         self.texts = Texts(gamedata)

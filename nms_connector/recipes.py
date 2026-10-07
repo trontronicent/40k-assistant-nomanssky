@@ -291,7 +291,9 @@ def item_markdown(book: RecipeBook, lookup, item: str, language: str = ENGLISH, 
     name = name_in(lookup, item, language)
     other_lang = terms.language if not local_lang else ENGLISH
     other = name_in(lookup, item, other_lang) if other_lang != language else None
-    h = lambda key, **v: game_terms.heading(key, language, **v)            # noqa: E731
+
+    def h(key, **values):
+        return game_terms.heading(key, language, **values)
     out = _front(name, [item] + ([other] if other and other != name else []) + ["recipe"], language, GENERATED_MARK)
     out += [f"# {name}", ""]
     desc = entry.get("desc_local" if local_lang else "desc_en") or entry.get("desc_en")

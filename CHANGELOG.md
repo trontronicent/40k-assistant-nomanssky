@@ -74,7 +74,11 @@ Needs the 40k Assistant 3.12.0 (unchanged).
   `release_memory` uses public `release()` methods instead of reaching into other classes' private fields, the
   pak constants live with the pak reader, four loaders import it at module level, and `zip()` calls say whether
   lengths must match. The persona's data for 18 test questions on a real save and the 5,207-item database are
-  identical before and after. One real bug found on the way: two dishes of equal value were listed in an order that
+  identical before and after (also the whole 2 MB page view, the 2,388 generated Codex documents and
+  `procgen`/`lz4` on 106,751 systems / the real save). Every function now passes the repo's standard (`ruff.toml`,
+  checked by `tests/test_code_shape.py`): `route_sections`, `settlement_sections`, the world documents,
+  `system_attributes` and the `lz4` decoder are split too, the constructor's save-derived state is set in one place,
+  defensive `getattr` calls on attributes that always exist are gone. One real bug found on the way: two dishes of equal value were listed in an order that
   changed from run to run - ties are now broken by id.
 - The persona prompt explains the new blocks; an unedited persona gets the new prompt when
   the plugin starts.

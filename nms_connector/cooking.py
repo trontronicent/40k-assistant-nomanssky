@@ -241,7 +241,7 @@ def cooking_lines(view: CookingView, question: str, named_items: list[str],
     `named_items` = items the question names (matched by the caller), `edible_ids` = ids of edible products (a named
     dish only counts when it is one)."""
     book = view.book
-    if book is None or not getattr(book, "recipes", None):
+    if book is None or not book.recipes:
         return []
     words = set(re.findall(r"[\w'-]+", (question or "").lower()))
     all_dishes = dishes(book)

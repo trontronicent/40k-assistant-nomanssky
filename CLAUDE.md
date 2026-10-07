@@ -68,17 +68,22 @@ into `J:\40k-assistant\plugins\.data\nomanssky`, the installed plugin's data, un
   release recipe is in the app's `CLAUDE.md` ("Plugin release recipe"). Push/tag only when the user says so.
 - Every user-visible change updates `HELP.md` (shown in the app manual's *Plugin Help*), `CHANGELOG.md`, and the No
   Man's Sky section of `J:\40k-assistant\frontend\src\manual\USER_MANUAL.md`.
-- **Code shape** (checked with `ruff check nms_connector --select C901,PLR0912,PLR0913,PLR0915 --config
-  'lint.mccabe.max-complexity=12'` - the remaining findings are the ported algorithms `lz4`/`procgen`, the table
-  builders of `planets_view`/`settlements`/`worlds`, and the long `NmsConnector.__init__`): a function does one thing
+- **Code shape** (`ruff.toml`: complexity <= 12, <= 50 statements, <= 6 arguments, explicit `zip` strictness, no unused
+  names or arguments; `tests/test_code_shape.py` runs it and fails with the findings - zero today, and the single
+  `noqa` is `planets_view.Context.__init__`, the one dependency-injection constructor): a function does one thing
   and stays under ~50 statements; more than five parameters means a small dataclass (`assistant.ItemLookups`,
   `cooking.CookingView`) and not a longer signature; `NmsConnector.action` is a dispatch table (`_actions`, one
   `_act_*` method per action) and the persona's data is built by small `_*_lines` / `_block` methods, never one
   long function; a module reaches into another class through its public methods (`GameData.release()`/`names()`,
-  `StarmapReader.release()`), never its `_private` fields; the same expression twice becomes a helper; imports
+  `StarmapReader.release()`), never its `_private` fields; no `getattr(x, "attr", None)` for an attribute the class
+  always has (only for what an older host app may not provide: `ctx.assets_dir`, `ctx.section_types`, `ctx.root`);
+  state derived from the save is set in one place (`NmsConnector._reset_save_state`), not listed twice; the same expression twice becomes a helper; imports
   are at module level unless they would make a cycle or load numpy/ctypes for nothing. `zip` always says
   `strict=`; output the persona sees must not depend on set/dict iteration order (ties broken by id). A refactor
-  is checked by diffing the persona's data block for ~20 questions on the real save before and after
-  (scratchpad `ctxdump.py`, `NMS_REPO` = a `git archive` of the old commit): it must be identical.
+  is checked by diffing the persona's data block for ~20 questions, the whole page view and overlay (2 MB of JSON), the
+  generated Codex documents (2,388) and the item database (5,207) on the real save and game files before and after
+  (scratchpad scripts with `NMS_REPO` = a `git archive` of the old commit): they must be identical. The ported
+  algorithms are compared on many inputs: `procgen.system_attributes` on 106,751 systems, `lz4` on the real save and on
+  random corrupt blocks.
 - Test functions carry a docstring (what, expected, why). Form values and action params are untrusted input.
 - Files here are CRLF: edit with the Edit tool or a Python script that normalises line endings.

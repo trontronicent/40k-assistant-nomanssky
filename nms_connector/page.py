@@ -357,13 +357,13 @@ class ConnectorPage:
                         "update). Press 'Update key mapping'."})
         if c.error:
             out.append({"type": "notice", "level": "error", "text": c.error})
-        if getattr(c, "degraded", None):
+        if c.degraded:
             out.append({"type": "notice", "level": "warn", "text":
                         "Part of the newest save could not be read, the rest is shown: "
                         + "; ".join(f"{name} ({reason})" for name, reason in c.degraded.items())
                         + ". The plugin log has the details."})
         if c.install is None and c.game_checked:
-            stored = getattr(c.tables, "stored_build", None)
+            stored = c.tables.stored_build
             out.append({"type": "notice", "level": "info", "text":
                         "Item names and icons come from the game's own files, but the No Man's Sky installation "
                         "was not found in any Steam library. Set NMS_GAME_DIR to the game folder to use another one."

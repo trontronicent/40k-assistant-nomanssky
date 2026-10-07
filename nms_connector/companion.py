@@ -186,7 +186,7 @@ class PluginCompanion:
                 # How the plugin asks its data to be answered - outside the data block (app 3.12.0).
                 "instructions": answer_rules,
                 # The Settings tab's "Single Context Per Question": this plugin's persona gets no earlier turns (3.11.0).
-                "single_context": bool(getattr(getattr(c, "settings", None), "single_context", False))}
+                "single_context": bool(c.settings.single_context)}
 
     def _status_lines(self, snap: dict | None, ctx, here) -> tuple[list[str], list[str]]:
         """(the status lines that open every data block, the rules for answering this turn - sent apart from the data)."""
@@ -282,7 +282,6 @@ class PluginCompanion:
         lines = here[:1]
         if c.settlements:
             lines.append(f"Settlements: {c.describe.settlements()}")
-        settings = getattr(c, "settings", None)
         content = {"timers": shown_timers, "location": here, "settlements": self.settlement_overlay_lines(now),
                    "mission": self.mission_lines(), "currencies": self.currency_lines(), "ships": self.ship_lines(),
                    "frigates": self.frigate_lines()}
@@ -294,9 +293,9 @@ class PluginCompanion:
         return {"title": "No Man's Sky", "timers": shown_timers, "lines": lines, "areas": areas,
                 # App 3.12.0: a full-text search (no model) in the Codex libraries attached to the persona.
                 "codex_search": True,
-                "persona_id": PERSONA_ID, "codeword": getattr(settings, "codeword", None),
+                "persona_id": PERSONA_ID, "codeword": c.settings.codeword,
                 # Switches in the overlay; clicking one runs the plugin's set_setting action (plugin.SET_SETTING).
-                "toggles": settings.toggles("set_setting") if settings is not None else []}
+                "toggles": c.settings.toggles("set_setting")}
 
     def where_lines(self) -> list[str]:
         """Overlay area *Where you are*: the system (live from the game, else the save's), the planet you are on
@@ -404,8 +403,8 @@ class PluginCompanion:
         """What the game terms of a question mean, in the game's own words: "stickige" is the German game's
         "Airless" - an airless (dead) world - not "sticky" (worlds.WorldBook.explain; the model translated it
         wrong on 2026-10-06)."""
-        book = getattr(self.connector.tables, "worlds", None)
-        return book.explain(question) if book is not None and book.worlds else []
+        book = self.connector.tables.worlds
+        return book.explain(question) if book.worlds else []
 
     def today(self) -> date:
         """Today's date (a method so tests can pin it)."""
@@ -414,8 +413,8 @@ class PluginCompanion:
     def expedition_lines(self, question: str, snap: dict | None) -> list[str]:
         """For a question about seasons/expeditions: the game's expeditions (names, descriptions, rewards from the
         game files; dates from research/expeditions.json) and whether the save is one (seasons.expedition_lines)."""
-        book = getattr(self.connector.tables, "seasons", None)
-        if book is None or not book.seasons:
+        book = self.connector.tables.seasons
+        if not book.seasons:
             return []
         return seasons.expedition_lines(book, seasons.load_research(), question, self.today(),
                                         (snap or {}).get("season"))
@@ -424,7 +423,7 @@ class PluginCompanion:
         """For a cooking question: what a dish needs (folded into ingredient pools), the dishes you can cook with
         what you hold, the most valuable dishes, the researched facts (cooking.cooking_lines)."""
         c = self.connector
-        book = getattr(c.tables, "recipes", None)
+        book = c.tables.recipes
         if book is None or not book.recipes:
             return []
         lookup = c.gamedata.lookup
@@ -451,7 +450,7 @@ class PluginCompanion:
         item (<= MAX_RECIPE_ITEMS) where it comes from (the game's description), the refiner recipes that make it
         (<= MAX_RECIPES_PER_ITEM, best yield first) and its crafting recipe - from the game's own recipe table."""
         c = self.connector
-        book = getattr(c.tables, "recipes", None)
+        book = c.tables.recipes
         if not (words & RECIPE_WORDS) or book is None or not book.recipes:
             return []
         names = c.gamedata.names()
@@ -468,7 +467,7 @@ class PluginCompanion:
             if entry.get("desc_en"):
                 out.append("  where it comes from: " + " ".join(entry["desc_en"].split()))
             for r in refined[:MAX_RECIPES_PER_ITEM]:
-                out.append("  refiner: " + recipes.recipe_line(lookup, r, getattr(c.tables, "terms", None)))
+                out.append("  refiner: " + recipes.recipe_line(lookup, r, c.tables.terms))
             if len(refined) > MAX_RECIPES_PER_ITEM:
                 out.append(f"  ... {len(refined) - MAX_RECIPES_PER_ITEM} more refiner recipes")
             if crafted:
@@ -650,7 +649,7 @@ class PluginCompanion:
         """A part's stat ranges with English stat names only: half the length of 'Shield Strength (Schildstärke)', the
         model translates."""
         gamedata = self.connector.gamedata
-        tech_stats = getattr(gamedata, "tech", None)
-        if tech_stats is None or not tech_stats.ready:
+        tech_stats = gamedata.tech
+        if not tech_stats.ready:
             return texts.modifiers(item_id)
         return tech_stats.modifiers(item_id, lambda key: (gamedata.text(key) or {}).get("en"))
