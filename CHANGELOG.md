@@ -54,9 +54,10 @@ Needs the 40k Assistant 3.12.0 (unchanged).
   - Reading the game's tables opened up to 21 of the game's archives per table, each time building a file index of
     up to 29 MB, because three archive hints were wrong (the globals live in `globals.pak`, the frigate-trait and
     settlement-perk tables in `Precache.pak`). Now one archive per table, and all tables of a pass share the opened
-    archives (`hgpak.session`), freed when the pass ends. The pass that loads the tables peaks at 34 MB instead of
-    63 MB, the plugin's share of the process stays ~25 MB lower afterwards, and a start is ~6 s faster. A hint that
-    goes stale after a game update is logged once instead of silently costing memory and time.
+    archives (`hgpak.session`), freed when the pass ends. Loading the tables now takes 1.1 s instead of 1.6 s and grows
+    the process by 12 MB instead of 43 MB (measured without a profiler, real game files); its Python peak is 34 MB
+    instead of 63 MB. A hint that goes stale after a game update is logged once instead of silently costing memory
+    and time.
   - The archive index no longer keeps a Python tuple per file (about a quarter of an open archive).
   - Language files are parsed for the wanted keys only (the rest is never decoded).
   - The galaxy-map seed table (29,000 systems) is three numpy arrays instead of a dict of lists: 12 MB held for the
