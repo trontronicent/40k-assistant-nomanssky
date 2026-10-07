@@ -1,0 +1,231 @@
+"""Cooking for the persona: what a dish needs, what you can cook right now, which dishes are worth most.
+
+The Nutrient Processor's recipes come from the game's recipe table (``recipes.RecipeBook``: 1,323 recipes, 333 dishes
+on build 25732212; every ingredient and result amount is 1). Raw, they are unreadable for a persona: the "Fibrous Stew"
+alone has 33 ingredient pairs. ``pools`` folds them into "any of A, B + any of C, D" (ingredients with the same set
+of partners form one pool, so the fold is exact), ``cookable`` matches the recipes against the player's holdings
+and ranks the dishes by base value, and ``cooking_lines`` assembles the block for one question.
+
+Researched (2026-10-07, see ``research/cooking.json``): the Nutrient Processor stands in a base, on the freighter
+and in the Space Anomaly; edible products give temporary buffs; they can be sold to visiting pilots and Galactic
+Trade Terminals; Iteration Cronus in the Anomaly rates dishes and pays 0-130 Nanites.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from collections import Counter
+from pathlib import Path
+
+RESEARCH_FILE = Path(__file__).resolve().parent.parent / "research" / "cooking.json"
+DISH_CATEGORIES = {"Edible Product", "Compressed Nutrients"}       # the game's category of a cooked dish
+COOKING_WORDS = {"cook", "cooks", "cooking", "cooked", "kochen", "koche", "kochst", "kocht", "gekocht", "kochrezept",
+                 "kochrezepte", "nutrient", "processor", "nährstoffprozessor", "naehrstoffprozessor", "dish", "dishes",
+                 "meal", "meals", "gericht", "gerichte", "food", "essen", "stew", "eintopf", "cake", "kuchen",
+                 "edible", "edibles", "cronus", "bake", "baking", "backen"}
+HOW_WORDS = {"how", "make", "makes", "recipe", "recipes", "need", "needs", "ingredients", "ingredient", "get", "wie",
+             "rezept", "rezepte", "brauche", "braucht", "benötige", "zutaten", "zutat", "herstellen", "machen",
+             "bekomme", "what", "was", "with"}
+GOOD_WORDS = {"best", "most", "valuable", "profit", "profitable", "worth", "beste", "besten", "wertvollste",
+              "wertvollsten", "meisten", "lohnt", "lohnend", "teuerste", "teuersten", "highest", "höchste", "höchsten"}
+NOW_WORDS = {"right", "now", "currently", "have", "has", "own", "inventory", "materials", "ingredients", "can", "could",
+             "kann", "könnte", "habe", "hab", "jetzt", "gerade", "aktuell", "besitze", "zutaten", "vorrat"}
+MAX_POOL_LINES = 6              # ingredient lines per dish before "... and N more"
+MAX_DISHES = 6                  # dishes shown for a "what can I cook / best dish" question
+MAX_NAMED = 3                   # dishes or ingredients a question may name
+MAX_POOL_NAMES = 8              # ingredient names listed per pool before "... (N more)"
+
+
+def load_research(path: Path | None = None) -> dict:
+    """The researched cooking facts ({} when the file is missing)."""
+    try:
+        return json.loads((path or RESEARCH_FILE).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def pools(recipes) -> list[tuple[str, tuple[tuple[str, ...], ...]]]:
+    """Fold the recipes of one dish into ingredient pools: [(kind, pools)], where kind is "one" (any one ingredient of
+    the pool), "two" (any two ingredients out of the pool, the same one twice included where the game allows it),
+    "pair" (one of pool A + one of pool B) or "all" (three or more ingredients, one pool per ingredient). Ingredients
+    with the same set of partners form one pool, so the fold is exact: every listed combination is a recipe."""
+    out: list[tuple[str, tuple[tuple[str, ...], ...]]] = []
+    singles = sorted({r.ingredients[0][0] for r in recipes if len(r.ingredients) == 1})
+    if singles:
+        out.append(("one", (tuple(singles),)))
+    adjacency: dict[str, set[str]] = {}
+    for r in recipes:
+        if len(r.ingredients) == 2:
+            a, b = r.ingredients[0][0], r.ingredients[1][0]
+            adjacency.setdefault(a, set()).add(b)
+            adjacency.setdefault(b, set()).add(a)
+    if adjacency:
+        groups: dict[frozenset, list[str]] = {}
+        for ingredient, partners in adjacency.items():
+            groups.setdefault(frozenset(partners), []).append(ingredient)
+        members = sorted(tuple(sorted(g)) for g in groups.values())
+        done = set()
+        for pa in members:
+            for pb in members:
+                key = frozenset((pa, pb))
+                if key in done or not (set(pb) & adjacency[pa[0]]):
+                    continue
+                done.add(key)
+                out.append(("two", (pa,)) if pa == pb else ("pair", (pa, pb)))
+    for r in recipes:
+        if len(r.ingredients) >= 3:
+            out.append(("all", tuple((i,) for i, _ in r.ingredients)))
+    return out
+
+
+def pool_text(entry: tuple[str, tuple[tuple[str, ...], ...]], label, alias: dict | None = None) -> str:
+    """One folded entry as text: "A or B + C or D", "any two of: A or B" or "A + B + C". `alias` maps a pool (tuple of
+    ids) to a letter that stands for it (fold_lines defines the letters once)."""
+    kind, groups = entry
+    alias = alias or {}
+
+    def names(ids):
+        if ids in alias:
+            return f"pool {alias[ids]}"
+        shown = " or ".join(label(i) for i in ids[:MAX_POOL_NAMES])
+        return shown + (f" (+{len(ids) - MAX_POOL_NAMES} more)" if len(ids) > MAX_POOL_NAMES else "")
+    if kind == "two":
+        return f"any two of: {names(groups[0])}" if len(groups[0]) > 1 else f"2 x {names(groups[0])}"
+    if kind == "one":
+        return f"any one of: {names(groups[0])}" if len(groups[0]) > 1 else names(groups[0])
+    return " + ".join(names(g) for g in groups)
+
+
+def fold_lines(entries, label) -> list[str]:
+    """The folded ingredient entries of one dish as lines. A pool that is long or used twice gets a letter and is
+    spelled out once ("pool A = ..."), so a stew with 40 combinations stays a handful of lines."""
+    uses = Counter(g for _, groups in entries for g in groups if len(g) > 1)
+    lettered = [g for g, n in uses.items() if n > 1 or len(g) > 3]
+    alias = {g: chr(ord("A") + k) for k, g in enumerate(sorted(lettered, key=lambda g: (-uses[g], g))[:12])}
+    out = [f"pool {letter} = " + " or ".join(label(i) for i in g[:MAX_POOL_NAMES * 2])
+           for g, letter in alias.items()]
+    out += [pool_text(e, label, alias) for e in entries[:MAX_POOL_LINES + 4]]
+    if len(entries) > MAX_POOL_LINES + 4:
+        out.append(f"... and {len(entries) - MAX_POOL_LINES - 4} more combinations")
+    return out
+
+
+def dish_recipes(book, dish: str):
+    """The Nutrient Processor recipes that make `dish`."""
+    return [r for r in book.recipes if r.cooking and r.result == dish]
+
+
+def dishes(book) -> set[str]:
+    """Every dish the Nutrient Processor can make."""
+    return {r.result for r in book.recipes if r.cooking}
+
+
+def used_as_ingredient(book, item: str) -> dict[str, list]:
+    """{dish: [recipes]} of the cooking recipes that use `item`."""
+    out: dict[str, list] = {}
+    for r in book.recipes:
+        if r.cooking and any(i == item for i, _ in r.ingredients):
+            out.setdefault(r.result, []).append(r)
+    return out
+
+
+def cookable(book, have: dict[str, int], value_of) -> list[dict]:
+    """The dishes you can cook with what you hold, best base value first: [{dish, value, times, recipe}].
+    `have` = {item id: amount}; `times` = how often the best matching recipe can run; one entry per dish (the recipe
+    that can be run most often)."""
+    best: dict[str, dict] = {}
+    for r in book.recipes:
+        if not r.cooking:
+            continue
+        need = Counter()
+        for item, amount in r.ingredients:
+            need[item] += amount
+        if not all(have.get(item, 0) >= amount for item, amount in need.items()):
+            continue
+        times = min(have[item] // amount for item, amount in need.items())
+        entry = best.get(r.result)
+        if entry is None or times > entry["times"]:
+            best[r.result] = {"dish": r.result, "value": value_of(r.result) or 0, "times": times, "recipe": r}
+    return sorted(best.values(), key=lambda e: (-e["value"], e["dish"]))
+
+
+def missing_for(recipe, have: dict[str, int]) -> list[str]:
+    """Ingredient ids of a recipe you do not hold (enough of)."""
+    need = Counter()
+    for item, amount in recipe.ingredients:
+        need[item] += amount
+    return [i for i, a in need.items() if have.get(i, 0) < a]
+
+
+def _fmt(n) -> str:
+    return f"{int(n):,}"
+
+
+def cooking_lines(book, question: str, have: dict[str, int], named_items: list[str], label, value_of, research: dict,
+                  edible_ids: set[str] | None = None) -> list[str]:
+    """The persona's block for a cooking question (empty when it is not one).
+
+    `named_items` = items the question names (matched by the caller), `label(id)` = display name, `value_of(id)` =
+    base value or None, `edible_ids` = ids of edible products (a question naming one is a cooking question too)."""
+    if book is None or not getattr(book, "recipes", None):
+        return []
+    words = set(re.findall(r"[\w'-]+", (question or "").lower()))
+    all_dishes = dishes(book)
+    cooking_asked = bool(words & COOKING_WORDS)
+    # A named dish makes it a cooking question when the question asks how/with what ("How do I make Fibrous Stew?");
+    # a named ingredient only with a cooking word - "Sweetroot" alone is a question about the item.
+    dish_named = [i for i in named_items if i in all_dishes and (edible_ids is None or i in edible_ids)]
+    ingredient_named = [i for i in named_items if i not in all_dishes and used_as_ingredient(book, i)]
+    named = dish_named + (ingredient_named if cooking_asked else [])
+    if not (cooking_asked or (dish_named and words & HOW_WORDS)):
+        return []
+    out = ["Cooking (the Nutrient Processor; recipes from the game's own recipe table, every recipe uses 1 of each "
+           "ingredient and makes 1 dish):"]
+    for fact in (research.get("facts") or [])[:3]:
+        out.append(f"  {fact}")
+    shown = 0
+    for item in named[:MAX_NAMED]:
+        if item in all_dishes:
+            recs = dish_recipes(book, item)
+            value = value_of(item)
+            out.append(f"  How to cook {label(item)} - base value {_fmt(value) + ' each' if value else 'unknown'}; "
+                       f"{len(recs)} ingredient combinations, folded:")
+            for line in fold_lines(pools(recs), label):
+                out.append(f"    {line}")
+            can = [r for r in recs if not missing_for(r, have)]
+            out.append("    you can cook it now with: " + (
+                "; ".join(" + ".join(label(i) for i, _ in r.ingredients) for r in can[:3]) if can
+                else "nothing you hold (no combination is complete)"))
+            shown += 1
+        else:
+            uses = used_as_ingredient(book, item)
+            ranked = sorted(uses, key=lambda d: -(value_of(d) or 0))
+            out.append(f"  {label(item)} is an ingredient of {len(uses)} dishes; the most valuable:")
+            for d in ranked[:MAX_DISHES]:
+                partner = sorted({label(i) for r in uses[d] for i, _ in r.ingredients if i != item})
+                out.append(f"    {label(d)} ({_fmt(value_of(d) or 0)} each) with " +
+                           (" or ".join(partner[:MAX_POOL_NAMES]) or f"a second {label(item)}"))
+            shown += 1
+    generic = not named or words & (GOOD_WORDS | NOW_WORDS)
+    if generic:
+        now = cookable(book, have, value_of)
+        total = len(now)
+        out.append(f"  With what you hold you can cook {total} different dishes right now." if total else
+                   "  With what you hold you cannot complete any Nutrient Processor recipe right now (the game "
+                   "data lists your inventories; cooking needs raw ingredients such as vegetables, meat, eggs, "
+                   "milk or fish).")
+        for e in now[:MAX_DISHES]:
+            r = e["recipe"]
+            out.append(f"    {label(e['dish'])}: {_fmt(e['value'])} each, up to {e['times']} time{'s' if e['times'] != 1 else ''} "
+                       f"- {' + '.join(label(i) for i, _ in r.ingredients)}")
+        if not named:
+            ranked = sorted(all_dishes, key=lambda d: -(value_of(d) or 0))
+            out.append("  The most valuable dishes in the game (base value each, any ingredients):")
+            for d in ranked[:MAX_DISHES - 2]:
+                recs = dish_recipes(book, d)
+                easiest = min(recs, key=lambda r: len(missing_for(r, have)))
+                gap = missing_for(easiest, have)
+                out.append(f"    {label(d)}: {_fmt(value_of(d) or 0)} - e.g. {' + '.join(label(i) for i, _ in easiest.ingredients)}"
+                           + (f" (you lack {', '.join(label(i) for i in gap)})" if gap else " (you can cook it now)"))
+    return out

@@ -1,0 +1,12 @@
+{
+  "researched": "2026-10-07",
+  "note": "How cooking works, from community guides; the recipes and dish values themselves come from the game's files, not from here.",
+  "sources": [
+    "https://gamerguides.com/no-mans-sky/guide/crafting/cooking/all-edible-products"
+  ],
+  "facts": [
+    "Cooking is done in the Nutrient Processor, which you can build in a base, find on your freighter and in the Space Anomaly; you need the recipe known and the ingredients in your inventory.",
+    "Edible products give temporary buffs (health regeneration, hazard protection, jetpack efficiency); raw ingredients give weaker ones. Dishes can be sold to visiting pilots at space stations or at Galactic Trade Terminals.",
+    "Iteration Cronus on the Space Anomaly judges a cooked dish and pays 0 to 130 Nanites depending on how much he likes it."
+  ]
+}

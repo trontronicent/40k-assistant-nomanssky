@@ -465,6 +465,9 @@ def test_base_values_are_read_only_when_the_product_ids_check_out():
     assert gamedata.product_values(data, {"TRA_TECH1", "TRA_TECH4", "FREEBIE"}) == {"TRA_TECH1": 1000, "TRA_TECH4": 30000}
     assert gamedata.product_values(data, {"SOMETHING", "ELSE"}) == {}
     assert gamedata.product_values(b"short", {"X"}) == {}
+    # keep_zero (the item database): an item the table lists with 0 is one the game cannot sell - kept as 0, so the
+    # persona can say "no sell value" instead of "unknown"; the default still drops it.
+    assert gamedata.product_values(data, {"TRA_TECH1", "TRA_TECH4", "FREEBIE"}, keep_zero=True)["FREEBIE"] == 0
 
 
 def test_substances_carry_their_base_value_too():

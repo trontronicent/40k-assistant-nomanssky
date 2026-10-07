@@ -136,6 +136,20 @@ def ship_class(filename) -> str:
     return parts[-1].split(".")[0].title() if parts and parts[-1] else "unknown"
 
 
+def season_of(common: dict, ps: dict) -> dict:
+    """Whether the save is itself an expedition (the game's season) and which rewards it redeemed.
+
+    ``CommonStateData.SeasonData`` is the season definition the save was started with: ``SeasonId`` 0 = a normal
+    game (checked 2026-10-07 on a real save: SeasonId 0, SeasonNumber 1 is only the default), anything else = an
+    expedition save, then ``SeasonNumber`` is its number. ``RedeemedSeasonRewards`` (PlayerStateData) and
+    ``EarnedSeasonSpecialRewards`` count what the player already took out of expeditions."""
+    data = common.get("SeasonData") or {}
+    season_id = data.get("SeasonId") or 0
+    number = data.get("SeasonNumber") if season_id else None
+    return {"active": bool(season_id), "number": number if isinstance(number, int) else None,
+            "redeemed": len(ps.get("RedeemedSeasonRewards") or []) + len(common.get("EarnedSeasonSpecialRewards") or [])}
+
+
 def summarize(save: dict) -> dict:
     """The connector's snapshot of one save."""
     ps = _get(save, "BaseContext", "PlayerStateData", default={}) or {}
@@ -204,4 +218,5 @@ def summarize(save: dict) -> dict:
         "expeditions": len(ps.get("FleetExpeditions") or []),
         "pets": len(ps.get("Pets") or []),
         "current_mission": item_name(ps.get("CurrentMissionID")) if ps.get("CurrentMissionID") else None,
+        "season": season_of(common, ps),
     }

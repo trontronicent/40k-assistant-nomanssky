@@ -33,6 +33,7 @@ from .live import LiveMemory
 from .page import ConnectorPage
 from .settings import PluginSettings
 from .summary import mission_text_keys, summarize
+from .store import TableStore
 from .tables import GameTables
 from .watcher import SaveWatcher
 
@@ -100,7 +101,7 @@ class NmsConnector:
         self._last_mapping_attempt = 0.0
         self.save_dir: Path | None = None
         self.snapshot: dict | None = None
-        self.tables = GameTables()                # timers, frigate traits, warp range, settlements, tech stats
+        self.tables = GameTables(TableStore(self.data_dir))                # timers, frigate traits, warp range, settlements, tech stats
         self.timers: list[dict] = []              # settlement constructions, expeditions (timers.py)
         self.settlements: list[dict] = []         # your settlements' economy (settlements.py)
         self.settlement_live = settlements.LiveSettlements(self.data_dir / "settlement_screen.json")  # screen values
@@ -397,7 +398,14 @@ class NmsConnector:
             self.gamedata.recipes = self.tables.recipes     # Texts.how_to_get: an item tooltip's recipes
             self.gamedata.terms = self.tables.terms
             await self._ensure_texts()
-        if self.install is None or (self.gamedata.matches(self.install) and not force):
+        if self.install is None:
+            # No game files (another drive, an offline library): the stored copy of the item database keeps names,
+            # values and categories; the tables came from tables.json above.
+            if not self.gamedata.ready and await self.ctx.run_blocking(self.gamedata.load_stored):
+                self.ctx.logger.warning("[NMS] Game files not found: item database of build %s taken from the "
+                                        "stored copy (%d items)", self.gamedata.build_id, len(self.gamedata.items))
+            return
+        if self.gamedata.matches(self.install) and not force:
             return
         if not force and self.gamedata.error and now - self._game_failed < GAME_RETRY_S:
             return

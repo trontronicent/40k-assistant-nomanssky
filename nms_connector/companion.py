@@ -16,8 +16,10 @@ from __future__ import annotations
 
 import re
 import time
+from datetime import date
 
-from . import assistant, galaxy, page as page_module, planet_search, planets_view, recipes, settlements, timers, trade
+from . import (assistant, cooking, galaxy, page as page_module, planet_search, planets_view, recipes, seasons,
+               settlements, timers, trade)
 
 PERSONA_PROMPT = (
     "You are the No Man's Sky Plugin Persona, the player's companion for No Man's Sky. With every message you "
@@ -42,6 +44,12 @@ PERSONA_PROMPT = (
     "\"where to sell\" questions from it, the most valuable kind first. For a question about planets (\"where are "
     "scorching hot planets?\") the block lists the recorded planets that match it, nearest first; when it says "
     "\"N recorded planets match ... the nearest M of them\", N is the answer to \"how many\", not M.\n\n"
+    "A \"Cooking\" block lists dishes with their ingredient combinations folded into pools (\"pool A\" is defined "
+    "once: any ingredient of the pool); say what is needed in the player's language and name the dishes they can "
+    "cook right now when asked what they can cook - never invent a recipe. A value is the game's base value in "
+    "units before an economy's price factor; \"no sell value\" means the game cannot sell the item. An "
+    "\"Expeditions\" block holds the game's seasons: say which is current, its dates (an estimate when the block "
+    "says so) and rewards, and that the save is a normal game when the block says so.\n\n"
     "Game words mean what the game means by them. A \"Game term\" line in the block says what a word of the "
     "question is in the game (the German game's \"stickig\" is airless - a dead world without atmosphere - not "
     "sticky): use that meaning. Never translate game names yourself - planet types, weathers, items, refiners and "
@@ -198,6 +206,9 @@ class PluginCompanion:
         extra += self.equipment_lines(words, ctx.texts)
         extra += self.planet_lines(question, words, ctx)
         extra += self.recipe_lines(question, words)
+        extra += self.cooking_lines(question, snap)
+        extra += self.worth_lines(question, words, snap, name_of)
+        extra += self.expedition_lines(question, snap)
         extra += self.world_lines(question)
         all_names = {i: [n for n in (e.get("en"), e.get("local")) if n] for i, e in (c.gamedata.items or {}).items()}
 
@@ -207,7 +218,8 @@ class PluginCompanion:
 
         return {"title": "No Man's Sky", "text": assistant.build_context(
             question, snap, name_of, names_of, all_names, status, extra, planets_offering, item_notes,
-            lambda place_names: self.kind_lines(snap, place_names, ctx, name_of)),
+            lambda place_names: self.kind_lines(snap, place_names, ctx, name_of),
+            lambda item_id: (c.gamedata.lookup(item_id) or {}).get("value")),
             # How the plugin asks its data to be answered - outside the data block (app 3.12.0).
             "instructions": answer_rules,
             # The Settings tab's "Single Context Per Question": this plugin's persona gets no earlier turns (3.11.0).
@@ -353,6 +365,46 @@ class PluginCompanion:
         book = getattr(self.connector.tables, "worlds", None)
         return book.explain(question) if book is not None and book.worlds else []
 
+    def today(self) -> date:
+        """Today's date (a method so tests can pin it)."""
+        return date.today()
+
+    def expedition_lines(self, question: str, snap: dict | None) -> list[str]:
+        """For a question about seasons/expeditions: the game's expeditions (names, descriptions, rewards from the
+        game files; dates from research/expeditions.json) and whether the save is one (seasons.expedition_lines)."""
+        book = getattr(self.connector.tables, "seasons", None)
+        if book is None or not book.seasons:
+            return []
+        return seasons.expedition_lines(book, seasons.load_research(), question, self.today(),
+                                        (snap or {}).get("season"))
+
+    def cooking_lines(self, question: str, snap: dict | None) -> list[str]:
+        """For a cooking question: what a dish needs (folded into ingredient pools), the dishes you can cook with
+        what you hold, the most valuable dishes, the researched facts (cooking.cooking_lines)."""
+        c = self.connector
+        book = getattr(c.tables, "recipes", None)
+        if book is None or not book.recipes:
+            return []
+        lookup = c.gamedata.lookup
+        names = {i: [n for n in (e.get("en"), e.get("local")) if n] for i, e in (c.gamedata.items or {}).items()}
+        have = {i: e["total"] for i, e in assistant.holdings(snap).items()} if snap else {}
+        edible = {i for i in cooking.dishes(book) if (lookup(i) or {}).get("cat_en") in cooking.DISH_CATEGORIES}
+        return cooking.cooking_lines(
+            book, question, have, assistant.match_items(question, names, whole_only=True),
+            lambda i: recipes.item_label(lookup, i), lambda i: (lookup(i) or {}).get("value"),
+            cooking.load_research(), edible)
+
+    def worth_lines(self, question: str, words: set[str], snap: dict | None, name_of) -> list[str]:
+        """For "what is my inventory worth?": the base value of everything held (assistant.inventory_worth). A
+        question that names an item gets that item's value in its own line instead."""
+        if not (words & assistant.WORTH_WORDS):
+            return []
+        c = self.connector
+        names = {i: [n for n in (e.get("en"), e.get("local")) if n] for i, e in (c.gamedata.items or {}).items()}
+        if assistant.match_items(question, names, whole_only=True) and not (words & assistant.WHOLE_WORDS):
+            return []
+        return assistant.inventory_worth(snap, lambda i: (c.gamedata.lookup(i) or {}).get("value"), name_of)
+
     def recipe_lines(self, question: str, words: set[str]) -> list[str]:
         """For a question about getting an item ("Wie bekomme ich Ammoniak?", "how to make Sulphurine"): per named
         item (<= MAX_RECIPE_ITEMS) where it comes from (the game's description), the refiner recipes that make it
@@ -368,7 +420,8 @@ class PluginCompanion:
             refined = book.made_by(item)
             crafted = book.crafting.get(item)
             entry = lookup(item) or {}
-            if not (refined or crafted or entry.get("desc_en")):
+            cooked = book.made_by(item, cooking=True)
+            if not (refined or crafted or cooked or entry.get("desc_en")):
                 continue
             out.append(f"How to get {recipes.item_label(lookup, item)} (from the game's files):")
             if entry.get("desc_en"):
@@ -379,7 +432,10 @@ class PluginCompanion:
                 out.append(f"  ... {len(refined) - MAX_RECIPES_PER_ITEM} more refiner recipes")
             if crafted:
                 out.append("  crafted from: " + " + ".join(f"{a} {recipes.item_label(lookup, i)}" for i, a in crafted))
-            if not (refined or crafted):
+            if cooked:
+                out.append(f"  cooked in the Nutrient Processor ({len(cooked)} ingredient combinations, see the "
+                           "Cooking block)")
+            elif not (refined or crafted):
                 out.append("  no refiner or crafting recipe makes it: it is gathered only")
         return out
 

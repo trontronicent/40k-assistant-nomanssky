@@ -24,7 +24,7 @@ from . import mbin, techstats, trade
 from .game_install import GameInstall, language_label
 from .hgpak import PakError, PakSet, ZstdUnavailable
 
-CACHE_FORMAT = 6                 # 2: categories, descriptions (0.9.0); 3-4: upgrade texts, fill-ins; 5: product
+CACHE_FORMAT = 7                 # 2: categories, descriptions (0.9.0); 3-4: upgrade texts, fill-ins; 5: product
                                  # base values (0.10.0); 6: substance base values too (2026-10-07)
 DESC_CHARS = 600
 ICON_PX = 64
@@ -165,10 +165,12 @@ def build_items(paks: PakSet, language: str) -> dict[str, dict]:
                 merged.setdefault(key, text)
         strings[lang] = merged
 
-    values = product_values(product_data, set(records)) if product_data else {}
+    # keep_zero: an item the tables list with value 0 is one the game cannot sell ("value": 0 - the persona says so
+    # instead of "unknown"); an item in no value table has no "value" key at all.
+    values = product_values(product_data, set(records), keep_zero=True) if product_data else {}
     # Substances carry their base value in their own table, with its own offsets.
     if substance_data:
-        values.update(substance_values(substance_data, set(records)))
+        values.update(substance_values(substance_data, set(records), keep_zero=True))
     items: dict[str, dict] = {}
     for key, record in records.items():
         icon = record.icon or (records[record.template].icon if record.template in records else "")
@@ -189,7 +191,7 @@ def build_items(paks: PakSet, language: str) -> dict[str, dict]:
     return items
 
 
-def substance_values(data: bytes, known_ids: set[str]) -> dict[str, int]:
+def substance_values(data: bytes, known_ids: set[str], keep_zero: bool = False) -> dict[str, int]:
     """{substance id: base value in units} from the substance table (GcRealitySubstanceData.BaseValue - what one
     unit of Tritium, Carbon or Cobalt is worth before an economy's price factor). Same guard as the products:
     the ids at the fixed offset must be the ids the calibrated parse found (>= 90 %) and the values plausible.
@@ -198,14 +200,16 @@ def substance_values(data: bytes, known_ids: set[str]) -> dict[str, int]:
     0x110 that is *also* 6 for Tritium but 0 for Carbon and Oxygen, so a one-field layout shift would pass every
     other check and silently price the player's whole cargo wrong. Every one of ANCHOR_SUBSTANCES is something
     the game charges for, so a field where any of them is free is not the price field."""
-    out = _table_values(data, known_ids, SUBSTANCE_ID_AT, SUBSTANCE_VALUE_AT)
+    out = _table_values(data, known_ids, SUBSTANCE_ID_AT, SUBSTANCE_VALUE_AT, keep_zero)
     if any(out.get(i, 0) <= 0 for i in ANCHOR_SUBSTANCES if i in known_ids):
         return {}
     return out
 
 
-def _table_values(data: bytes, known_ids: set[str], id_at: int, value_at: int) -> dict[str, int]:
-    """{id: base value} read at fixed offsets of a table's records, or {} when the offsets do not hold up."""
+def _table_values(data: bytes, known_ids: set[str], id_at: int, value_at: int,
+                  keep_zero: bool = False) -> dict[str, int]:
+    """{id: base value} read at fixed offsets of a table's records, or {} when the offsets do not hold up. Items
+    the game gives no value (it cannot sell them) are left out, or kept as 0 with `keep_zero`."""
     try:
         start, count = mbin.root_list(data)
         size = mbin.record_size(data, start, count)
@@ -222,16 +226,16 @@ def _table_values(data: bytes, known_ids: set[str], id_at: int, value_at: int) -
         return {}
     if not all(0 <= v <= 100_000_000 for v in out.values()):
         return {}
-    return {i: v for i, v in out.items() if v > 0}
+    return {i: v for i, v in out.items() if v > 0 or keep_zero}
 
 
-def product_values(data: bytes, known_ids: set[str]) -> dict[str, int]:
+def product_values(data: bytes, known_ids: set[str], keep_zero: bool = False) -> dict[str, int]:
     """{product id: base value in units} from the product table (GcProductData.BaseValue - what a trade good, a
     product or a curiosity is worth before an economy's price factor: trade goods 1,000 / 6,000 / 15,000 / 30,000
     / 50,000 by tier, read 2026-10-05). The fixed offsets are trusted only when the ids found there are the ids the
     calibrated table parse found (>= 90 %) and the values are plausible; else {} (no values rather than wrong ones).
     The trade-good anchor (TRA_TECH1 must be worth something) catches a layout change the id check would pass."""
-    out = _table_values(data, known_ids, PRODUCT_ID_AT, PRODUCT_VALUE_AT)
+    out = _table_values(data, known_ids, PRODUCT_ID_AT, PRODUCT_VALUE_AT, keep_zero)
     return out if out.get("TRA_TECH1", 1) > 0 else {}
 
 
@@ -272,6 +276,7 @@ class GameData:
         self.tech: techstats.TechStats = techstats.TechStats()
         self.build_id: str | None = None
         self.language = "english"
+        self.stored = False                            # True: adopted from the cache without the game files
         self.built_at: str | None = None
         self.build_seconds: float | None = None
         self.error: str | None = None
@@ -293,6 +298,24 @@ class GameData:
 
     def lookup(self, item_id: str) -> dict | None:
         return self.items.get(item_key(item_id))
+
+    def load_stored(self) -> bool:
+        """Adopt the cached item database whatever build it is from - for when the game's files cannot be found.
+        True when there was one."""
+        try:
+            cached = json.loads(self.cache_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return False
+        if cached.get("format") != CACHE_FORMAT or not isinstance(cached.get("items"), dict) or not cached["items"]:
+            return False
+        self.items = cached["items"]
+        if isinstance(cached.get("trading"), dict) and cached["trading"]:
+            self.trading, self.trading_source = cached["trading"], cached.get("trading_source", "game files")
+        self.build_id, self.language = cached.get("build_id"), cached.get("language") or "english"
+        self.built_at, self.build_seconds = cached.get("built_at"), cached.get("build_seconds")
+        self.error = None
+        self.stored = True
+        return True
 
     # ------------------------------------------------------------------ build / cache
 
@@ -321,6 +344,7 @@ class GameData:
         self.build_seconds = round(time.perf_counter() - started, 2)
         self.built_at = time.strftime("%Y-%m-%dT%H:%M:%S")
         self.error = None
+        self.stored = False
         # A rebuild means a new game build, another language, a missing cache or a forced rebuild:
         # convert the icons again too (a game update can change them under the same name).
         shutil.rmtree(self.assets_dir, ignore_errors=True)
@@ -353,6 +377,7 @@ class GameData:
         self.build_id, self.language = install.build_id, install.language
         self.built_at, self.build_seconds = cached.get("built_at"), cached.get("build_seconds")
         self.error = None
+        self.stored = False
         return True
 
     def _write_cache(self) -> None:

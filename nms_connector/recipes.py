@@ -137,6 +137,24 @@ class RecipeBook:
     substances: set[str] = field(default_factory=set)     # ids of the substance table (raw materials)
     error: str | None = None
 
+    def to_json(self) -> dict:
+        """The book as plain JSON (nms_connector.store keeps it so the persona works without the game files)."""
+        return {"recipes": [[r.id, r.result, r.amount, [list(i) for i in r.ingredients], r.cooking]
+                            for r in self.recipes],
+                "crafting": {k: [list(i) for i in v] for k, v in self.crafting.items()},
+                "substances": sorted(self.substances)}
+
+    @classmethod
+    def from_json(cls, data: dict | None) -> "RecipeBook":
+        """The book of `to_json` ("stored" with an error when the data is not in that shape)."""
+        try:
+            return cls([Recipe(rid, result, int(amount), tuple((i, int(a)) for i, a in ingredients), bool(cooking))
+                        for rid, result, amount, ingredients, cooking in data["recipes"]],
+                       {k: [(i, int(a)) for i, a in v] for k, v in data["crafting"].items()},
+                       set(data["substances"]))
+        except (KeyError, TypeError, ValueError):
+            return cls(error="the stored recipes are unreadable")
+
     def made_by(self, item: str, cooking: bool = False) -> list[Recipe]:
         """Refiner (or, with cooking, Nutrient Processor) recipes that make `item`, best yield per input first."""
         found = [r for r in self.recipes if r.result == item and r.cooking == cooking]

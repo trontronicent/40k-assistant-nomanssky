@@ -94,10 +94,11 @@ def holdings(snap: dict) -> dict[str, dict]:
     return out
 
 
-def match_items(question: str, candidates: dict[str, list[str]]) -> list[str]:
+def match_items(question: str, candidates: dict[str, list[str]], whole_only: bool = False) -> list[str]:
     """Item ids the question names. `candidates` maps id -> its names (English, game language). A whole name in
     the question wins; else an item matches when a question word (>= MIN_WORD letters, no stopword) is one of the
-    words of its name (also with a plural -s / -e / -en / -n dropped)."""
+    words of its name (also with a plural -s / -e / -en / -n dropped). With `whole_only`, only whole names when
+    there are any ("cook Fibrous Stew" names that dish, not the forty other stews)."""
     q_words = _words(question)
     q_text = " " + " ".join(q_words) + " "
     keys = {w for w in q_words if len(w) >= MIN_WORD and w not in STOPWORDS}
@@ -115,6 +116,8 @@ def match_items(question: str, candidates: dict[str, list[str]]) -> list[str]:
             if keys & set(n_words):
                 partial.append(item_id)
                 break
+    if whole_only and whole:
+        return list(dict.fromkeys(whole))
     return list(dict.fromkeys(whole + partial))
 
 
@@ -173,9 +176,70 @@ def trade_kinds(snap: dict, place_names: list[str] | None, value_of) -> list[dic
     return out
 
 
+def value_note(unit, amount: int | None = None) -> str:
+    """What an item is worth, in the game's base value: "base value 3,280 each, 9,840 for 3" - or that the game gives
+    it none (`unit` 0: it cannot be sold) - or "" when the item is in no value table (unknown)."""
+    if unit is None:
+        return ""
+    if not unit:
+        return "no sell value (the game gives this item a base value of 0: it cannot be sold)"
+    note = f"base value {_fmt(unit)} units each"
+    if amount and amount > 1:
+        note += f", {_fmt(unit * amount)} for your {_fmt(amount)}"
+    return note + " (before an economy's price factor)"
+
+
+WORTH_WORDS = {"worth", "value", "values", "valuable", "wert", "werte", "wertvoll", "wertvolle", "wertvollste",
+               "wertvollsten", "sell", "sold", "selling", "verkaufen", "verkauft", "verkaufe", "price", "prices",
+               "preis", "preise", "earn", "earnings", "richest", "reich", "units"}
+WHOLE_WORDS = {"inventory", "inventories", "inventar", "everything", "all", "whole", "total", "overall", "entire",
+               "gesamt", "alles", "ganze", "ganzes", "komplett", "storage", "stored", "carry", "carrying"}
+MAX_WORTH_STACKS = 8
+
+
+def inventory_worth(snap: dict | None, value_of, name_of) -> list[str]:
+    """What the player's inventories are worth at the game's base value (units, before any economy's price factor):
+    the total, per place, the most valuable stacks and how many stacks the game gives no sell value."""
+    if not snap:
+        return []
+    total, stacks, unvalued, by_place, rows = 0, 0, 0, [], []
+    for place, place_rows in places(snap):
+        subtotal = 0
+        for item_id, amount, _maximum in place_rows:
+            if not ITEM_ID_RE.match(str(item_id)) or not isinstance(amount, int):
+                continue
+            stacks += 1
+            unit = value_of(item_id)
+            if unit:
+                subtotal += unit * amount
+                rows.append((unit * amount, item_id, amount, unit))
+            else:
+                unvalued += 1
+        if subtotal:
+            by_place.append((place, subtotal))
+        total += subtotal
+    if not stacks:
+        return []
+    out = ["Inventory worth at the game's base value (what the game says each unit is worth before an economy's "
+           "price factor - stations pay more or less; not what the money in your save is):",
+           f"  total {_fmt(total)} units over {stacks} stacks in all inventories; {unvalued} stacks have no sell value "
+           f"(technology, building parts and other things the game cannot sell)"]
+    if by_place:
+        out.append("  by place: " + "; ".join(f"{p}: {_fmt(v)}" for p, v in sorted(by_place, key=lambda x: -x[1])))
+    merged: dict[str, list] = {}
+    for value, item_id, amount, unit in rows:
+        entry = merged.setdefault(item_id, [0, 0, unit])
+        entry[0] += value
+        entry[1] += amount
+    top = sorted(merged.items(), key=lambda kv: -kv[1][0])[:MAX_WORTH_STACKS]
+    out.append("  most valuable items (all places together): " + "; ".join(
+        f"{name_of(i)}: {_fmt(v)} ({_fmt(a)} x {_fmt(u)})" for i, (v, a, u) in top))
+    return out
+
+
 def build_context(question: str, snap: dict | None, name_of, names_of, all_names: dict[str, list[str]],
                   status_lines: list[str], extra_lines: list[str], planets_offering=None, item_notes=None,
-                  kind_lines=None) -> str:
+                  kind_lines=None, value_of=None) -> str:
     """The data text for one question. `name_of(id)` -> display name, `names_of(id)` -> [English, local],
     `all_names` = every item the game knows (id -> names), `status_lines`/`extra_lines` ready-made lines,
     `planets_offering(id)` -> ["Planet (System, distance)", ...] or None, `item_notes(id)` -> a line for an item
@@ -206,6 +270,9 @@ def build_context(question: str, snap: dict | None, name_of, names_of, all_names
             entry = have[item_id]
             where = "; ".join(f"{place}: {_fmt(amount)}" for place, amount in entry["places"])
             out.append(f"- {name_of(item_id)} [{item_id}]: {_fmt(entry['total'])} in total - {where}")
+            worth = value_note(value_of(item_id), entry["total"]) if value_of else ""
+            if worth:
+                out.append(f"  {worth}")
             note = item_notes(item_id) if item_notes else None
             if note and note in noted:
                 out.append(f"  sells like {noted[note]} (above)")
@@ -219,6 +286,9 @@ def build_context(question: str, snap: dict | None, name_of, names_of, all_names
             out.append(f"- ... and {len(matched) - MAX_ITEMS} more items with these words in their names")
         for item_id in missing:
             out.append(f"- {name_of(item_id)} [{item_id}]: 0 - not in any of your inventories")
+            worth = value_note(value_of(item_id)) if value_of else ""
+            if worth:
+                out.append(f"  {worth}")
             nearest = planets_offering(item_id) if planets_offering else None
             if nearest:
                 out.append(f"  found on: {'; '.join(nearest[:NEAREST_PLANETS])}")
