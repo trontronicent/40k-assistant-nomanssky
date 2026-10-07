@@ -77,7 +77,8 @@ def test_cookable_needs_every_ingredient_in_amount_and_ranks_by_value():
 def _lines(question, have, named, book=None):
     book = book or RecipeBook([_cook("1", "STEW", "veg", "bean"), _cook("2", "CAKE", "egg", "milk")])
     value = {"STEW": 6400, "CAKE": 90000}.get
-    return cooking.cooking_lines(book, question, have, named, _label, value, {"facts": ["Cooked in a Nutrient Processor."]})
+    view = cooking.CookingView(book, have, _label, value, {"facts": ["Cooked in a Nutrient Processor."]})
+    return cooking.cooking_lines(view, question, named)
 
 
 def test_a_question_that_is_not_about_cooking_gets_no_cooking_block():
@@ -181,8 +182,8 @@ def test_the_cheapest_dishes_and_the_total_earnings_are_shown():
     that it did not have the cheapest dish."""
     book = RecipeBook([_cook("1", "CHEAP", "milk"), _cook("2", "MID", "egg"), _cook("3", "RICH", "veg")])
     value = {"CHEAP": 100, "MID": 900, "RICH": 5000}.get
-    lines = cooking.cooking_lines(book, "What is the cheapest dish I can cook right now?", {"milk": 4, "egg": 1, "veg": 2},
-                                  [], _label, value, {})
+    view = cooking.CookingView(book, {"milk": 4, "egg": 1, "veg": 2}, _label, value)
+    lines = cooking.cooking_lines(view, "What is the cheapest dish I can cook right now?", [])
     text = chr(10).join(lines)
     assert "The cheapest dishes you can cook right now (of 3; cheapest first): Cheap: 100 units each, up to 4 times (400 units in all)" in text
     assert "Best dish you can cook right now: Rich: 5,000 units each, up to 2 times (10,000 units in all)" in text

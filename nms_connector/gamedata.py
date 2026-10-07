@@ -123,72 +123,89 @@ def _plain(text: str | None) -> str | None:
     return text if len(text) <= DESC_CHARS else text[:DESC_CHARS - 1].rstrip() + "…"
 
 
-def build_items(paks: PakSet, language: str) -> dict[str, dict]:
-    """{id: {"en", "local", "icon", "cat_en", "cat_local", "desc_en", "desc_local"}} for every item in the game's
-    tables (category = the subtitle the game shows under an item's name; *_local only when it differs)."""
+def _read_item_tables(paks: PakSet) -> tuple[dict[str, mbin.ItemRecord], dict[str, tuple[str, str]], dict[str, bytes]]:
+    """(item records by id, the procedural upgrades' text keys, the raw product and substance tables) of every item
+    table the game has; a table a game update renamed is skipped, the others still work."""
     records: dict[str, mbin.ItemRecord] = {}
     upgrade_texts: dict[str, tuple[str, str]] = {}   # procedural upgrades: (description key, upgraded tech's name key)
-    product_data = b""
-    substance_data = b""
+    raw: dict[str, bytes] = {}
     for table in ITEM_TABLES:
         try:
             data = paks.read(f"{TABLE_DIR}{table}.mbin")
         except KeyError:
-            continue  # a table renamed by a game update: the others still work
+            continue
         if table == PROC_TABLE:
             upgrade_texts = techstats.procedural_texts(data)
-        if table == PRODUCT_TABLE:
-            product_data = data
-        if table == SUBSTANCE_TABLE:
-            substance_data = data
+        if table in (PRODUCT_TABLE, SUBSTANCE_TABLE):
+            raw[table] = data
         try:
             parsed = mbin.parse_item_table(data)
         except mbin.MbinError:
             continue
         for key, record in parsed.items():
             records.setdefault(key, record)
-    if not records:
-        raise GameDataError("no item table could be read from the game files")
+    return records, upgrade_texts, raw
 
-    wanted = {k for r in records.values()
-              for k in (r.name_key, r.lower_key, r.subtitle_key, r.category_key, r.desc_key) if k}
-    wanted |= {k for keys in upgrade_texts.values() for k in keys}
-    languages = ["english"] if language == "english" else ["english", language]
+
+def _read_item_strings(paks: PakSet, wanted: set[str], language: str) -> dict[str, dict[str, str]]:
+    """{language: {key: text}} of the wanted keys, English and (when different) the game's language."""
     strings: dict[str, dict[str, str]] = {}
-    for lang in languages:
-        merged: dict[str, str] = {}
+    for lang in (["english"] if language == "english" else ["english", language]):
         files = paks.names_matching("language/", f"_{lang}.mbin")
         if not files:
             raise GameDataError(f"the game has no '{lang}' language files")
+        merged: dict[str, str] = {}
         for name in files:
             for key, text in mbin.parse_language_table(paks.read(name), wanted).items():
                 merged.setdefault(key, text)
         strings[lang] = merged
+    return strings
 
-    # keep_zero: an item the tables list with value 0 is one the game cannot sell ("value": 0 - the persona says so
-    # instead of "unknown"); an item in no value table has no "value" key at all.
-    values = product_values(product_data, set(records), keep_zero=True) if product_data else {}
-    # Substances carry their base value in their own table, with its own offsets.
-    if substance_data:
-        values.update(substance_values(substance_data, set(records), keep_zero=True))
-    items: dict[str, dict] = {}
-    for key, record in records.items():
-        icon = record.icon or (records[record.template].icon if record.template in records else "")
-        entry = {"en": mbin.display_name(record, strings["english"]), "icon": icon}
-        entry["local"] = mbin.display_name(record, strings[language]) if language != "english" else entry["en"]
-        for field, text_key in (("cat", record.category_key), ("desc", record.desc_key)):
-            en = _plain(strings["english"].get(text_key)) if text_key else None
-            if en:
-                entry[f"{field}_en"] = en
-                local = _plain(strings[language].get(text_key)) if language != "english" else None
-                if local and local != en:
-                    entry[f"{field}_local"] = local
-        if key in values:
-            entry["value"] = values[key]
-        if key in upgrade_texts and "desc_en" not in entry:
-            _add_upgrade_texts(entry, records.get(record.template), upgrade_texts[key], strings, language)
-        items[key] = entry
-    return items
+
+def _item_values(raw: dict[str, bytes], known_ids: set[str]) -> dict[str, int]:
+    """{id: base value}. keep_zero: an item the tables list with value 0 is one the game cannot sell ("value": 0 - the
+    persona says so instead of "unknown"); an item in no value table has no "value" key at all. Substances carry
+    their base value in their own table, with its own offsets."""
+    values = product_values(raw[PRODUCT_TABLE], known_ids, keep_zero=True) if raw.get(PRODUCT_TABLE) else {}
+    if raw.get(SUBSTANCE_TABLE):
+        values.update(substance_values(raw[SUBSTANCE_TABLE], known_ids, keep_zero=True))
+    return values
+
+
+def _item_entry(key: str, record: mbin.ItemRecord, records: dict[str, mbin.ItemRecord], strings: dict[str, dict[str, str]],
+                language: str, values: dict[str, int], upgrade_texts: dict[str, tuple[str, str]]) -> dict:
+    """One item of the database: names, icon, category, description (each in English and, when it differs, the game's
+    language), base value."""
+    icon = record.icon or (records[record.template].icon if record.template in records else "")
+    entry = {"en": mbin.display_name(record, strings["english"]), "icon": icon}
+    entry["local"] = mbin.display_name(record, strings[language]) if language != "english" else entry["en"]
+    for field, text_key in (("cat", record.category_key), ("desc", record.desc_key)):
+        en = _plain(strings["english"].get(text_key)) if text_key else None
+        if en:
+            entry[f"{field}_en"] = en
+            local = _plain(strings[language].get(text_key)) if language != "english" else None
+            if local and local != en:
+                entry[f"{field}_local"] = local
+    if key in values:
+        entry["value"] = values[key]
+    if key in upgrade_texts and "desc_en" not in entry:
+        _add_upgrade_texts(entry, records.get(record.template), upgrade_texts[key], strings, language)
+    return entry
+
+
+def build_items(paks: PakSet, language: str) -> dict[str, dict]:
+    """{id: {"en", "local", "icon", "cat_en", "cat_local", "desc_en", "desc_local"}} for every item in the game's
+    tables (category = the subtitle the game shows under an item's name; *_local only when it differs)."""
+    records, upgrade_texts, raw = _read_item_tables(paks)
+    if not records:
+        raise GameDataError("no item table could be read from the game files")
+    wanted = {k for r in records.values()
+              for k in (r.name_key, r.lower_key, r.subtitle_key, r.category_key, r.desc_key) if k}
+    wanted |= {k for keys in upgrade_texts.values() for k in keys}
+    strings = _read_item_strings(paks, wanted, language)
+    values = _item_values(raw, set(records))
+    return {key: _item_entry(key, record, records, strings, language, values, upgrade_texts)
+            for key, record in records.items()}
 
 
 def substance_values(data: bytes, known_ids: set[str], keep_zero: bool = False) -> dict[str, int]:

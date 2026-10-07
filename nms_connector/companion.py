@@ -102,6 +102,7 @@ MAX_RECIPES_PER_ITEM = 6
 
 PLANET_WORDS = {"planet", "planets", "planeten", "welt", "welten", "world", "worlds", "mond", "monde", "moon", "moons"}
 MAX_PLANETS = 8
+NO_DISTANCE = 1e12      # sorts a planet whose distance is unknown after every known one
 MAX_TECH_LINES = 40
 MAX_TECH_CHARS = 5000     # the app cuts the whole game-data block at 8,000 characters
 
@@ -161,68 +162,14 @@ class PluginCompanion:
         c = self.connector
         snap = c.snapshot
         ctx = c.context()
-        text = c.describe
-
-        def names_of(item_id):
-            entry = c.gamedata.lookup(item_id) or {}
-            return [n for n in dict.fromkeys([entry.get("en"), entry.get("local")]) if n]
+        here = c.here()
 
         def name_of(item_id):
             return ctx.texts.name(item_id) or item_id
 
-        here = c.here()
-
-        def planets_offering(item_id):
-            """The nearest recorded planets offering an item (resource, plant or gas), as 'name in system (distance)'."""
-            found = []
-            for planet in c.history.planets.values():
-                gas = planets_view.planet_gas(planet)
-                if item_id in (planet.get("common"), planet.get("uncommon"), planet.get("rare"), gas) \
-                        or item_id in (planet.get("extra") or []):
-                    dist = galaxy.distance_ly(here, planet["system"]) if here is not None else None
-                    found.append((dist if dist is not None else 1e12, planet))
-            found.sort(key=lambda d: d[0])
-            out = []
-            for dist, planet in found[:assistant.NEAREST_PLANETS]:
-                system = planets_view._system_label(planet["system"], ctx.visit(planet["system"]))
-                where = "your current system" if planet["system"] == here else galaxy.distance_text(dist if dist < 1e12 else None)
-                out.append(f"{planet.get('name') or 'a planet'} in {system} ({where})")
-            return out
-
-        status = [f"No Man's Sky - data of the save written {assistant.saved_text((snap or {}).get('saved_at'))}"
-                  + (", position live from the running game" if c.live.current_system is not None else "")]
-        answer_rules: list[str] = []      # how to answer this turn; sent apart from the data (see below)
-        if snap:
-            status.append(f"Units {snap.get('units') or 0:,}, Nanites {snap.get('nanites') or 0:,}, "
-                          f"Quicksilver {snap.get('quicksilver') or 0:,}")
-            if here is not None:
-                # A full sentence with the planet you are on (or "in space"), and the instruction right next to
-                # it: every other status line is "Label: value", and a model asked where it is mirrors that
-                # shape unless the data itself says to use the sentence ("System Ovester IX." was a whole reply).
-                said = planets_view.where_sentence(
-                    ctx, here, snap["location"].get("galaxy"), snap["location"].get("portal"),
-                    live=c.live.current_system is not None)
-                status.append(said)
-                # How to answer it travels apart from the data (app 3.12.0 `instructions`): the data block
-                # tells the model its contents are data, never instructions, so a rule written into it would
-                # contradict the block it sits in. A rule beside the data also reaches a persona whose own
-                # prompt the user has edited, which PERSONA_PROMPT no longer does.
-                answer_rules.append(f'Asked where they are, answer with this sentence, translated into the '
-                                    f'player\'s language and nothing in front of it: "{said}"')
-            status.append(f"Primary ship: {text.primary_ship()}")
-            status.append(f"Freighter: {text.freighter(snap['freighter']['name'])}")
-            status.append(f"Current mission: {text.mission(snap.get('current_mission'))}")
-        extra = []
+        status, answer_rules = self._status_lines(snap, ctx, here)
         now = time.time()
-        shown = timers.visible(c.timers, now)
-        if shown:
-            extra.append("Timers: " + "; ".join(
-                f"{t['label']} - {'done' if t['ends_at'] <= now else 'ends ' + timers.clock(t['ends_at'])}" for t in shown))
-        if c.settlements:
-            extra.append(f"Settlements: {text.settlements()}")
-        if c.frigates:
-            out_on = [f for f in c.frigates if f["on_expedition"]]
-            extra.append(f"Frigates: {len(c.frigates)} ({len(out_on)} out on an expedition)")
+        extra = self._overview_lines(now)
         words = set(re.findall(r"[\w'-]+", (question or "").lower()))
         extra += self._block("settlement details", self.settlement_lines, words, now)
         extra += self._block("bases", self.base_lines, words, ctx)
@@ -234,21 +181,91 @@ class PluginCompanion:
         extra += self._block("inventory worth", self.worth_lines, question, words, snap, name_of)
         extra += self._block("expeditions", self.expedition_lines, question, snap)
         extra += self._block("game terms", self.world_lines, question)
-        all_names = c.gamedata.names()
+        lookups = self._item_lookups(snap, ctx, here, name_of)
+        return {"title": "No Man's Sky", "text": assistant.build_context(question, snap, lookups, status, extra),
+                # How the plugin asks its data to be answered - outside the data block (app 3.12.0).
+                "instructions": answer_rules,
+                # The Settings tab's "Single Context Per Question": this plugin's persona gets no earlier turns (3.11.0).
+                "single_context": bool(getattr(getattr(c, "settings", None), "single_context", False))}
+
+    def _status_lines(self, snap: dict | None, ctx, here) -> tuple[list[str], list[str]]:
+        """(the status lines that open every data block, the rules for answering this turn - sent apart from the data)."""
+        c = self.connector
+        text = c.describe
+        status = [f"No Man's Sky - data of the save written {assistant.saved_text((snap or {}).get('saved_at'))}"
+                  + (", position live from the running game" if c.live.current_system is not None else "")]
+        answer_rules: list[str] = []
+        if not snap:
+            return status, answer_rules
+        status.append(f"Units {snap.get('units') or 0:,}, Nanites {snap.get('nanites') or 0:,}, "
+                      f"Quicksilver {snap.get('quicksilver') or 0:,}")
+        if here is not None:
+            # A full sentence with the planet you are on (or "in space"), and the instruction right next to
+            # it: every other status line is "Label: value", and a model asked where it is mirrors that
+            # shape unless the data itself says to use the sentence ("System Ovester IX." was a whole reply).
+            said = planets_view.where_sentence(
+                ctx, here, snap["location"].get("galaxy"), snap["location"].get("portal"),
+                live=c.live.current_system is not None)
+            status.append(said)
+            # How to answer it travels apart from the data (app 3.12.0 `instructions`): the data block
+            # tells the model its contents are data, never instructions, so a rule written into it would
+            # contradict the block it sits in. A rule beside the data also reaches a persona whose own
+            # prompt the user has edited, which PERSONA_PROMPT no longer does.
+            answer_rules.append(f'Asked where they are, answer with this sentence, translated into the '
+                                f'player\'s language and nothing in front of it: "{said}"')
+        status.append(f"Primary ship: {text.primary_ship()}")
+        status.append(f"Freighter: {text.freighter(snap['freighter']['name'])}")
+        status.append(f"Current mission: {text.mission(snap.get('current_mission'))}")
+        return status, answer_rules
+
+    def _overview_lines(self, now: float) -> list[str]:
+        """Timers, settlements and frigates in one line each: always part of the data."""
+        c = self.connector
+        out = []
+        shown = timers.visible(c.timers, now)
+        if shown:
+            out.append("Timers: " + "; ".join(
+                f"{t['label']} - {'done' if t['ends_at'] <= now else 'ends ' + timers.clock(t['ends_at'])}" for t in shown))
+        if c.settlements:
+            out.append(f"Settlements: {c.describe.settlements()}")
+        if c.frigates:
+            out_on = [f for f in c.frigates if f["on_expedition"]]
+            out.append(f"Frigates: {len(c.frigates)} ({len(out_on)} out on an expedition)")
+        return out
+
+    def _planets_offering(self, item_id: str, ctx, here) -> list[str]:
+        """The nearest recorded planets offering an item (resource, plant or gas), as 'name in system (distance)'."""
+        found = []
+        for planet in self.connector.history.planets.values():
+            gas = planets_view.planet_gas(planet)
+            if item_id in (planet.get("common"), planet.get("uncommon"), planet.get("rare"), gas) \
+                    or item_id in (planet.get("extra") or []):
+                dist = galaxy.distance_ly(here, planet["system"]) if here is not None else None
+                found.append((dist if dist is not None else NO_DISTANCE, planet))
+        found.sort(key=lambda d: d[0])
+        out = []
+        for dist, planet in found[:assistant.NEAREST_PLANETS]:
+            system = planets_view._system_label(planet["system"], ctx.visit(planet["system"]))
+            where = "your current system" if planet["system"] == here else galaxy.distance_text(dist if dist < NO_DISTANCE else None)
+            out.append(f"{planet.get('name') or 'a planet'} in {system} ({where})")
+        return out
+
+    def _item_lookups(self, snap: dict | None, ctx, here, name_of) -> assistant.ItemLookups:
+        """The callbacks `assistant.build_context` names and describes items with."""
+        c = self.connector
+
+        def names_of(item_id):
+            entry = c.gamedata.lookup(item_id) or {}
+            return [n for n in dict.fromkeys([entry.get("en"), entry.get("local")]) if n]
 
         def item_notes(item_id):
             hint = ctx.trade_hint(item_id)        # trade goods: who pays well, the nearest known such system
             return " ".join(hint.split("\n")) if hint else None
 
-        lookups = assistant.ItemLookups(
-            name_of, names_of, all_names, planets_offering, item_notes,
+        return assistant.ItemLookups(
+            name_of, names_of, c.gamedata.names(), lambda item_id: self._planets_offering(item_id, ctx, here), item_notes,
             lambda place_names: self.kind_lines(snap, place_names, ctx, name_of),
             lambda item_id: (c.gamedata.lookup(item_id) or {}).get("value"))
-        return {"title": "No Man's Sky", "text": assistant.build_context(question, snap, lookups, status, extra),
-            # How the plugin asks its data to be answered - outside the data block (app 3.12.0).
-            "instructions": answer_rules,
-            # The Settings tab's "Single Context Per Question": this plugin's persona gets no earlier turns (3.11.0).
-            "single_context": bool(getattr(getattr(c, "settings", None), "single_context", False))}
 
     def overlay(self) -> dict:
         """The desktop overlay in this plugin's mode (app 3.11.0): the running timers, where you are, the persona
@@ -414,10 +431,9 @@ class PluginCompanion:
         names = c.gamedata.names()
         have = {i: e["total"] for i, e in assistant.holdings(snap).items()} if snap else {}
         edible = {i for i in cooking.dishes(book) if (lookup(i) or {}).get("cat_en") in cooking.DISH_CATEGORIES}
-        return cooking.cooking_lines(
-            book, question, have, assistant.match_items(question, names, whole_only=True),
-            lambda i: recipes.item_label(lookup, i), lambda i: (lookup(i) or {}).get("value"),
-            cooking.load_research(), edible)
+        view = cooking.CookingView(book, have, lambda i: recipes.item_label(lookup, i),
+                                   lambda i: (lookup(i) or {}).get("value"), cooking.load_research())
+        return cooking.cooking_lines(view, question, assistant.match_items(question, names, whole_only=True), edible)
 
     def worth_lines(self, question: str, words: set[str], snap: dict | None, name_of) -> list[str]:
         """For "what is my inventory worth?": the base value of everything held (assistant.inventory_worth). A

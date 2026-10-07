@@ -15,6 +15,8 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import logs
@@ -163,12 +165,84 @@ def _fmt(n) -> str:
     return f"{int(n):,}"
 
 
-def cooking_lines(book, question: str, have: dict[str, int], named_items: list[str], label, value_of, research: dict,
+@dataclass
+class CookingView:
+    """What a cooking answer is built from: the recipe book, what the player holds ({item id: amount}), `label(id)`
+    = display name, `value_of(id)` = base value or None, and the researched facts."""
+    book: object
+    have: dict[str, int]
+    label: Callable[[str], str]
+    value_of: Callable[[str], int | None]
+    research: dict = field(default_factory=dict)
+
+    def value(self, item: str) -> int:
+        return self.value_of(item) or 0
+
+
+def _how_to_cook_lines(view: CookingView, dish: str) -> list[str]:
+    """One dish: its value, its ingredient combinations folded into pools, and what the player can cook it with now."""
+    recs = dish_recipes(view.book, dish)
+    value = view.value_of(dish)
+    out = [f"  How to cook {view.label(dish)} - base value {_fmt(value) + ' units each' if value else 'unknown'}; "
+           f"{len(recs)} ingredient combinations, folded:"]
+    out += [f"    {line}" for line in fold_lines(pools(recs), view.label)]
+    can = [r for r in recs if not missing_for(r, view.have)]
+    out.append("    you can cook it now with: " + (
+        "; ".join(" + ".join(view.label(i) for i, _ in r.ingredients) for r in can[:3]) if can
+        else "nothing you hold (no combination is complete)"))
+    return out
+
+
+def _used_in_lines(view: CookingView, item: str) -> list[str]:
+    """One ingredient: the dishes it goes into, the most valuable first, each with its partners."""
+    uses = used_as_ingredient(view.book, item)
+    out = [f"  {view.label(item)} is an ingredient of {len(uses)} dishes; the most valuable:"]
+    for dish in sorted(uses, key=lambda d: -view.value(d))[:MAX_DISHES]:
+        partners = sorted({view.label(i) for r in uses[dish] for i, _ in r.ingredients if i != item})
+        out.append(f"    {view.label(dish)} ({_fmt(view.value(dish))} units each) with "
+                   + (" or ".join(partners[:MAX_POOL_NAMES]) or f"a second {view.label(item)}"))
+    return out
+
+
+def _cookable_now_lines(view: CookingView, cheapest: bool) -> list[str]:
+    """The dishes the player can cook with what they hold: the best one, the others, and - when asked - the cheapest."""
+    now = cookable(view.book, view.have, view.value_of)
+    if not now:
+        return ["  With what you hold you cannot complete any Nutrient Processor recipe right now (cooking "
+                "needs raw ingredients such as vegetables, meat, eggs, milk or fish)."]
+    out = [f"  Best dish you can cook right now: {_dish_now(now[0], view.label)}."]
+    rest = now[1:MAX_DISHES]
+    if rest:
+        out.append(f"  The other {len(now) - 1} dishes you can cook right now (best first; shown {len(rest)}): "
+                   + "; ".join(_dish_now(e, view.label) for e in rest))
+    if cheapest:
+        cheap = [e for e in reversed(now) if e["value"]][:3]
+        out.append(f"  The cheapest dishes you can cook right now (of {len(now)}; cheapest first): "
+                   + "; ".join(_dish_now(e, view.label) for e in cheap))
+    return out
+
+
+def _most_valuable_lines(view: CookingView) -> list[str]:
+    """The most valuable dishes of the game, each with its easiest recipe and what the player still lacks."""
+    ranked = sorted(dishes(view.book), key=lambda d: -view.value(d))
+    described = []
+    for dish in ranked[:MAX_DISHES - 2]:
+        easiest = min(dish_recipes(view.book, dish), key=lambda r: len(missing_for(r, view.have)))
+        gap = missing_for(easiest, view.have)
+        described.append(f"{view.label(dish)}: {_fmt(view.value(dish))} units each - e.g. "
+                         f"{' + '.join(view.label(i) for i, _ in easiest.ingredients)}"
+                         + (f" (you lack {', '.join(view.label(i) for i in gap)})" if gap else " (you can cook it now)"))
+    return [f"  The most valuable dish in the game is {described[0]}",
+            "  Next most valuable dishes: " + "; ".join(described[1:])]
+
+
+def cooking_lines(view: CookingView, question: str, named_items: list[str],
                   edible_ids: set[str] | None = None) -> list[str]:
     """The persona's block for a cooking question (empty when it is not one).
 
-    `named_items` = items the question names (matched by the caller), `label(id)` = display name, `value_of(id)` =
-    base value or None, `edible_ids` = ids of edible products (a question naming one is a cooking question too)."""
+    `named_items` = items the question names (matched by the caller), `edible_ids` = ids of edible products (a named
+    dish only counts when it is one)."""
+    book = view.book
     if book is None or not getattr(book, "recipes", None):
         return []
     words = set(re.findall(r"[\w'-]+", (question or "").lower()))
@@ -183,58 +257,13 @@ def cooking_lines(book, question: str, have: dict[str, int], named_items: list[s
         return []
     out = ["Cooking (the Nutrient Processor; recipes from the game's own recipe table, every recipe uses 1 of each "
            "ingredient and makes 1 dish):"]
-    for fact in (research.get("facts") or [])[:3]:
-        out.append(f"  {fact}")
-    shown = 0
+    out += [f"  {fact}" for fact in (view.research.get("facts") or [])[:3]]
     for item in named[:MAX_NAMED]:
-        if item in all_dishes:
-            recs = dish_recipes(book, item)
-            value = value_of(item)
-            out.append(f"  How to cook {label(item)} - base value {_fmt(value) + ' units each' if value else 'unknown'}; "
-                       f"{len(recs)} ingredient combinations, folded:")
-            for line in fold_lines(pools(recs), label):
-                out.append(f"    {line}")
-            can = [r for r in recs if not missing_for(r, have)]
-            out.append("    you can cook it now with: " + (
-                "; ".join(" + ".join(label(i) for i, _ in r.ingredients) for r in can[:3]) if can
-                else "nothing you hold (no combination is complete)"))
-            shown += 1
-        else:
-            uses = used_as_ingredient(book, item)
-            ranked = sorted(uses, key=lambda d: -(value_of(d) or 0))
-            out.append(f"  {label(item)} is an ingredient of {len(uses)} dishes; the most valuable:")
-            for d in ranked[:MAX_DISHES]:
-                partner = sorted({label(i) for r in uses[d] for i, _ in r.ingredients if i != item})
-                out.append(f"    {label(d)} ({_fmt(value_of(d) or 0)} units each) with " +
-                           (" or ".join(partner[:MAX_POOL_NAMES]) or f"a second {label(item)}"))
-            shown += 1
-    generic = not named or words & (GOOD_WORDS | NOW_WORDS | LOW_WORDS)
-    if generic:
-        now = cookable(book, have, value_of)
-        if now:
-            top, rest = now[0], now[1:MAX_DISHES]
-            out.append(f"  Best dish you can cook right now: {_dish_now(top, label)}.")
-            if rest:
-                out.append(f"  The other {len(now) - 1} dishes you can cook right now (best first; shown {len(rest)}): " +
-                           "; ".join(_dish_now(e, label) for e in rest))
-            if words & LOW_WORDS:
-                cheap = [e for e in reversed(now) if e["value"]][:3]
-                out.append(f"  The cheapest dishes you can cook right now (of {len(now)}; cheapest first): " +
-                           "; ".join(_dish_now(e, label) for e in cheap))
-        else:
-            out.append("  With what you hold you cannot complete any Nutrient Processor recipe right now (cooking "
-                       "needs raw ingredients such as vegetables, meat, eggs, milk or fish).")
+        out += _how_to_cook_lines(view, item) if item in all_dishes else _used_in_lines(view, item)
+    if not named or words & (GOOD_WORDS | NOW_WORDS | LOW_WORDS):
+        out += _cookable_now_lines(view, cheapest=bool(words & LOW_WORDS))
         if not named:
-            ranked = sorted(all_dishes, key=lambda d: -(value_of(d) or 0))
-            lines = []
-            for d in ranked[:MAX_DISHES - 2]:
-                easiest = min(dish_recipes(book, d), key=lambda r: len(missing_for(r, have)))
-                gap = missing_for(easiest, have)
-                lines.append(f"{label(d)}: {_fmt(value_of(d) or 0)} units each - e.g. "
-                             f"{' + '.join(label(i) for i, _ in easiest.ingredients)}"
-                             + (f" (you lack {', '.join(label(i) for i in gap)})" if gap else " (you can cook it now)"))
-            out.append(f"  The most valuable dish in the game is {lines[0]}")
-            out.append("  Next most valuable dishes: " + "; ".join(lines[1:]))
+            out += _most_valuable_lines(view)
     return out
 
 

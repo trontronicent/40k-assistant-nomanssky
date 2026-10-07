@@ -103,7 +103,7 @@ class SeasonBook:
     def latest(self) -> int | None:
         return max(self.seasons) if self.seasons else None
 
-    def name(self, number: int, language: str | None = None) -> str:
+    def name(self, number: int) -> str:
         """"Our Journey Continues (Unsere Reise geht weiter)" - both languages when the game's differs."""
         return _both((self.seasons.get(number) or {}).get("name")) or f"Expedition {number}"
 
@@ -179,7 +179,7 @@ def timing(number: int, research: dict, today: date) -> tuple[str | None, bool]:
     return None, False
 
 
-def _text(entry: dict | None, language: str | None = None) -> str:
+def _text(entry: dict | None) -> str:
     """A description in English (the persona translates prose itself)."""
     return (entry or {}).get("en") or ""
 
@@ -191,55 +191,80 @@ def _both(entry: dict | None) -> str:
     return entry["en"] + (f" ({entry['local']})" if entry.get("local") else "")
 
 
-def expedition_lines(book: SeasonBook, research: dict, question: str, today: date, save_season: dict | None,
-                     language: str | None = None) -> list[str]:
-    """The persona's block for a question about seasons/expeditions (empty when it is not one)."""
-    if not book.seasons:
+def _save_lines(book: SeasonBook, save_season: dict) -> list[str]:
+    """Whether the player's save is itself an expedition, and what they redeemed from expeditions."""
+    if save_season.get("active"):
+        out = [f"  Your save is expedition {save_season['number']} (\"{book.name(save_season['number'])}\")."]
+    else:
+        out = ["  Your save is a normal game, not an expedition (the save's seasonal data is empty), so no "
+               "expedition progress is stored in it."]
+    if save_season.get("redeemed"):
+        out.append(f"  Expedition rewards you have redeemed: {save_season['redeemed']}.")
+    return out
+
+
+def _rewards_text(rewards: list[dict]) -> str:
+    """"decal: ...; banner: ...; 9 posters (...)" - the singles first, the posters counted."""
+    posters = [r for r in rewards if r["kind"] == "poster"]
+    parts = [f"{r['kind']}: {_both(r)}" for r in rewards if r["kind"] != "poster"][:MAX_REWARDS]
+    if posters:
+        parts.append(f"{len(posters)} posters ({', '.join(_both(p) for p in posters[:4])}"
+                     f"{', ...' if len(posters) > 4 else ''})")
+    return "; ".join(parts)
+
+
+def _season_lines(book: SeasonBook, research: dict, today: date, number: int) -> list[str]:
+    """One expedition: when it ran or runs, what it is, how it works and the rewards the game names."""
+    season = book.seasons.get(number)
+    if not season:
         return []
+    when, running = timing(number, research, today)
+    out = [f"  Expedition {number} \"{book.name(number)}\""
+           + (f" - {when}" if when else " - when it ran is not in the game files and was not researched")
+           + (" - this is the current expedition" if running else "")]
+    for label, key in (("what it is", "summary"), ("how it works", "detail")):
+        if _text(season.get(key)):
+            out.append(f"    {label}: {_text(season.get(key))}")
+    if season.get("rewards"):
+        out.append("    rewards the game names: " + _rewards_text(season["rewards"]))
+    return out
+
+
+def _all_expeditions_line(book: SeasonBook, research: dict) -> str:
+    def dated(n: int) -> str:
+        run = ((research.get("seasons") or {}).get(str(n)) or {}).get("first_run")
+        return f"{n} {book.name(n)}" + (f" ({run[0]} to {run[1]})" if run else "")
+    return "  All expeditions (first-run dates where researched): " + ", ".join(dated(n) for n in sorted(book.seasons))
+
+
+def _expeditions_asked(book: SeasonBook, question: str) -> tuple[list[int], bool]:
+    """(the expeditions the question names - by number, name, or a reward's name - and whether it is about
+    expeditions at all)."""
     words = set(re.findall(r"[\w'-]+", (question or "").lower()))
     named = book.named_in(question)
     # "Which expedition gave the Wraith?" - a reward's name finds its expedition, but only when the question talks
     # about rewards/expeditions (a "gas giant" question must not open the Titan expedition's poster).
     if not named and (asked_about(words) or words & REWARD_WORDS):
         named = rewards_named_in(book, question)
-    if not (asked_about(words) or named):
+    return named, bool(asked_about(words) or named)
+
+
+def expedition_lines(book: SeasonBook, research: dict, question: str, today: date, save_season: dict | None) -> list[str]:
+    """The persona's block for a question about seasons/expeditions (empty when it is not one)."""
+    if not book.seasons:
+        return []
+    named, asked = _expeditions_asked(book, question)
+    if not asked:
         return []
     latest = book.latest
-    out = ["Expeditions (the game's seasons) - names and rewards from the game's files, dates researched:"]
-    out.append(f"  The game build knows {len(book.seasons)} expeditions; the newest is Expedition {latest} "
-               f"\"{book.name(latest, language)}\".")
+    out = ["Expeditions (the game's seasons) - names and rewards from the game's files, dates researched:",
+           f"  The game build knows {len(book.seasons)} expeditions; the newest is Expedition {latest} "
+           f"\"{book.name(latest)}\"."]
     if save_season is not None:
-        if save_season.get("active"):
-            out.append(f"  Your save is expedition {save_season['number']} (\"{book.name(save_season['number'], language)}\").")
-        else:
-            out.append("  Your save is a normal game, not an expedition (the save's seasonal data is empty), so no "
-                       "expedition progress is stored in it.")
-        if save_season.get("redeemed"):
-            out.append(f"  Expedition rewards you have redeemed: {save_season['redeemed']}.")
-    for n in named or [latest]:
-        s = book.seasons.get(n)
-        if not s:
-            continue
-        when, running = timing(n, research, today)
-        out.append(f"  Expedition {n} \"{book.name(n, language)}\"" + (f" - {when}" if when else
-                   " - when it ran is not in the game files and was not researched")
-                   + (" - this is the current expedition" if running else ""))
-        for label, key in (("what it is", "summary"), ("how it works", "detail")):
-            if _text(s.get(key), language):
-                out.append(f"    {label}: {_text(s.get(key), language)}")
-        rewards = s.get("rewards") or []
-        if rewards:
-            posters = [r for r in rewards if r["kind"] == "poster"]
-            parts = [f"{r['kind']}: {_both(r)}" for r in rewards if r["kind"] != "poster"][:MAX_REWARDS]
-            if posters:
-                parts.append(f"{len(posters)} posters ({', '.join(_both(p) for p in posters[:4])}"
-                             f"{', ...' if len(posters) > 4 else ''})")
-            out.append("    rewards the game names: " + "; ".join(parts))
-    if not named or words & LIST_WORDS:
-        def dated(n):
-            run = ((research.get("seasons") or {}).get(str(n)) or {}).get("first_run")
-            return f"{n} {book.name(n, language)}" + (f" ({run[0]} to {run[1]})" if run else "")
-        out.append("  All expeditions (first-run dates where researched): " + ", ".join(dated(n) for n in sorted(book.seasons)))
-    for fact in research.get("facts") or []:
-        out.append(f"  {fact}")
+        out += _save_lines(book, save_season)
+    for number in named or [latest]:
+        out += _season_lines(book, research, today, number)
+    if not named or set(re.findall(r"[\w'-]+", (question or "").lower())) & LIST_WORDS:
+        out.append(_all_expeditions_line(book, research))
+    out += [f"  {fact}" for fact in research.get("facts") or []]
     return out
