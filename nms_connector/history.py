@@ -22,6 +22,11 @@ HISTORY_VERSION = 2
 DISCOVERY_COUNTED = {"Flora": "flora", "Animal": "fauna", "Mineral": "minerals"}
 
 
+def _without_times(entry: dict) -> dict:
+    """A planet entry without its first/last seen times - what 'changed' is judged on."""
+    return {k: v for k, v in entry.items() if k not in ("first_seen", "last_seen")}
+
+
 def _packed(value) -> int | None:
     if isinstance(value, int):
         return value
@@ -182,6 +187,14 @@ class PlanetHistory:
             self.path.replace(self.path.with_suffix(".json.bak"))
         tmp.replace(self.path)
 
+    def _drop_unconfirmed_copies(self, key: str, planet: dict, system: int) -> None:
+        """Remove the unconfirmed copies of a planet filed under another system (an earlier stale address that nothing
+        contradicted), once the planet is confirmed in its own."""
+        for other in [k for k, v in self.planets.items() if k != key and not v.get("confirmed")
+                      and v.get("name") == planet.get("name") and v.get("index") == planet.get("index")
+                      and v.get("system") != system]:
+            del self.planets[other]
+
     def record(self, planets: list[dict], now: str, current_system: int | None = None) -> int:
         """Merge planets read from memory; returns how many are new or changed. Logs the scan."""
         changed = new = moved = renamed = 0
@@ -222,17 +235,13 @@ class PlanetHistory:
             # elsewhere (an earlier stale address with nothing to contradict it) are then dropped.
             stored["confirmed"] = (old or {}).get("confirmed", False) or system == current_system
             if stored["confirmed"]:
-                for other in [k for k, v in self.planets.items() if k != key and not v.get("confirmed")
-                              and v.get("name") == planet.get("name") and v.get("index") == planet.get("index")
-                              and v.get("system") != system]:
-                    del self.planets[other]
+                self._drop_unconfirmed_copies(key, planet, system)
             if old is None and previous_name is None:
                 new += 1
                 moved += system != planet["system"]
             stored["first_seen"] = old.get("first_seen", now) if old else now
             stored["last_seen"] = now
-            if old is None or {k: v for k, v in old.items() if k not in ("first_seen", "last_seen")} != \
-                    {k: v for k, v in stored.items() if k not in ("first_seen", "last_seen")}:
+            if old is None or _without_times(old) != _without_times(stored):
                 changed += 1
             self.planets[key] = stored
             names_at.setdefault(planet["ua"], set()).add(planet.get("name"))

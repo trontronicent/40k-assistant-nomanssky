@@ -460,50 +460,63 @@ class GameData:
         todo = {k for k in keys if k and k not in self._texts and k not in self._unknown_texts}
         if not todo:
             return 0
-        languages = ["english"] if install.language == "english" else ["english", install.language]
-        found: dict[str, dict[str, str]] = {lang: {} for lang in languages}
         # Values that are already text, not keys: some planet records hold flora/fauna translated ("Verloren",
         # seen 2026-10-04). They are mapped back through the game language's RARITY_* keys (reverse_texts).
         translated = {k for k in todo if not TEXT_KEY_RE.match(k)}
-        reverse: dict[str, list[str]] = {}
         try:
-            with PakSet(install.pcbanks, PAK_HINTS) as paks:
-                if translated and install.language != "english":
-                    reverse = reverse_texts(paks, install.language, translated)
-                wanted = (todo - translated) | {key for keys in reverse.values() for key in keys}
-                for lang in languages:
-                    for name in paks.names_matching("language/", f"_{lang}.mbin"):
-                        for key, value in mbin.parse_language_table(paks.read(name), wanted).items():
-                            found[lang].setdefault(key, value)
+            found, reverse = self._read_text_keys(install, todo, translated)
         except (OSError, PakError, ZstdUnavailable, mbin.MbinError) as exc:
             self.icon_error = f"texts: {type(exc).__name__}: {exc}"
             return 0
         for value in translated:
-            # Only when every matching key means the same in English: "Ungewöhnlich" is both Unusual and
-            # Uncommon, and a guess would be worse than showing the text as read.
-            english = {mbin.clean_text(found["english"].get(key)) for key in reverse.get(value, [])} - {None}
-            if len(english) == 1:
-                self._texts[value] = {"en": english.pop(), "local": value}
-            elif english:      # kept for text_like, which picks the meaning by the planet's other value
-                self._texts[value] = {"choices": {key: mbin.clean_text(found["english"].get(key))
-                                                  for key in reverse[value] if found["english"].get(key)}}
-            else:
-                self._unknown_texts.add(value)
+            self._remember_translated(value, found["english"], reverse.get(value, []))
         for key in todo - translated:
-            en = mbin.clean_text(found["english"].get(key))
-            if en is None:
-                self._unknown_texts.add(key)
-                continue
-            local = mbin.clean_text(found[install.language].get(key)) if install.language != "english" else en
-            self._texts[key] = {"en": en, "local": local or en}
+            self._remember_key(key, found, install.language)
         self._write_texts(install)
         return len(todo)
 
+    @staticmethod
+    def _read_text_keys(install: GameInstall, todo: set[str], translated: set[str]
+                        ) -> tuple[dict[str, dict[str, str]], dict[str, list[str]]]:
+        """({language: {key: text}} of the wanted keys, {translated text: [RARITY_* keys]}) from the language files."""
+        languages = ["english"] if install.language == "english" else ["english", install.language]
+        found: dict[str, dict[str, str]] = {lang: {} for lang in languages}
+        reverse: dict[str, list[str]] = {}
+        with PakSet(install.pcbanks, PAK_HINTS) as paks:
+            if translated and install.language != "english":
+                reverse = reverse_texts(paks, install.language, translated)
+            wanted = (todo - translated) | {key for keys in reverse.values() for key in keys}
+            for lang in languages:
+                for name in paks.names_matching("language/", f"_{lang}.mbin"):
+                    for key, value in mbin.parse_language_table(paks.read(name), wanted).items():
+                        found[lang].setdefault(key, value)
+        return found, reverse
+
+    def _remember_translated(self, value: str, english_texts: dict[str, str], keys: list[str]) -> None:
+        """A text found in memory instead of a key: known only when every matching key means the same in English
+        ("Ungewöhnlich" is both Unusual and Uncommon, and a guess would be worse than showing the text as read)."""
+        english = {mbin.clean_text(english_texts.get(key)) for key in keys} - {None}
+        if len(english) == 1:
+            self._texts[value] = {"en": english.pop(), "local": value}
+        elif english:      # kept for text_like, which picks the meaning by the planet's other value
+            self._texts[value] = {"choices": {key: mbin.clean_text(english_texts.get(key))
+                                              for key in keys if english_texts.get(key)}}
+        else:
+            self._unknown_texts.add(value)
+
+    def _remember_key(self, key: str, found: dict[str, dict[str, str]], language: str) -> None:
+        """A localisation key: its English and game-language texts, or remembered as unknown."""
+        en = mbin.clean_text(found["english"].get(key))
+        if en is None:
+            self._unknown_texts.add(key)
+            return
+        local = mbin.clean_text(found[language].get(key)) if language != "english" else en
+        self._texts[key] = {"en": en, "local": local or en}
+
     def _load_texts(self, install: GameInstall) -> tuple[dict, set]:
         """The cached resolved texts and known-unknown keys of this build and language ({}, set() otherwise)."""
-        try:
-            cached = json.loads(self.texts_file.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+        cached = logs.read_json(self.texts_file, "The resolved game texts")
+        if not isinstance(cached, dict):
             return {}, set()
         if cached.get("build_id") != install.build_id or cached.get("language") != install.language:
             return {}, set()
