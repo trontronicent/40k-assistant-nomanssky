@@ -83,7 +83,7 @@ def test_the_expedition_block_for_a_current_season_question():
     assert "newest is Expedition 23 \"Our Journey Continues (Unsere Reise geht weiter)\"" in text
     assert "this is the current expedition" in text and "Your save is a normal game" in text
     assert "egg: Diplo Egg (Diplo-Ei)" in text and "2 posters" in text
-    assert "All expeditions: 22 Swarm, 23 Our Journey Continues" in text and "about six weeks" in text
+    assert "All expeditions (first-run dates where researched): 22 Swarm, 23 Our Journey Continues" in text and "about six weeks" in text
 
 
 def test_the_block_names_a_past_expedition_and_an_expedition_save():
@@ -120,3 +120,24 @@ def test_the_researched_files_are_valid_and_carry_their_sources():
         for d in info.get("first_run", []) + [info.get("start"), info.get("official_end")]:
             assert d is None or date.fromisoformat(d)
     assert seasons.load_research(seasons.RESEARCH_FILE.with_name("missing.json")) == {}
+
+
+def test_a_reward_name_finds_its_expedition_only_in_a_reward_or_season_question():
+    """"Which expedition gave the Starbound multi-tool?" opens expedition 23 by the reward's distinctive words; the
+    same words in an unrelated question ("Diplo egg" on a planet) must not open any expedition, and a poster named
+    only by filler words never matches."""
+    book = _book()
+    research = {"seasons": {"23": {"start": "2026-09-17", "weeks": 6}}}
+    ask = lambda q: "\n".join(seasons.expedition_lines(book, research, q, date(2026, 10, 7), None))
+    assert "Expedition 23" in ask("Which expedition gave the Starbound v0.27 multi-tool?")
+    assert "Expedition 23" in ask("Which expedition gave the Diplo Egg?")
+    assert ask("Where can I find a diplo egg on a planet?") == ""
+    assert seasons.rewards_named_in(book, "the framed art poster") == []
+
+
+def test_the_expedition_list_shows_researched_first_run_dates():
+    """The list of all expeditions carries the researched dates, so "list all expeditions with their dates" can be
+    answered for the ones that were researched and says nothing for the rest."""
+    research = {"seasons": {"22": {"first_run": ["2026-05-27", "2026-07-19"]}}}
+    text = "\n".join(seasons.expedition_lines(_book(), research, "list all expeditions", date(2026, 10, 7), None))
+    assert "22 Swarm (2026-05-27 to 2026-07-19), 23 Our Journey Continues" in text

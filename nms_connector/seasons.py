@@ -32,6 +32,11 @@ _REWARD_RE = re.compile(r"^(?P<pre>[A-Z_]*?)EXPD_(?P<kind>[A-Z]+_|POSTER)?(?P<n>
 _KINDS = {"TITLE_": "title", "EGG_": "egg", "GUN_": "multi-tool", "SHIP_": "starship", "POSTER": "poster"}
 SEASON_WORDS = {"season", "seasons", "seasonal", "saison", "saisons", "expedition", "expeditions", "expeditionen"}
 FRIGATE_WORDS = {"frigate", "frigates", "fregatte", "fregatten", "fleet", "flotte"}
+REWARD_WORDS = {"reward", "rewards", "belohnung", "belohnungen", "gave", "give", "gives", "given", "got", "earn",
+                "earned", "unlock", "unlocked", "freischalten", "freigeschaltet", "from", "aus", "von", "welcher",
+                "welche", "which"}
+REWARD_FILLER = {"the", "title", "poster", "decal", "banner", "framed", "art", "der", "die", "das", "titel",
+                 "motiv", "and", "und", "of", "von", "mit"}
 LIST_WORDS = {"all", "list", "alle", "welche", "which", "every", "overview", "übersicht", "liste"}
 
 
@@ -118,6 +123,30 @@ class SeasonBook:
         return found
 
 
+def _reward_tokens(*names: str | None) -> list[set[str]]:
+    """Distinctive words of a reward name in each language ("The Wraith" -> {wraith}; the filler is dropped)."""
+    out = []
+    for name in names:
+        if name:
+            tokens = {w for w in re.findall(r"[a-z0-9]+", fold(name)) if w not in REWARD_FILLER}
+            if tokens and any(len(w) >= 4 for w in tokens):
+                out.append(tokens)
+    return out
+
+
+def rewards_named_in(book: "SeasonBook", question: str) -> list[int]:
+    """The expeditions that gave a reward the question names ("Which expedition gave the Wraith?"): every
+    distinctive word of a reward's name must be in the question."""
+    q = set(re.findall(r"[a-z0-9]+", fold(question)))
+    found = []
+    for n, s in sorted(book.seasons.items()):
+        for reward in s.get("rewards") or []:
+            if any(tokens <= q for tokens in _reward_tokens(reward.get("en"), reward.get("local"))):
+                found.append(n)
+                break
+    return found
+
+
 def asked_about(words: set[str]) -> bool:
     """A question about seasons/expeditions - not about the frigates' expeditions."""
     return bool(words & SEASON_WORDS) and not (words & FRIGATE_WORDS)
@@ -172,6 +201,10 @@ def expedition_lines(book: SeasonBook, research: dict, question: str, today: dat
         return []
     words = set(re.findall(r"[\w'-]+", (question or "").lower()))
     named = book.named_in(question)
+    # "Which expedition gave the Wraith?" - a reward's name finds its expedition, but only when the question talks
+    # about rewards/expeditions (a "gas giant" question must not open the Titan expedition's poster).
+    if not named and (asked_about(words) or words & REWARD_WORDS):
+        named = rewards_named_in(book, question)
     if not (asked_about(words) or named):
         return []
     latest = book.latest
@@ -206,7 +239,10 @@ def expedition_lines(book: SeasonBook, research: dict, question: str, today: dat
                              f"{', ...' if len(posters) > 4 else ''})")
             out.append("    rewards the game names: " + "; ".join(parts))
     if not named or words & LIST_WORDS:
-        out.append("  All expeditions: " + ", ".join(f"{n} {book.name(n, language)}" for n in sorted(book.seasons)))
+        def dated(n):
+            run = ((research.get("seasons") or {}).get(str(n)) or {}).get("first_run")
+            return f"{n} {book.name(n, language)}" + (f" ({run[0]} to {run[1]})" if run else "")
+        out.append("  All expeditions (first-run dates where researched): " + ", ".join(dated(n) for n in sorted(book.seasons)))
     for fact in research.get("facts") or []:
         out.append(f"  {fact}")
     return out
