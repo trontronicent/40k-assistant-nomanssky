@@ -35,6 +35,11 @@ STOPWORDS = {
     "viel", "viele", "habe", "habt", "wieviel", "wo", "welche", "welcher", "meine", "mein", "insgesamt", "alle",
     "gibt", "noch", "auch", "bitte", "zeig", "zeige", "liste", "inventar", "lager", "frachter", "raumschiff",
     "anzug", "haben", "kann", "finde", "finden", "brauche",
+    # Filler of a request that is no item ("the best recipe I can execute right now" matched Liquidator Right Arm):
+    "right", "left", "give", "best", "most", "worth", "value", "values", "cook", "cooking", "recipe", "recipes",
+    "execute", "materials", "material", "currently", "right-now", "make", "made", "hold", "holding", "season",
+    "seasons", "expedition", "expeditions", "dish", "dishes", "meal", "meals", "food", "today",
+    "beste", "besten", "rezept", "rezepte", "kochen", "gericht", "gerichte", "wertvollste", "jetzt", "gerade",
 }
 INVENTORY_WORDS = {"inventory", "inventories", "items", "inventar", "carry", "carrying", "storage", "lager", "haben",
                    "have", "own", "besitze"}

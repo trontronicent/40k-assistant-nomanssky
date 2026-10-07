@@ -210,22 +210,31 @@ def cooking_lines(book, question: str, have: dict[str, int], named_items: list[s
     generic = not named or words & (GOOD_WORDS | NOW_WORDS)
     if generic:
         now = cookable(book, have, value_of)
-        total = len(now)
-        out.append(f"  With what you hold you can cook {total} different dishes right now." if total else
-                   "  With what you hold you cannot complete any Nutrient Processor recipe right now (the game "
-                   "data lists your inventories; cooking needs raw ingredients such as vegetables, meat, eggs, "
-                   "milk or fish).")
-        for e in now[:MAX_DISHES]:
-            r = e["recipe"]
-            out.append(f"    {label(e['dish'])}: {_fmt(e['value'])} each, up to {e['times']} time{'s' if e['times'] != 1 else ''} "
-                       f"- {' + '.join(label(i) for i, _ in r.ingredients)}")
+        if now:
+            top, rest = now[0], now[1:MAX_DISHES]
+            out.append(f"  Best dish you can cook right now: {_dish_now(top, label)}.")
+            if rest:
+                out.append(f"  The other {len(now) - 1} dishes you can cook right now (best first; shown {len(rest)}): " +
+                           "; ".join(_dish_now(e, label) for e in rest))
+        else:
+            out.append("  With what you hold you cannot complete any Nutrient Processor recipe right now (cooking "
+                       "needs raw ingredients such as vegetables, meat, eggs, milk or fish).")
         if not named:
             ranked = sorted(all_dishes, key=lambda d: -(value_of(d) or 0))
-            out.append("  The most valuable dishes in the game (base value each, any ingredients):")
+            lines = []
             for d in ranked[:MAX_DISHES - 2]:
-                recs = dish_recipes(book, d)
-                easiest = min(recs, key=lambda r: len(missing_for(r, have)))
+                easiest = min(dish_recipes(book, d), key=lambda r: len(missing_for(r, have)))
                 gap = missing_for(easiest, have)
-                out.append(f"    {label(d)}: {_fmt(value_of(d) or 0)} - e.g. {' + '.join(label(i) for i, _ in easiest.ingredients)}"
-                           + (f" (you lack {', '.join(label(i) for i in gap)})" if gap else " (you can cook it now)"))
+                lines.append(f"{label(d)}: {_fmt(value_of(d) or 0)} each - e.g. "
+                             f"{' + '.join(label(i) for i, _ in easiest.ingredients)}"
+                             + (f" (you lack {', '.join(label(i) for i in gap)})" if gap else " (you can cook it now)"))
+            out.append(f"  The most valuable dish in the game is {lines[0]}")
+            out.append("  Next most valuable dishes: " + "; ".join(lines[1:]))
     return out
+
+
+def _dish_now(entry: dict, label) -> str:
+    """"Furball Jelly: 9,000 each, up to 4 times - Leopard-Fruit + Processed Sugar" for one cookable dish."""
+    r = entry["recipe"]
+    return (f"{label(entry['dish'])}: {_fmt(entry['value'])} each, up to {entry['times']} time"
+            f"{'s' if entry['times'] != 1 else ''} - {' + '.join(label(i) for i, _ in r.ingredients)}")

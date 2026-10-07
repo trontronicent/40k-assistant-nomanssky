@@ -100,8 +100,8 @@ def test_best_dish_question_lists_what_can_be_cooked_and_what_is_missing():
     """"best cooking recipe I can make right now" lists the dishes cookable from the holdings and the game's most
     valuable dishes with the ingredients still missing - never an invented ingredient list."""
     text = "\n".join(_lines("What is the best cooking recipe I can make right now?", {"veg": 1, "bean": 1}, []))
-    assert "can cook 1 different dishes" in text and "Stew: 6,400 each" in text
-    assert "Cake: 90,000" in text and "you lack Egg, Milk" in text
+    assert "Best dish you can cook right now: Stew: 6,400 each, up to 1 time - Veg + Bean" in text
+    assert "The most valuable dish in the game is Cake: 90,000 each" in text and "you lack Egg, Milk" in text
 
 
 def test_an_ingredient_question_lists_the_dishes_it_goes_into():
@@ -164,3 +164,13 @@ def test_worth_question_adds_the_inventory_worth_unless_it_names_one_item(tmp_pa
     one = plugin.companion.chat_context("What is a Geode worth?")["text"]
     assert "Inventory worth at the game's base value" in whole and "total 9,840 units" in whole
     assert "Inventory worth at the game's base value" not in one and "base value 3,280 units each" in one
+
+
+def test_request_filler_names_no_item():
+    """"best recipe I can execute right now" named the "Liquidator Right Arm" (the word "right") and made the persona
+    print three unrelated 'how to get' blocks. Filler words of a request are stopwords, real item words still match."""
+    names = {"ARM": ["Liquidator Right Arm"], "MILK": ["Fresh Milk"], "STEW": ["Fibrous Stew"]}
+    assert assistant.match_items("Give me the best cooking recipe I can execute with the materials right now", names) == []
+    assert assistant.match_items("What is the most valuable dish worth right now?", names) == []
+    assert assistant.match_items("How do I cook a Fibrous Stew?", names, whole_only=True) == ["STEW"]
+    assert assistant.match_items("how much milk do I have", names) == ["MILK"]
