@@ -55,6 +55,18 @@ and ask about your game:
   nearest first.
 - *Which upgrades does my multi-tool have?* - your installed technology (exosuit,
   multi-tools, exocraft, freighter, ships) with what each part does.
+- *How do I cook a Fibrous Stew?* / *What is the best recipe I can cook right now?* /
+  *What can I cook with Sweetroot?* - the Nutrient Processor's recipes from the game's
+  files, the ingredient combinations folded into a few lines, the dishes you can cook
+  with what you hold (best first, with how often) and the most valuable dishes with what
+  you still lack.
+- *What is a Geode worth?* / *How much is my whole inventory worth?* - the game's base
+  value (before an economy's price factor), per item and for all inventories together.
+  "No sell value" means the game cannot sell the item.
+- *Which season is it?* / *When does the expedition end?* / *Which expedition gave the
+  Wraith?* - the game's 23 expeditions with their rewards from the game files and the
+  researched dates (the current one's end is an estimate: Hello Games names none).
+  Your save is a normal game unless it was started as an expedition.
 
 **Its voice** (40k Assistant 3.12.0): the persona speaks with *Cogitator AI
 (Male)* - a calm, British ship-computer voice. Pick another voice in the persona
@@ -371,6 +383,18 @@ again from where you are, and in the target system it says you have arrived.
 
 Distances are measured between regions and are approximate, so leave some
 margin on the range.
+
+## Without the game
+
+The plugin keeps what it read from the game's files: the item database
+(`gamedata/items.json`) and the recipes, language texts and tables
+(`gamedata/tables.json`), per game build. A game that is **not running** changes nothing -
+saves and game files are read from disk, and what only the running game knows (planets,
+economies, settlements' screen values) was stored when you saw it. If the **game folder
+cannot be found** (another drive, uninstalled), the persona uses the stored copies and the
+log says *Game files not found: using the tables stored from game build ...*. Only the
+technology stat ranges (Equipment) need the game files. The stored copy is replaced after
+each game update, when the game is found again.
 
 ## Good to know
 

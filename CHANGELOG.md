@@ -1,5 +1,48 @@
 # Changelog
 
+## 0.13.0 — 2026-10-07
+
+Needs the 40k Assistant 3.12.0 (unchanged).
+
+- **Cooking**: ask the persona how to cook a dish (*How do I cook a Fibrous Stew?*) or
+  what you can cook (*What is the best recipe I can cook with what I have?*, *What can I
+  cook with Sweetroot?*). It answers from the game's own Nutrient Processor recipes
+  (1,323 recipes, 333 dishes): the ingredient combinations of a dish are folded into a few
+  lines (a stew with 43 pairs becomes "any two of these seven, or one of them with
+  Steamed Vegetables..."), the dishes you can cook right now are matched against your
+  inventories and ranked by value, and the most valuable dishes of the game are named with
+  what you still lack. Researched and added: where the Nutrient Processor stands, that
+  dishes give temporary buffs and can be sold, and that Iteration Cronus pays 0-130
+  Nanites for a dish. Before, the persona knew only refiner recipes and said a stew
+  "is gathered only".
+- **Expeditions (seasons)**: the game's 23 expeditions with their names, descriptions and
+  the rewards the game names (title, banner, decal, posters, egg, multi-tool, starships),
+  in English and your game's language, from the game files. Researched dates (when each
+  ran; the current one - *Our Journey Continues*, since 2026-09-17, about six weeks, no
+  official end date) come from `research/expeditions.json` with their sources. Ask *Which
+  season is it?*, *When does it end?*, *What did the Titan expedition give?* or *Which
+  expedition gave the Wraith?*. The persona also says whether your save is an expedition
+  (a normal game stores no expedition progress). A question about the frigates'
+  expeditions is not mistaken for a season question.
+- **Values of everything**: the persona now says what any item is worth (*What is a Geode
+  worth?*) and what your whole inventory is worth (*How much is my inventory worth?*:
+  total, per place, the most valuable items). Items the game gives no value are told apart
+  from items it does not list: the item database now keeps `0` for "cannot be sold"
+  (cache format 7, rebuilt once). Coverage on the real game: 2,291 of 5,207 items have a
+  value; the rest are things the game cannot sell (building parts, technology, lights).
+- **Works without the game**: the recipes, the language texts (world types, game terms,
+  expeditions) and the timer, frigate-trait, warp-range and settlement tables are stored
+  in `gamedata/tables.json` after each read of the game files, and the item database was
+  cached before. With the game not installed or its folder not found, the persona loads
+  them and answers as before (checked on the real save with the game folder hidden). A game
+  that is merely not running changed nothing: saves and files are read from disk. Stored
+  technology stats are not kept, so equipment ranges need the game files.
+- **Cleaner answers**: filler words of a request (*right now*, *best*, *recipe*) no longer
+  name items ("Liquidator Right Arm" was printed for *the best recipe I can cook right
+  now*); a question that names a whole dish gets that dish, not the forty other stews.
+- The persona prompt explains the new blocks; an unedited persona gets the new prompt when
+  the plugin starts.
+
 ## 0.12.0 — 2026-10-06
 
 Needs the 40k Assistant 3.12.0 (the plugin now declares its data format, which older
