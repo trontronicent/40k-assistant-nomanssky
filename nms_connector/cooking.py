@@ -27,6 +27,8 @@ COOKING_WORDS = {"cook", "cooks", "cooking", "cooked", "kochen", "koche", "kochs
 HOW_WORDS = {"how", "make", "makes", "recipe", "recipes", "need", "needs", "ingredients", "ingredient", "get", "wie",
              "rezept", "rezepte", "brauche", "braucht", "benötige", "zutaten", "zutat", "herstellen", "machen",
              "bekomme", "what", "was", "with"}
+LOW_WORDS = {"cheapest", "cheap", "least", "lowest", "worst", "billigste", "billigsten", "günstigste", "günstigsten",
+             "niedrigste", "niedrigsten", "wertloseste"}
 GOOD_WORDS = {"best", "most", "valuable", "profit", "profitable", "worth", "beste", "besten", "wertvollste",
               "wertvollsten", "meisten", "lohnt", "lohnend", "teuerste", "teuersten", "highest", "höchste", "höchsten"}
 NOW_WORDS = {"right", "now", "currently", "have", "has", "own", "inventory", "materials", "ingredients", "can", "could",
@@ -207,7 +209,7 @@ def cooking_lines(book, question: str, have: dict[str, int], named_items: list[s
                 out.append(f"    {label(d)} ({_fmt(value_of(d) or 0)} units each) with " +
                            (" or ".join(partner[:MAX_POOL_NAMES]) or f"a second {label(item)}"))
             shown += 1
-    generic = not named or words & (GOOD_WORDS | NOW_WORDS)
+    generic = not named or words & (GOOD_WORDS | NOW_WORDS | LOW_WORDS)
     if generic:
         now = cookable(book, have, value_of)
         if now:
@@ -216,6 +218,10 @@ def cooking_lines(book, question: str, have: dict[str, int], named_items: list[s
             if rest:
                 out.append(f"  The other {len(now) - 1} dishes you can cook right now (best first; shown {len(rest)}): " +
                            "; ".join(_dish_now(e, label) for e in rest))
+            if words & LOW_WORDS:
+                cheap = [e for e in reversed(now) if e["value"]][:3]
+                out.append(f"  The cheapest dishes you can cook right now (of {len(now)}; cheapest first): " +
+                           "; ".join(_dish_now(e, label) for e in cheap))
         else:
             out.append("  With what you hold you cannot complete any Nutrient Processor recipe right now (cooking "
                        "needs raw ingredients such as vegetables, meat, eggs, milk or fish).")
@@ -236,5 +242,7 @@ def cooking_lines(book, question: str, have: dict[str, int], named_items: list[s
 def _dish_now(entry: dict, label) -> str:
     """"Furball Jelly: 9,000 each, up to 4 times - Leopard-Fruit + Processed Sugar" for one cookable dish."""
     r = entry["recipe"]
-    return (f"{label(entry['dish'])}: {_fmt(entry['value'])} units each, up to {entry['times']} time"
-            f"{'s' if entry['times'] != 1 else ''} - {' + '.join(label(i) for i, _ in r.ingredients)}")
+    times = entry["times"]
+    return (f"{label(entry['dish'])}: {_fmt(entry['value'])} units each, up to {times} time"
+            f"{'s' if times != 1 else ''} ({_fmt(entry['value'] * times)} units in all) - "
+            f"{' + '.join(label(i) for i, _ in r.ingredients)}")

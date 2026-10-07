@@ -100,7 +100,7 @@ def test_best_dish_question_lists_what_can_be_cooked_and_what_is_missing():
     """"best cooking recipe I can make right now" lists the dishes cookable from the holdings and the game's most
     valuable dishes with the ingredients still missing - never an invented ingredient list."""
     text = "\n".join(_lines("What is the best cooking recipe I can make right now?", {"veg": 1, "bean": 1}, []))
-    assert "Best dish you can cook right now: Stew: 6,400 units each, up to 1 time - Veg + Bean" in text
+    assert "Best dish you can cook right now: Stew: 6,400 units each, up to 1 time (6,400 units in all) - Veg + Bean" in text
     assert "The most valuable dish in the game is Cake: 90,000 units each" in text and "you lack Egg, Milk" in text
 
 
@@ -174,3 +174,16 @@ def test_request_filler_names_no_item():
     assert assistant.match_items("What is the most valuable dish worth right now?", names) == []
     assert assistant.match_items("How do I cook a Fibrous Stew?", names, whole_only=True) == ["STEW"]
     assert assistant.match_items("how much milk do I have", names) == ["MILK"]
+
+
+def test_the_cheapest_dishes_and_the_total_earnings_are_shown():
+    """"What is the cheapest dish I can cook?" lists the cookable dishes from the bottom, and every cookable dish says
+    what all the runs together are worth (value x times) - the persona had only the top of the list and answered
+    that it did not have the cheapest dish."""
+    book = RecipeBook([_cook("1", "CHEAP", "milk"), _cook("2", "MID", "egg"), _cook("3", "RICH", "veg")])
+    value = {"CHEAP": 100, "MID": 900, "RICH": 5000}.get
+    lines = cooking.cooking_lines(book, "What is the cheapest dish I can cook right now?", {"milk": 4, "egg": 1, "veg": 2},
+                                  [], _label, value, {})
+    text = chr(10).join(lines)
+    assert "The cheapest dishes you can cook right now (of 3; cheapest first): Cheap: 100 units each, up to 4 times (400 units in all)" in text
+    assert "Best dish you can cook right now: Rich: 5,000 units each, up to 2 times (10,000 units in all)" in text
