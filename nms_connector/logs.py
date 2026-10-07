@@ -17,18 +17,23 @@ import time
 from pathlib import Path
 
 REPEAT_S = 300.0
-_log: logging.Logger | logging.LoggerAdapter = logging.getLogger("vox-core.plugin.nomanssky")
+
+
+class _Sink:
+    """The logger every module writes through: the plain logger until the connector binds the host's."""
+    logger: logging.Logger | logging.LoggerAdapter = logging.getLogger("vox-core.plugin.nomanssky")
+
+
 _seen: dict[str, float] = {}
 
 
 def bind(logger) -> None:
     """Use the host's plugin logger from now on."""
-    global _log
-    _log = logger
+    _Sink.logger = logger
 
 
 def log() -> logging.Logger | logging.LoggerAdapter:
-    return _log
+    return _Sink.logger
 
 
 def warn_once(key: str, message: str, *args, now: float | None = None) -> bool:
@@ -38,7 +43,7 @@ def warn_once(key: str, message: str, *args, now: float | None = None) -> bool:
     if last is not None and now - last < REPEAT_S:
         return False
     _seen[key] = now
-    _log.warning("[NMS] " + message, *args)
+    _Sink.logger.warning("[NMS] " + message, *args)
     return True
 
 

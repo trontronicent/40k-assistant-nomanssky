@@ -38,6 +38,7 @@ import time
 from pathlib import Path
 
 from . import mbin
+from .hgpak import PakError, PakSet, ZstdUnavailable
 from .timers import BUILDING_NAMES, MBIN_HEADER, SETTLEMENT_FILE, clock, player_uid
 
 PERKS_FILE = "metadata/reality/tables/settlementperkstable.mbin"
@@ -113,7 +114,7 @@ def parse_globals(settlement: bytes) -> dict | None:
         npcs = struct.unpack_from("<i", settlement, h + MAX_NPC_AT)[0]
     except struct.error:
         return None
-    if (not all(lo < hi for lo, hi in zip(smin, smax)) or not all(0 <= v <= 1 for v in bad + good)
+    if (not all(lo < hi for lo, hi in zip(smin, smax, strict=True)) or not all(0 <= v <= 1 for v in bad + good)
             or not 60 <= wait_min <= wait_max <= 7 * 86400 or not 1 <= npcs <= 1000):
         return None
     return {"stats_min": smin, "stats_max": smax, "bad": bad, "good": good,
@@ -154,7 +155,6 @@ def parse_perks(data: bytes) -> dict[str, dict]:
 
 def load_tables(install) -> dict:
     """The settlement tables of the installed game, else FALLBACK (``source`` says which, ``error`` why)."""
-    from .hgpak import PakError, PakSet, ZstdUnavailable
     if install is None:
         return dict(FALLBACK, error="game installation not found")
     try:

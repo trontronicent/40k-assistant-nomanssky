@@ -76,18 +76,18 @@ def forward_of(pdx, pdy) -> tuple[float, float, float] | None:
 def closest_point(eye_a, dir_a, eye_b, dir_b) -> tuple[tuple[float, float, float], float, float] | None:
     """Where two rays (lines) come closest: (midpoint, miss distance in region units, angle in degrees); None for
     parallel lines."""
-    w = [a - b for a, b in zip(eye_a, eye_b)]
-    b = sum(x * y for x, y in zip(dir_a, dir_b))
-    d = sum(x * y for x, y in zip(dir_a, w))
-    e = sum(x * y for x, y in zip(dir_b, w))
+    w = [a - b for a, b in zip(eye_a, eye_b, strict=True)]
+    b = sum(x * y for x, y in zip(dir_a, dir_b, strict=True))
+    d = sum(x * y for x, y in zip(dir_a, w, strict=True))
+    e = sum(x * y for x, y in zip(dir_b, w, strict=True))
     denom = 1 - b * b
     if denom < 1e-9:
         return None
     s, t = (b * e - d) / denom, (e - b * d) / denom
-    pa = [p + s * q for p, q in zip(eye_a, dir_a)]
-    pb = [p + t * q for p, q in zip(eye_b, dir_b)]
+    pa = [p + s * q for p, q in zip(eye_a, dir_a, strict=True)]
+    pb = [p + t * q for p, q in zip(eye_b, dir_b, strict=True)]
     angle = math.degrees(math.acos(max(-1.0, min(1.0, abs(b)))))
-    return tuple(round((x + y) / 2, 5) for x, y in zip(pa, pb)), math.dist(pa, pb), angle
+    return tuple(round((x + y) / 2, 5) for x, y in zip(pa, pb, strict=True)), math.dist(pa, pb), angle
 
 
 def map_distance_ly(a, b) -> int:

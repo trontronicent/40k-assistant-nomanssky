@@ -52,9 +52,9 @@ def test_a_session_opens_each_pak_once_and_frees_it_at_the_end(tmp_path, opens):
             assert first.read("x/one.mbin") == b"1"
         with PakSet(banks, {"x/": "A.pak"}) as second:
             assert second.read("x/one.mbin") == b"1"
-        shared = hgpak._session["%s" % (banks / "A.pak")]
+        shared = hgpak._SESSION.paks["%s" % (banks / "A.pak")]
         assert opens == ["A.pak"] and shared.names
-    assert hgpak._session is None and shared.names == {} and shared._f.closed
+    assert not hgpak.session_active() and shared.names == {} and shared._f.closed
     with PakSet(banks, {"x/": "A.pak"}) as outside:        # no session: each set opens its own, as before
         outside.read("x/one.mbin")
         outside.read("x/two.mbin")
@@ -69,9 +69,9 @@ def test_sessions_nest_and_only_the_outermost_frees(tmp_path):
         with hgpak.session():
             with hgpak.session():
                 PakSet(banks).read("x/one.mbin")
-            assert hgpak._session
+            assert hgpak.session_active()
             raise RuntimeError("boom")
-    assert hgpak._session is None and hgpak._session_depth == 0
+    assert not hgpak.session_active() and hgpak._SESSION.depth == 0
 
 
 def test_a_stale_pak_hint_is_found_by_scanning_and_logged_once(tmp_path, monkeypatch, caplog):
@@ -111,9 +111,9 @@ def test_game_tables_load_inside_one_pak_session(monkeypatch):
     """GameTables.load wraps all table readers in a single session, so the pak indexes are built once per pass."""
     from nms_connector.tables import GameTables
     seen = []
-    monkeypatch.setattr(GameTables, "_load_tables", lambda self, install: seen.append(hgpak._session is not None) or [])
+    monkeypatch.setattr(GameTables, "_load_tables", lambda self, install: seen.append(hgpak.session_active()) or [])
     GameTables().load(object())
-    assert seen == [True] and hgpak._session is None
+    assert seen == [True] and not hgpak.session_active()
 
 
 def test_language_parsing_decodes_only_the_wanted_keys(monkeypatch):

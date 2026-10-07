@@ -76,9 +76,7 @@ def pools(recipes) -> list[tuple[str, tuple[tuple[str, ...], ...]]]:
                     continue
                 done.add(key)
                 out.append(("two", (pa,)) if pa == pb else ("pair", (pa, pb)))
-    for r in recipes:
-        if len(r.ingredients) >= 3:
-            out.append(("all", tuple((i,) for i, _ in r.ingredients)))
+    out += [("all", tuple((i,) for i, _ in r.ingredients)) for r in recipes if len(r.ingredients) >= 3]
     return out
 
 
@@ -224,7 +222,7 @@ def _cookable_now_lines(view: CookingView, cheapest: bool) -> list[str]:
 
 def _most_valuable_lines(view: CookingView) -> list[str]:
     """The most valuable dishes of the game, each with its easiest recipe and what the player still lacks."""
-    ranked = sorted(dishes(view.book), key=lambda d: -view.value(d))
+    ranked = sorted(dishes(view.book), key=lambda d: (-view.value(d), d))      # a stable order for equal values
     described = []
     for dish in ranked[:MAX_DISHES - 2]:
         easiest = min(dish_recipes(view.book, dish), key=lambda r: len(missing_for(r, view.have)))

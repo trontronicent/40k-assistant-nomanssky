@@ -526,7 +526,7 @@ class PluginCompanion:
             reading = c.settlement_live.values.get(s.get("seed"))
             if reading:
                 shown = [f"{settlements.STAT_LABELS[st]} {settlements.shown(st, v, rules, s['population'])}"
-                         for st, v in zip(settlements.STATS, reading["stats"]) if st not in ("Sentinels", "Debt")]
+                         for st, v in zip(settlements.STATS, reading["stats"], strict=False) if st not in ("Sentinels", "Debt")]
                 out.append(f"  as its screen showed at {timers.clock(reading['at'])}: " + ", ".join(shown))
             if s["production"]:
                 out.append("  production: " + "; ".join(
@@ -590,7 +590,7 @@ class PluginCompanion:
                + (f"; the nearest {len(shown)} of them:" if len(found) > len(shown) else "; nearest first:")]
         for entry, _matched in shown:
             row = [planet_search._cell_text(c) for c in entry["row"]]
-            facts = [f"{label}: {value}" for label, value in zip(planets_view.PLANET_COLUMNS[1:], row[1:]) if value]
+            facts = [f"{label}: {value}" for label, value in zip(planets_view.PLANET_COLUMNS[1:], row[1:], strict=False) if value]
             out.append(f"- {row[0]} in {entry['system_label']} ({index.distance_text(entry['system'])}): "
                        + "; ".join(facts))
         return out
@@ -598,12 +598,28 @@ class PluginCompanion:
     def equipment_lines(self, words: set[str], texts) -> list[str]:
         """For a question about equipment or upgrades: the installed technology of what it names (exosuit,
         multi-tools, exocraft, freighter, ships - all of them when it names none) with what each part does."""
-        c = self.connector
-        asked = {EQUIPMENT_WORDS[w] for w in words if w in EQUIPMENT_WORDS}
         # Only a question about equipment: "what is aboard my ship" names the ship but means its cargo (seen
         # 2026-10-05: a trade-goods question got the ship's whole technology and ran over the 8,000-character limit).
         if not words & TECH_WORDS:
             return []
+        asked = {EQUIPMENT_WORDS[w] for w in words if w in EQUIPMENT_WORDS}
+        out: list[str] = []
+        used = 0
+        for title, technology in self._equipment_groups(asked, texts):
+            line = f"{title}: " + self._technology_text(technology, texts)
+            if out and (used + len(line) > MAX_TECH_CHARS or len(out) >= MAX_TECH_LINES):
+                out.append("(more equipment in the plugin's Equipment tab - ask about one item, e.g. the multi-tool)")
+                break
+            out.append(line)
+            used += len(line)
+        if out:
+            out.append("Upgrade modules list the range of each stat they can have; the exact values are not stored.")
+        return out
+
+    def _equipment_groups(self, asked: set[str], texts) -> list[tuple[str, list[dict]]]:
+        """(title, installed technology) of the exosuit, multi-tools, exocraft, freighter and ships the question names
+        (all of them when it names none)."""
+        c = self.connector
         groups: list[tuple[str, list[dict]]] = []
         eq = c.equipment
         if eq is not None:
@@ -618,29 +634,23 @@ class PluginCompanion:
         if not asked or "ships" in asked:
             groups += [(f"Starship {s['name'] or s['type']}" + (" (primary)" if s["primary"] else ""), s["technology"])
                        for s in c.ships]
-        tech_stats = getattr(c.gamedata, "tech", None)
+        return groups
 
-        def english_modifiers(item_id):
-            # English stat names only: half the length of 'Shield Strength (Schildstärke)', the model translates.
-            if tech_stats is None or not tech_stats.ready:
-                return texts.modifiers(item_id)
-            return tech_stats.modifiers(item_id, lambda key: (c.gamedata.text(key) or {}).get("en"))
+    def _technology_text(self, technology: list[dict], texts) -> str:
+        """"Mining Beam (Mining Speed +5-10 %); Scanner" - each part with its stat ranges, damaged slots left out."""
+        parts = []
+        for tech in technology:
+            if tech["id"].startswith("SHIPSLOT_DMG"):
+                continue
+            mods = self._english_modifiers(tech["id"], texts)
+            parts.append(texts.name(tech["id"]) + (f" ({', '.join(mods)})" if mods else ""))
+        return "; ".join(parts) if parts else "no technology"
 
-        out: list[str] = []
-        used = 0
-        for title, technology in groups:
-            parts = []
-            for tech in technology:
-                if tech["id"].startswith("SHIPSLOT_DMG"):
-                    continue
-                mods = english_modifiers(tech["id"])
-                parts.append(texts.name(tech["id"]) + (f" ({', '.join(mods)})" if mods else ""))
-            line = f"{title}: " + ("; ".join(parts) if parts else "no technology")
-            if out and (used + len(line) > MAX_TECH_CHARS or len(out) >= MAX_TECH_LINES):
-                out.append("(more equipment in the plugin's Equipment tab - ask about one item, e.g. the multi-tool)")
-                break
-            out.append(line)
-            used += len(line)
-        if out:
-            out.append("Upgrade modules list the range of each stat they can have; the exact values are not stored.")
-        return out
+    def _english_modifiers(self, item_id: str, texts) -> list[str]:
+        """A part's stat ranges with English stat names only: half the length of 'Shield Strength (Schildstärke)', the
+        model translates."""
+        gamedata = self.connector.gamedata
+        tech_stats = getattr(gamedata, "tech", None)
+        if tech_stats is None or not tech_stats.ready:
+            return texts.modifiers(item_id)
+        return tech_stats.modifiers(item_id, lambda key: (gamedata.text(key) or {}).get("en"))

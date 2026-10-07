@@ -22,13 +22,12 @@ from pathlib import Path
 
 from . import logs, mbin, techstats, trade
 from .game_install import GameInstall, language_label
-from .hgpak import PakError, PakSet, ZstdUnavailable
+from .hgpak import PAK_HINTS, TABLE_DIR, PakError, PakSet, ZstdUnavailable
 
 CACHE_FORMAT = 7                 # 2: categories, descriptions (0.9.0); 3-4: upgrade texts, fill-ins; 5: product
                                  # base values (0.10.0); 6: substance base values too (2026-10-07)
 DESC_CHARS = 600
 ICON_PX = 64
-TABLE_DIR = "metadata/reality/tables/"
 # Tables that hold everything an inventory slot can contain; first one wins an id clash.
 PROC_TABLE = "nms_reality_gcproceduraltechnologytable"
 PRODUCT_TABLE = "nms_reality_gcproducttable"
@@ -47,8 +46,6 @@ ANCHOR_SUBSTANCES = ("ROCKETSUB", "FUEL1", "CAVE1", "OXYGEN")
 ITEM_TABLES = ("nms_reality_gcproducttable", "nms_reality_gcsubstancetable", "nms_reality_gctechnologytable",
                "nms_reality_gcproceduraltechnologytable", "nms_basepartproducts",
                "nms_modularcustomisationproducts")
-PAK_HINTS = {TABLE_DIR: "NMSARC.Precache.pak", "language/": "NMSARC.MetadataEtc.pak",
-             "textures/ui/": "NMSARC.TexUI.pak"}
 ICON_NAME_RE = re.compile(r"[^a-z0-9._-]+")
 TEXT_KEY_RE = re.compile(r"^[A-Z0-9_]+$")       # a localisation key; anything else is already text
 REVERSE_PREFIX = "RARITY_"                      # the keys translated values in planet records come from
@@ -59,8 +56,8 @@ def reverse_texts(paks: PakSet, language: str, values: set[str]) -> dict[str, li
     """{text: [RARITY_* keys whose `language` text it is]} for texts found in memory instead of keys."""
     out: dict[str, list[str]] = {}
     for name in paks.names_matching("language/", f"_{language}.mbin"):
-        for key, text in mbin.parse_language_table(paks.read(name)).items():
-            text = mbin.clean_text(text)
+        for key, raw in mbin.parse_language_table(paks.read(name)).items():
+            text = mbin.clean_text(raw)
             if key.startswith(REVERSE_PREFIX) and text in values:
                 out.setdefault(text, []).append(key)
     return out

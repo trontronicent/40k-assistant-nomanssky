@@ -42,6 +42,9 @@ except ImportError:
 TABLE_PAK = "NMSARC.Precache.pak"            # metadata/reality/tables/*.mbin
 GLOBALS_PAK = "NMSARC.globals.pak"           # gc*globals.mbin
 LANGUAGE_PAK = "NMSARC.MetadataEtc.pak"      # language/*.mbin
+UI_TEXTURE_PAK = "NMSARC.TexUI.pak"          # textures/ui/*
+TABLE_DIR = "metadata/reality/tables/"
+PAK_HINTS = {TABLE_DIR: TABLE_PAK, "language/": LANGUAGE_PAK, "textures/ui/": UI_TEXTURE_PAK}   # path prefix -> its pak
 SCAN_WARN_OPENS = 3          # a file found only after opening this many paks means a stale hint (logged)
 
 MAGIC = b"HGPAK"
@@ -190,9 +193,21 @@ class Pak:
             return self._read_entry(self.names[name.lower()])
 
 
-_session_lock = threading.RLock()
-_session: dict[str, Pak] | None = None      # path -> open Pak while a `session` is active
-_session_depth = 0
+class _SessionState:
+    """The shared paks of the active `session` (None outside one) and how many sessions are nested."""
+
+    def __init__(self) -> None:
+        self.lock = threading.RLock()
+        self.paks: dict[str, Pak] | None = None      # path -> open Pak
+        self.depth = 0
+
+
+_SESSION = _SessionState()
+
+
+def session_active() -> bool:
+    """True inside a `session()` block."""
+    return _SESSION.paks is not None
 
 
 @contextmanager
@@ -202,18 +217,17 @@ def session():
     Reading the game's tables opens the same few paks again and again (each open builds the file index, up to 29 MB
     and 0.4 s for MetadataEtc); inside one load pass they are opened once. Nothing stays open or in memory after
     the block - the plugin must not hold ~20 MB of file names between reads. Re-entrant (the outermost block frees)."""
-    global _session, _session_depth
-    with _session_lock:
-        if _session is None:
-            _session = {}
-        _session_depth += 1
+    with _SESSION.lock:
+        if _SESSION.paks is None:
+            _SESSION.paks = {}
+        _SESSION.depth += 1
     try:
         yield
     finally:
-        with _session_lock:
-            _session_depth -= 1
-            if _session_depth == 0:
-                paks, _session = _session, None
+        with _SESSION.lock:
+            _SESSION.depth -= 1
+            if _SESSION.depth == 0:
+                paks, _SESSION.paks = _SESSION.paks, None
                 for pak in paks.values():
                     pak.close()
 
@@ -250,11 +264,11 @@ class PakSet:
         self._open.clear()
 
     def _pak(self, path: Path) -> Pak:
-        with _session_lock:
-            if _session is not None:
-                if str(path) not in _session:
-                    _session[str(path)] = Pak(path)
-                return _session[str(path)]
+        with _SESSION.lock:
+            if _SESSION.paks is not None:
+                if str(path) not in _SESSION.paks:
+                    _SESSION.paks[str(path)] = Pak(path)
+                return _SESSION.paks[str(path)]
         if path.name not in self._open:
             self._open[path.name] = Pak(path)
         return self._open[path.name]
@@ -266,10 +280,8 @@ class PakSet:
 
     def find(self, name: str) -> Pak | None:
         name = name.lower()
-        opened = 0
-        for path in self._order(name):
+        for opened, path in enumerate(self._order(name), start=1):
             pak = self._pak(path)
-            opened += 1
             if name in pak.names:
                 if opened >= SCAN_WARN_OPENS:
                     logs.warn_once(f"pakscan:{name}", "%s was found in %s only after opening %d paks - its pak hint "

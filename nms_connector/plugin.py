@@ -17,6 +17,7 @@ memory) and the page's actions. Presenting it is delegated:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import gc
 import json
 import time
@@ -397,10 +398,8 @@ class NmsConnector:
             except Exception as exc:
                 self.error = f"{type(exc).__name__}: {exc}"
                 self.ctx.logger.warning("[NMS] Watch cycle failed: %s", self.error)
-            try:
+            with contextlib.suppress(asyncio.TimeoutError):      # no action asked for a cycle: just the next poll
                 await asyncio.wait_for(self._force.wait(), POLL_S)
-            except asyncio.TimeoutError:
-                pass
             self._force.clear()
 
     async def _ensure_gamedata(self, force: bool = False) -> None:

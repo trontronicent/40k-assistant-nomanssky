@@ -90,7 +90,7 @@ def plan_route(nodes, origin: int, target: int, range_ly: float) -> dict:
         path.append(previous[path[-1]])
     path.reverse()
     legs = []
-    for a, b in zip(path, path[1:]):
+    for a, b in zip(path, path[1:], strict=False):
         d = galaxy.distance_ly(a, b)
         j = jumps_for(d, range_ly)
         legs.append({"from": a, "to": b, "distance": d, "jumps": j, "waypoints": _waypoints(a, b, j)})

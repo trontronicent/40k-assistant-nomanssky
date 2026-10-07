@@ -17,7 +17,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from . import mbin
+from . import hgpak, mbin
+from .hgpak import PAK_HINTS
 
 TERM_KEYS = {
     "refiner_portable": "REFINER1_NAME_L", "refiner_medium": "REFINER2_NAME_L", "refiner_large": "REFINER3_NAME_L",
@@ -129,8 +130,6 @@ _TERM_KEY_SET = set(TERM_KEYS.values())
 def read_language(install, wanted) -> tuple[dict[str, str], dict[str, str] | None, str]:
     """(English texts, game-language texts or None for an English game, language suffix) of the keys `wanted(key)`
     accepts - one pass over the language files (blocking)."""
-    from . import hgpak
-    from .gamedata import PAK_HINTS
     language = getattr(install, "language", None) or "english"
     texts: dict[str, dict[str, str]] = {"english": {}, language: {}}
     with hgpak.PakSet(install.pcbanks, PAK_HINTS) as paks:

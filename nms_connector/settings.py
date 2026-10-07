@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import re
+from typing import ClassVar
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -52,7 +53,7 @@ class PluginSettings:
         tmp.write_text(json.dumps(asdict(self), indent=2), encoding="utf-8")
         tmp.replace(path)
 
-    SWITCHES = {"single_context": ("Single context per question", "Helps saving VRAM")}
+    SWITCHES: ClassVar[dict[str, tuple[str, str]]] = {"single_context": ("Single context per question", "Helps saving VRAM")}
 
     def set_switch(self, params: dict) -> str | None:
         """One on/off setting from the app's overlay (``{id, value}``, untrusted); returns why it was refused."""

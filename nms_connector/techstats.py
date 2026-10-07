@@ -38,6 +38,7 @@ import struct
 from dataclasses import dataclass, field
 
 from . import mbin
+from .hgpak import PakError, PakSet, ZstdUnavailable
 
 TECH_FILE = "metadata/reality/tables/nms_reality_gctechnologytable.mbin"
 PROC_FILE = "metadata/reality/tables/nms_reality_gcproceduraltechnologytable.mbin"
@@ -349,7 +350,6 @@ def parse(tech: bytes, proc: bytes) -> TechStats | None:
 
 def load(install) -> TechStats:
     """The installed game's tables; an empty TechStats with ``error`` set when they cannot be read."""
-    from .hgpak import PakError, PakSet, ZstdUnavailable
     if install is None:
         return TechStats(error="game installation not found")
     try:

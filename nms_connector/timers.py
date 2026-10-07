@@ -23,6 +23,8 @@ from __future__ import annotations
 import struct
 from datetime import datetime
 
+from .hgpak import GLOBALS_PAK, PakError, PakSet, ZstdUnavailable
+
 MBIN_HEADER = 0x20
 SETTLEMENT_FILE = "gcsettlementglobals.mbin"
 FLEET_FILE = "gcfleetglobals.global.mbin"
@@ -72,7 +74,7 @@ def parse_tables(settlement: bytes, fleet: bytes) -> dict | None:
         event, easy = struct.unpack_from("<2i", fleet, MBIN_HEADER + EVENT_TIME_AT)
     except struct.error:
         return None
-    building = {name: int(t) for name, t in zip(BUILDING_CLASSES, times) if t}
+    building = {name: int(t) for name, t in zip(BUILDING_CLASSES, times, strict=False) if t}
     # Sanity: only the buildings that have times in today's game, each under a week, and the factory among them.
     # A reading shifted by one entry puts times on classes that have none (hub, building group) and is refused.
     if (not building or not set(building) <= set(FALLBACK["building_times"]) or max(building.values()) > 7 * 86400
@@ -83,7 +85,6 @@ def parse_tables(settlement: bytes, fleet: bytes) -> dict | None:
 
 def load_tables(install) -> dict:
     """The timer tables of the installed game, else FALLBACK (``source`` says which, ``error`` why)."""
-    from .hgpak import PakError, PakSet, ZstdUnavailable, GLOBALS_PAK
     if install is None:
         return dict(FALLBACK, error="game installation not found")
     try:

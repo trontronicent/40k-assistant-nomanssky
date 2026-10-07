@@ -67,6 +67,15 @@ Needs the 40k Assistant 3.12.0 (unchanged).
   - Stopping or updating the plugin releases everything it holds (item database, tables, save-derived lists,
     recorded planets, caches); after the heavy passes a garbage collection runs. Four reinstalls in a row left the
     backend's memory flat (775 MB each time).
+- **Cleaner code, same answers**: `action()` is a dispatch table (23 branches -> one method per action),
+  `build_context` takes one `ItemLookups` instead of 11 parameters and is built from small section functions,
+  `cooking_lines`/`expedition_lines`/`equipment_lines`/the persona's `_chat_context`/`LiveMemory.tick`/the item
+  database builder are split into focused functions, the same name index is built once (`GameData.names()`),
+  `release_memory` uses public `release()` methods instead of reaching into other classes' private fields, the
+  pak constants live with the pak reader, four loaders import it at module level, and `zip()` calls say whether
+  lengths must match. The persona's data for 18 test questions on a real save and the 5,207-item database are
+  identical before and after. One real bug found on the way: two dishes of equal value were listed in an order that
+  changed from run to run - ties are now broken by id.
 - The persona prompt explains the new blocks; an unedited persona gets the new prompt when
   the plugin starts.
 

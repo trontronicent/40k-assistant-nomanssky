@@ -211,7 +211,7 @@ class WorldBook:
     @staticmethod
     def _uses(entry: dict, word: str, base: str) -> bool:
         """True when a name/weather entry contains the word (or a word starting with its stem)."""
-        return any(x == word or x == base or (len(base) >= 5 and x.startswith(base))
+        return any(x in (word, base) or (len(base) >= 5 and x.startswith(base))
                    for t in (entry["en"], entry["local"]) for x in re.findall(r"[a-z0-9]+", fold(t)))
 
     def matches(self, text: str) -> list[dict]:

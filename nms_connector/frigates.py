@@ -19,6 +19,7 @@ from __future__ import annotations
 import struct
 
 from . import mbin
+from .hgpak import PakError, PakSet, ZstdUnavailable
 
 TRAIT_FILE = "metadata/reality/tables/frigatetraittable.mbin"
 TRAIT_PAK = "NMSARC.Precache.pak"      # metadata/reality/tables (was MetadataEtc: every load scanned 21 paks)
@@ -78,7 +79,6 @@ def parse_traits(data: bytes) -> dict[str, dict]:
 
 def load_traits(install) -> dict:
     """{traits: {...}, source, error?}: the installed game's frigate traits (empty on failure: ids are shown then)."""
-    from .hgpak import PakError, PakSet, ZstdUnavailable
     if install is None:
         return {"traits": {}, "source": "none", "error": "game installation not found"}
     try:
@@ -112,7 +112,7 @@ def frigates_from_save(readable: dict) -> list[dict]:
         out.append({
             "index": i, "name": f.get("CustomName") or "", "class": _enum(f.get("FrigateClass"), "FrigateClass"),
             "race": _enum(f.get("Race"), "AlienRace"), "grade": _enum(f.get("InventoryClass"), "InventoryClass") or "?",
-            "stats": dict(zip(STATS, stats)), "traits": [str(t).lstrip("^") for t in f.get("TraitIDs") or [] if str(t).lstrip("^")],
+            "stats": dict(zip(STATS, stats, strict=False)), "traits": [str(t).lstrip("^") for t in f.get("TraitIDs") or [] if str(t).lstrip("^")],
             "expeditions": int(f.get("TotalNumberOfExpeditions") or 0),
             "successes": int(f.get("TotalNumberOfSuccessfulEvents") or 0),
             "failures": int(f.get("TotalNumberOfFailedEvents") or 0),

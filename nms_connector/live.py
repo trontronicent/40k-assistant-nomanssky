@@ -92,70 +92,85 @@ class LiveMemory:
             self.current_source = None
             return 0
         try:
-            if self.reader is None or getattr(self.reader, "pid", None) != pid:
-                self.close()
-                self.reader = self._open(pid)
-                self.last_scan_at = None
-            due = self.last_scan_at is None or now - self.last_scan_at >= RESCAN_S
-            # The anchor comes from the save; once it is known (or changes), find the player state right away.
-            if anchor and self.player_state is None and anchor != self._scanned_with_anchor:
-                due = True
-            if self.player_state is not None:
-                self._follow_moving_copy()
-                # The copy is only trusted while the save's start addresses are still in front of it: once the
-                # game reuses that memory, the address field holds whatever bytes landed there.
-                intact = not anchor or self.reader.read(self.player_state, len(anchor)) == anchor
-                ua = memory.read_current_address(self.reader, self.player_state) if intact else None
-                if ua is None:
-                    self.player_state, self.current, due = None, None, True
-                else:
-                    self._set_current(ua)
-                    if self.current_system != self._scanned_system:
-                        due = True
-                        self._follow_ups = [now + delay for delay in FOLLOW_UPS]
-            # The planet slots are watched even while a copy is followed: that copy can stay frozen at the old
-            # system while the game writes the new position into a copy elsewhere (seen 2026-10-04).
-            if not due and self.slots:
-                judged = self._system_from_slots()
-                if judged is not None and judged != self._slots_system:
-                    due = True
-                    self._follow_ups = [now + delay for delay in FOLLOW_UPS]
-            if self._follow_ups and now >= self._follow_ups[0]:
-                due = True
-                self._follow_ups = [at for at in self._follow_ups if at > now]
-            if not due:
+            self._attach(pid)
+            if not self._scan_due(anchor, now):
                 self.status, self.error = "ok", None
                 return 0
-            result = self._scan(self.reader, substances, anchor)
-            addresses = {a: memory.read_current_address(self.reader, a) for a in result.player_states}
-            self.player_state, ua = self._pick_player_state(result, addresses)
-            self.player_states = list(result.player_states)
-            self._addresses = addresses
-            if ua is not None:
-                self._set_current(ua)
-            else:
-                self.current = None
-                self.current_system = result.majority_system()
-                self.current_source = "planets" if self.current_system is not None else None
-            self.slots = list(result.slots)
-            self._slots_system = result.majority_system()
-            self.name_regions = list(result.name_regions)
-            self._scanned_system = self.current_system
-            self._scanned_with_anchor = anchor
-            self.last_scan_at = now
-            self.last_scan_iso = datetime.now().isoformat(timespec="seconds")
-            self.last_scan_seconds, self.last_scan_bytes = result.seconds, result.bytes_read
-            self.last_scan_planets = len(result.planets)
-            changed = self.history.record(result.planets, self.last_scan_iso, self.current_system)
-            changed += self._read_economies(result.planets)
-            changed += self.history.record_system_names(result.system_names)
-            self.history.save()   # always: the scan log is part of the file
-            self.status, self.error = "ok", None
-            return changed
+            return self._scan_and_record(substances, anchor, now)
         except memory.MemoryUnavailable as exc:
             self.close()
             self.status, self.error = "error", str(exc)
             return 0
+
+    def _attach(self, pid: int) -> None:
+        """Open the game's process (again, when it is another process than the last one)."""
+        if self.reader is None or getattr(self.reader, "pid", None) != pid:
+            self.close()
+            self.reader = self._open(pid)
+            self.last_scan_at = None
+
+    def _scan_due(self, anchor: bytes | None, now: float) -> bool:
+        """Whether a full scan is due now: on a start, every RESCAN_S, when the save's anchor is new, when the followed
+        player state moved to another system or vanished, when the planet slots show a warp, and at the follow-up
+        times after an arrival. Also keeps the followed player-state copy up to date."""
+        due = self.last_scan_at is None or now - self.last_scan_at >= RESCAN_S
+        # The anchor comes from the save; once it is known (or changes), find the player state right away.
+        if anchor and self.player_state is None and anchor != self._scanned_with_anchor:
+            due = True
+        if self.player_state is not None:
+            self._follow_moving_copy()
+            # The copy is only trusted while the save's start addresses are still in front of it: once the
+            # game reuses that memory, the address field holds whatever bytes landed there.
+            intact = not anchor or self.reader.read(self.player_state, len(anchor)) == anchor
+            ua = memory.read_current_address(self.reader, self.player_state) if intact else None
+            if ua is None:
+                self.player_state, self.current, due = None, None, True
+            else:
+                self._set_current(ua)
+                if self.current_system != self._scanned_system:
+                    due = True
+                    self._follow_ups = [now + delay for delay in FOLLOW_UPS]
+        # The planet slots are watched even while a copy is followed: that copy can stay frozen at the old
+        # system while the game writes the new position into a copy elsewhere (seen 2026-10-04).
+        if not due and self.slots:
+            judged = self._system_from_slots()
+            if judged is not None and judged != self._slots_system:
+                due = True
+                self._follow_ups = [now + delay for delay in FOLLOW_UPS]
+        if self._follow_ups and now >= self._follow_ups[0]:
+            due = True
+            self._follow_ups = [at for at in self._follow_ups if at > now]
+        return due
+
+    def _scan_and_record(self, substances: set[str] | None, anchor: bytes | None, now: float) -> int:
+        """Scan the game's memory, adopt what it says about where the player is, and record the planets, economies and
+        system names; returns how many planet records were new or changed."""
+        result = self._scan(self.reader, substances, anchor)
+        addresses = {a: memory.read_current_address(self.reader, a) for a in result.player_states}
+        self.player_state, ua = self._pick_player_state(result, addresses)
+        self.player_states = list(result.player_states)
+        self._addresses = addresses
+        if ua is not None:
+            self._set_current(ua)
+        else:
+            self.current = None
+            self.current_system = result.majority_system()
+            self.current_source = "planets" if self.current_system is not None else None
+        self.slots = list(result.slots)
+        self._slots_system = result.majority_system()
+        self.name_regions = list(result.name_regions)
+        self._scanned_system = self.current_system
+        self._scanned_with_anchor = anchor
+        self.last_scan_at = now
+        self.last_scan_iso = datetime.now().isoformat(timespec="seconds")
+        self.last_scan_seconds, self.last_scan_bytes = result.seconds, result.bytes_read
+        self.last_scan_planets = len(result.planets)
+        changed = self.history.record(result.planets, self.last_scan_iso, self.current_system)
+        changed += self._read_economies(result.planets)
+        changed += self.history.record_system_names(result.system_names)
+        self.history.save()   # always: the scan log is part of the file
+        self.status, self.error = "ok", None
+        return changed
 
     def _pick_player_state(self, result, addresses: dict[int, dict | None]) -> tuple[int | None, dict | None]:
         """The player-state copy to follow after a scan, and its address.

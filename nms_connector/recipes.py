@@ -28,7 +28,8 @@ import struct
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import game_terms, mbin
+from . import game_terms, hgpak, mbin
+from .hgpak import PAK_HINTS, TABLE_DIR
 
 RECIPE_FILE = "metadata/reality/tables/nms_reality_gcrecipetable.mbin"
 REQUIREMENT_TABLES = ("nms_reality_gcproducttable", "nms_reality_gcsubstancetable")
@@ -182,8 +183,6 @@ class RecipeBook:
 
 def load(install) -> RecipeBook:
     """The recipe book of an installation (blocking: reads the game's paks); errors end up in `error`."""
-    from . import hgpak
-    from .gamedata import PAK_HINTS, TABLE_DIR
     if install is None:
         return RecipeBook(error="game installation not found")
     try:
@@ -266,7 +265,7 @@ def _line_in(lookup, r: Recipe, language: str, terms) -> str:
     return f"{parts} → {r.amount} {name_in(lookup, r.result, language)} · {_station(r, language, terms)}"
 
 
-def kind_of(book: RecipeBook, lookup, item: str) -> str:
+def kind_of(book: RecipeBook, item: str) -> str:
     """'substance', 'food' or 'product' - the Codex subfolder an item's document goes to."""
     if item in book.substances:
         return "substance"
@@ -297,7 +296,7 @@ def item_markdown(book: RecipeBook, lookup, item: str, language: str = ENGLISH, 
     out += [f"# {name}", ""]
     desc = entry.get("desc_local" if local_lang else "desc_en") or entry.get("desc_en")
     if desc:
-        out += [f"## {h('where_from') if kind_of(book, lookup, item) == 'substance' else h('about')}", "",
+        out += [f"## {h('where_from') if kind_of(book, item) == 'substance' else h('about')}", "",
                 " ".join(desc.split()), ""]
     if other and other != name:
         out += [h("other_name", lang_name=game_terms.language_name(other_lang, language), name=other), ""]
@@ -311,7 +310,7 @@ def item_markdown(book: RecipeBook, lookup, item: str, language: str = ENGLISH, 
     if crafted:
         out += [f"## {terms.get('crafting', language)}: {name}", "",
                 "- " + " + ".join(f"{a} {name_in(lookup, i, language)}" for i, a in crafted) + f" → 1 {name}", ""]
-    if not (refined or cooked or crafted) and kind_of(book, lookup, item) == "substance":
+    if not (refined or cooked or crafted) and kind_of(book, item) == "substance":
         out += [f"## {terms.get('recipes', language)}", "", h("gathered", name=name), ""]
     uses = book.used_in(item)
     if any(uses.values()):
@@ -370,7 +369,7 @@ def documents(book: RecipeBook, lookup, terms=None) -> dict[str, str]:
             entry = lookup(item) or {}
             if not entry.get("en"):
                 continue
-            path = f"{root}/{terms.get(folders[kind_of(book, lookup, item)], language)}/" \
+            path = f"{root}/{terms.get(folders[kind_of(book, item)], language)}/" \
                    f"{file_name(name_in(lookup, item, language))}"
             if path in out:                              # two ids with one name: keep both, the id tells them apart
                 path = path[:-3] + f" [{item}].md"

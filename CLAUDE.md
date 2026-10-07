@@ -68,5 +68,17 @@ into `J:\40k-assistant\plugins\.data\nomanssky`, the installed plugin's data, un
   release recipe is in the app's `CLAUDE.md` ("Plugin release recipe"). Push/tag only when the user says so.
 - Every user-visible change updates `HELP.md` (shown in the app manual's *Plugin Help*), `CHANGELOG.md`, and the No
   Man's Sky section of `J:\40k-assistant\frontend\src\manual\USER_MANUAL.md`.
+- **Code shape** (checked with `ruff check nms_connector --select C901,PLR0912,PLR0913,PLR0915 --config
+  'lint.mccabe.max-complexity=12'` - the remaining findings are the ported algorithms `lz4`/`procgen`, the table
+  builders of `planets_view`/`settlements`/`worlds`, and the long `NmsConnector.__init__`): a function does one thing
+  and stays under ~50 statements; more than five parameters means a small dataclass (`assistant.ItemLookups`,
+  `cooking.CookingView`) and not a longer signature; `NmsConnector.action` is a dispatch table (`_actions`, one
+  `_act_*` method per action) and the persona's data is built by small `_*_lines` / `_block` methods, never one
+  long function; a module reaches into another class through its public methods (`GameData.release()`/`names()`,
+  `StarmapReader.release()`), never its `_private` fields; the same expression twice becomes a helper; imports
+  are at module level unless they would make a cycle or load numpy/ctypes for nothing. `zip` always says
+  `strict=`; output the persona sees must not depend on set/dict iteration order (ties broken by id). A refactor
+  is checked by diffing the persona's data block for ~20 questions on the real save before and after
+  (scratchpad `ctxdump.py`, `NMS_REPO` = a `git archive` of the old commit): it must be identical.
 - Test functions carry a docstring (what, expected, why). Form values and action params are untrusted input.
 - Files here are CRLF: edit with the Edit tool or a Python script that normalises line endings.

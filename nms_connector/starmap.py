@@ -97,7 +97,7 @@ def find_records(reader, table: dict, chunker=None) -> dict[int, dict]:
         pos = np.searchsorted(seeds, vals)
         pos[pos >= len(seeds)] = 0
         hit = seeds[pos] == vals
-        for i, p in zip(cand[hit].tolist(), pos[hit].tolist()):
+        for i, p in zip(cand[hit].tolist(), pos[hit].tolist(), strict=True):
             key = int(table.keys[p])
             if key in found:
                 continue

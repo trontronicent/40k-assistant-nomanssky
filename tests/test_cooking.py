@@ -187,3 +187,12 @@ def test_the_cheapest_dishes_and_the_total_earnings_are_shown():
     text = chr(10).join(lines)
     assert "The cheapest dishes you can cook right now (of 3; cheapest first): Cheap: 100 units each, up to 4 times (400 units in all)" in text
     assert "Best dish you can cook right now: Rich: 5,000 units each, up to 2 times (10,000 units in all)" in text
+
+
+def test_dishes_of_equal_value_are_listed_in_a_stable_order():
+    """Two dishes worth the same were listed in whatever order a set iterated in, so the persona's data changed from run
+    to run (the most valuable dish flipped between two equal ones). Ties are now broken by id."""
+    book = RecipeBook([_cook(str(k), name, "x", f"y{k}") for k, name in enumerate(["B", "A", "D", "C"])])
+    view = cooking.CookingView(book, {}, _label, {"A": 100, "B": 100, "C": 100, "D": 100}.get)
+    lines = cooking._most_valuable_lines(view)
+    assert lines[0].startswith("  The most valuable dish in the game is A:") and lines[1].index("B:") < lines[1].index("C:")
