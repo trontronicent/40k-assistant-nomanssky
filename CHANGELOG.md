@@ -50,6 +50,22 @@ Needs the 40k Assistant 3.12.0 (unchanged).
   and history files, and a disk that cannot be written, are now warnings that name the
   file instead of being ignored; a failure that repeats every poll is logged once per five
   minutes. The page says when the stored copy of the game files is in use.
+- **Less RAM, and given back** (measured 2026-10-08 on the real game and save):
+  - Reading the game's tables opened up to 21 of the game's archives per table, each time building a file index of
+    up to 29 MB, because three archive hints were wrong (the globals live in `globals.pak`, the frigate-trait and
+    settlement-perk tables in `Precache.pak`). Now one archive per table, and all tables of a pass share the opened
+    archives (`hgpak.session`), freed when the pass ends. The pass that loads the tables peaks at 34 MB instead of
+    63 MB, the plugin's share of the process stays ~25 MB lower afterwards, and a start is ~6 s faster. A hint that
+    goes stale after a game update is logged once instead of silently costing memory and time.
+  - The archive index no longer keeps a Python tuple per file (about a quarter of an open archive).
+  - Language files are parsed for the wanted keys only (the rest is never decoded).
+  - The galaxy-map seed table (29,000 systems) is three numpy arrays instead of a dict of lists: 12 MB held for the
+    whole session became under 1 MB; the prediction cache is bounded.
+  - The game-memory scan reads 8 MB chunks instead of 16 MB (`NMS_SCAN_CHUNK_MB`, 1-64): the scan's peak drops from
+    84 MB to 46 MB for ~0.4 s more on a scan that runs every few minutes (same planets found).
+  - Stopping or updating the plugin releases everything it holds (item database, tables, save-derived lists,
+    recorded planets, caches); after the heavy passes a garbage collection runs. Four reinstalls in a row left the
+    backend's memory flat (775 MB each time).
 - The persona prompt explains the new blocks; an unedited persona gets the new prompt when
   the plugin starts.
 

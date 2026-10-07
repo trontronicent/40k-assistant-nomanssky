@@ -13,7 +13,6 @@ them (``store.py``), so the persona answers without the game files.
 
 from __future__ import annotations
 
-import json
 import re
 from dataclasses import dataclass, field
 from datetime import date, timedelta

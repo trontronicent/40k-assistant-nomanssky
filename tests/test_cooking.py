@@ -3,9 +3,8 @@ from the player's holdings, base values of items, and what the inventory is wort
 
 import itertools
 
-import pytest
 
-from nms_connector import assistant, cooking, recipes
+from nms_connector import assistant, cooking
 from nms_connector.recipes import Recipe, RecipeBook
 from test_connector import FakeCtx, create_plugin
 

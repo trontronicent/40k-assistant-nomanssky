@@ -3,10 +3,11 @@ language parsing, the compact star seed table, and releasing everything on stop.
 
 import asyncio
 import logging
+from pathlib import Path
 
 import pytest
 
-from nms_connector import frigates, hgpak, logs, mbin, settlements, starmap, timers
+from nms_connector import frigates, hgpak, logs, mbin, settlements, starmap
 from nms_connector.hgpak import Pak, PakError, PakSet
 from test_connector import FakeCtx, create_plugin
 from test_gamedata import build_pak
@@ -29,7 +30,6 @@ def opens(monkeypatch):
     def counting(self, path):
         opened.append(Path(path).name)
         real(self, path)
-    from pathlib import Path
     monkeypatch.setattr(Pak, "__init__", counting)
     return opened
 

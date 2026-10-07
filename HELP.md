@@ -401,6 +401,9 @@ each game update, when the game is found again.
 - Items whose name the game makes up from a seed (salvaged and biological finds such as `PROC_LOOT`) keep their id.
 - The current mission (Overview) is shown with the game's own description of it.
 - The gas per biome is community knowledge, not read from the game.
+- The plugin keeps its memory use low: game files are read one archive at a time and released, and everything it holds
+  is freed when it stops. Scanning the running game uses 8 MB steps; set `NMS_SCAN_CHUNK_MB` (1-64) before starting the
+  app to trade scan speed for memory (4 = slowest and smallest, 16 = fastest).
 - If a part of your save cannot be read (for example after a game update changes it), the page shows a warning naming
   that part and still shows everything else; the plugin log (header → Cogitator Logs, lines tagged `[No Man's Sky]`)
   has the reason.
