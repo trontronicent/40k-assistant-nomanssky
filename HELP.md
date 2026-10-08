@@ -60,6 +60,15 @@ and ask about your game:
   files, the ingredient combinations folded into a few lines, the dishes you can cook
   with what you hold (best first, with how often) and the most valuable dishes with what
   you still lack.
+- *Which items are in several storage containers and could be one stack?* / *Welche Items
+  liegen in mehr als einem Lagerbehälter?* / *Can I merge my Aronium?* - the stacks that
+  would shrink when put together (up to each item's stack limit), found by the plugin:
+  one line per item with its amounts per place and the stacks left after merging. A
+  question naming a place ("storage containers", "exosuit") looks only there, otherwise at
+  every inventory. An item you name that has one stack, or whose amounts do not fit into
+  fewer stacks, is told so.
+- A misspelt item name is read as the item it is closest to (*wieviel Aroniun hab ich?*
+  is read as Aronium) and the answer says how the word was read.
 - *What is a Geode worth?* / *How much is my whole inventory worth?* - the game's base
   value (before an economy's price factor), per item and for all inventories together.
   "No sell value" means the game cannot sell the item.

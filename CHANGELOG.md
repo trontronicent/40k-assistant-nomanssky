@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.14.0 — 2026-10-09
+
+Needs the 40k Assistant 3.12.0 (unchanged).
+
+Found in a German chat of 2026-10-08 (*Liste mir alle Items aus Containern die
+zusammengeführt werden können*: the persona answered that the data holds no contents) and
+by a battery of 59 German and English questions against the live app afterwards.
+
+- **Merging stacks**: *Which items are in several storage containers and could be one
+  stack?* (also *zusammenführen*, *zusammenlegen*, *doppelt*, *mehr als einem Lagerbehälter*)
+  is answered from a new section the plugin builds itself, `Stacks that can be merged`: the
+  rows are grouped by item id, an item counts when its stacks would shrink within the stack
+  limit, and each line has the amounts per place and the stacks left after merging. Before,
+  the model had to find the duplicates in the raw contents and added up two different items
+  with the same name (the two Geode items), listed items that fill their own container,
+  read *zusammengeführt* as crafting (Codex recipes) or ran in a 29,000-character thinking
+  loop without an answer. A named item that cannot shrink (11,672 Cobalt, limit 9,999) or
+  has one stack only is told so; the list is capped at 25 lines. A rule beside the data
+  (app 3.12.0 `instructions`) says the question is about merging, not crafting.
+- **A named place always lists its contents**: an item matched by chance no longer replaces
+  them. *Lagerbehälter* is the place, not the Storage Container item (it was reported as an
+  item you do not have). *Storage containers* are the numbered containers only; *storage*
+  or *Lager* alone still include the other storage.
+- **German questions**: filler words (*sich*, *die*, *aus*, *werden*, *zusammengeführt*...)
+  no longer match item names (*sich* matched *Sich selbst reparierendes Heridium*) and the
+  dative plurals *Containern*, *Behältern*, *Lagern*, *Schiffen*, *Frachtern* name their
+  places.
+- **Misspelt item names**: *wieviel Aroniun hab ich?* is read as Aronium (one letter off,
+  at least six letters, at most three words, difflib ratio 0.84; no false match on 72
+  questions) and the data says how the word was read. Before, the persona said 0.
+
 ## 0.13.0 — 2026-10-08
 
 Needs the 40k Assistant 3.12.0 (unchanged).

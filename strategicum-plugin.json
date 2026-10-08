@@ -3,7 +3,7 @@
   "manifest_version": 1,
   "id": "nomanssky",
   "name": "No Man's Sky",
-  "version": "0.13.0",
+  "version": "0.14.0",
   "data_version": 1,
   "description": "Connector to No Man's Sky: inventories, storage and equipment (what each part does, base values), galaxy and system maps, economies and trade routes, settlements, frigates and timers, and a persona that answers from your game data - cooking, expeditions, item values - also with the game closed.",
   "author": {
