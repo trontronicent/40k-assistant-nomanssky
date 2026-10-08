@@ -37,6 +37,13 @@ STOPWORDS = {
     "viel", "viele", "habe", "habt", "wieviel", "wo", "welche", "welcher", "meine", "mein", "insgesamt", "alle",
     "gibt", "noch", "auch", "bitte", "zeig", "zeige", "liste", "inventar", "lager", "frachter", "raumschiff",
     "anzug", "haben", "kann", "finde", "finden", "brauche",
+    # German filler and inflected place words ("sich" matched "Sich selbst reparierendes Heridium", "Containern"
+    # the Storage Container items; chat of 2026-10-08, session cdee88f2) and English filler of a merge request:
+    "sich", "mir", "mich", "aus", "die", "der", "das", "den", "dem", "des", "und", "oder", "werden", "wird", "können",
+    "koennen", "lassen", "liessen", "ließen", "zusammen", "zusammengeführt", "zusammenführen", "zusammenfuehren",
+    "zusammengefuehrt", "kombiniert", "kombinieren", "verschiedenen", "verschiedene", "gleiche", "gleichen",
+    "containern", "behältern", "behaelter", "lagerbehälter", "lagern", "schiffen", "stapel",
+    "different", "single", "combined", "combine", "merged", "merge", "present", "better", "sorting", "could",
     # Filler of a request that is no item ("the best recipe I can execute right now" matched Liquidator Right Arm):
     "right", "left", "give", "best", "most", "worth", "value", "values", "cook", "cooking", "recipe", "recipes",
     "execute", "materials", "material", "currently", "right-now", "make", "made", "hold", "holding", "season",
@@ -54,6 +61,9 @@ PLACE_WORDS = {
     "storage": ("Storage Container", "Other storage"), "container": ("Storage Container",),
     "containers": ("Storage Container",), "lager": ("Storage Container", "Other storage"),
     "behälter": ("Storage Container",), "chest": ("Storage Container",),
+    "containern": ("Storage Container",), "behältern": ("Storage Container",),
+    "lagerbehälter": ("Storage Container",), "lagerbehältern": ("Storage Container",),
+    "lagern": ("Storage Container", "Other storage"), "schiffen": ("Starship",), "frachtern": ("Freighter",),
 }
 TRADE_GOODS_RE = re.compile(r"trade ?goods?|trade commodit|handelsware|handelsgüter|handelsgut|commodit", re.I)
 MAX_PLACE_ROWS = 60
@@ -342,14 +352,13 @@ def build_context(question: str, snap: dict | None, lookups: ItemLookups, status
         if lines:
             out += [""] + lines
     missing = _missing_items(question, have, lookups.all_names)
+    asked = places_asked(question, snap)
     if matched or missing:
         out += _named_items_section(matched, missing, have, lookups)
-    else:        # named items answer the question already; otherwise a named place, otherwise "what do I have"
-        asked = places_asked(question, snap)
-        if asked:
-            out += _place_sections(asked, snap, lookups)
-        elif INVENTORY_WORDS & set(_words(question)):
-            out += _largest_stacks(have, lookups)
+    if asked:        # a named place always lists its contents - an item matched by chance must not replace them
+        out += _place_sections(asked, snap, lookups)
+    elif not (matched or missing) and INVENTORY_WORDS & set(_words(question)):
+        out += _largest_stacks(have, lookups)
     counts = [(place, sum(1 for r in rows if ITEM_ID_RE.match(str(r[0])))) for place, rows in places(snap)]
     out += ["", "Inventories: " + "; ".join(f"{place} ({n} stacks)" for place, n in counts if n)]
     return "\n".join(out + extra_lines)

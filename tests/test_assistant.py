@@ -112,3 +112,46 @@ def test_trade_goods_are_grouped_by_kind_in_the_place_asked_most_valuable_first(
     everywhere = assistant.trade_kinds(snap, None, values)
     assert everywhere[0]["units"] == 170
     assert assistant.trade_kinds(snap, ship, lambda i: None)[0]["value"] == 0
+
+
+MERGE_NAMES = dict(NAMES, TRA_ALLOY2=["Self-Repairing Heridium", "Sich selbst reparierendes Heridium"],
+                   CONTAINER0=["Storage Container", "Lagerbehälter"])
+MERGE_QUESTIONS = [
+    "List me all items that are present in different storage containers and where it could be comined into a single stack",
+    "Liste mir alle Stacks aus Storage Containern die sich zusammenführen liessen",
+    "Liste mir alle Items aus Containern die zusammengeführt werden können",
+]
+
+
+def build_merge(question):
+    """The context for `question` with the items that tripped the German chat of 2026-10-08 (session cdee88f2)."""
+    snap = snapshot()
+    snap["exosuit"].append(["TRA_ALLOY2", 11, 9999])
+    return assistant.build_context(question, snap, lookups(MERGE_NAMES), ["STATUS"], [])
+
+
+def test_merge_questions_list_the_contents_of_every_storage_container_in_english_and_german():
+    """The same request in English and in two German wordings must give the persona the contents of both storage
+    containers (the rows it needs to find an item in two of them) and no stray 'Items the question names' section.
+    Before: 'sich' matched 'Sich selbst reparierendes Heridium' and 'Containern' the Storage Container items, and an
+    item match replaced the container contents, so the model could only answer 'the data has no contents'."""
+    for question in MERGE_QUESTIONS:
+        text = build_merge(question)
+        assert "Contents of Storage Container 0 (2 stacks):" in text, question
+        assert "Contents of Storage Container 7 (2 stacks):" in text, question
+        assert "- Copper [YELLOW2]: 581" in text and "- Copper [YELLOW2]: 119" in text, question
+        assert "Items the question names" not in text, question
+
+
+def test_a_named_place_and_a_named_item_both_get_their_section():
+    """'Copper in storage container 0' names an item and a place: the item section (totals over all inventories)
+    and the container's contents are both given - the item match no longer hides the place."""
+    text = build("how much copper is in storage container 0?")
+    assert "- Copper (Kupfer) [YELLOW2]: 700 in total" in text
+    assert "Contents of Storage Container 0 (2 stacks):" in text and "Contents of Storage Container 7" not in text
+
+
+def test_german_place_inflections_name_the_place():
+    """'Containern', 'Behältern' and 'Lagern' (dative plurals) name the storage containers like 'containers' does."""
+    for question in ("was liegt in meinen Containern", "was liegt in meinen Behältern", "was ist in meinen Lagern"):
+        assert assistant.places_asked(question, snapshot()) == ["Storage Container 0", "Storage Container 7"], question
