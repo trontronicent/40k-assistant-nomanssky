@@ -67,8 +67,9 @@ and ask about your game:
   question naming a place ("storage containers", "exosuit") looks only there, otherwise at
   every inventory. An item you name that has one stack, or whose amounts do not fit into
   fewer stacks, is told so.
-- A misspelt item name is read as the item it is closest to (*wieviel Aroniun hab ich?*
-  is read as Aronium) and the answer says how the word was read.
+- A misspelt item name is read as the item it is closest to, also by sound (*wieviel
+  Aroniun hab ich?* is Aronium, *Paraphinium* is Paraffinium) and the answer says how the
+  word was read. *Wie stelle ich Paraphine her?* gets the recipes too.
 - *What is a Geode worth?* / *How much is my whole inventory worth?* - the game's base
   value (before an economy's price factor), per item and for all inventories together.
   "No sell value" means the game cannot sell the item.

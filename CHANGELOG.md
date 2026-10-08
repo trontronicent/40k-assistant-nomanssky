@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.14.1 — 2026-10-09
+
+Needs the 40k Assistant 3.12.0 (unchanged).
+
+Found in a chat of 2026-10-09 (*Wie viel Paraphinium habe ich?*, *wie stelle ich Paraphine
+her?*, *how do I create Paraphenium?*: "the data holds no information").
+
+- **Misspelt names are read by sound**: question and item words are compared folded (ph -> f,
+  doubled letters single, y -> i, umlauts plain), then by closeness, then as a stem one
+  letter short - *Paraphinium*, *Paraphine* and *Paraphenium* are Paraffinium, *Chlorien* is
+  Chlorine. A word that is an item word is never corrected; no false match on 80 earlier
+  test questions. The name index is built once instead of per question (~50 ms).
+- **Recipe questions**: *wie stelle ich X her?* (the split verb *herstellen*), *how do I
+  create X?*, *build*, *craften*, *erstellen* now add the item's refiner and crafting
+  recipes, also for a misspelt name. Before, only *herstellen*, *make*, *get* ... did.
+
 ## 0.14.0 — 2026-10-09
 
 Needs the 40k Assistant 3.12.0 (unchanged).
