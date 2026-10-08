@@ -21,6 +21,7 @@ one, predicted ones marked).
 
 from __future__ import annotations
 
+import difflib
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -345,14 +346,58 @@ def _names_a_place(names: list[str]) -> bool:
     return bool(names) and all(w in PLACE_WORDS for name in names for w in _words(name))
 
 
+NEAR_MISS_CUTOFF = 0.84          # difflib ratio: "Aroniun" -> "Aronium" (0.86); at 0.8 "ersten" matched an emote item
+NEAR_MISS_MIN = 6                # shorter words are too likely to be a different word
+NEAR_MISS_MAX = 3
+
+
+def near_miss_items(question: str, all_names: dict[str, list[str]]) -> list[tuple[str, str]]:
+    """[(question word, item id)] for words of the question that are no word of any item name but one letter or two
+    away from one ("wieviel Aroniun hab ich" -> Aronium): the persona said 0 for a typo before (2026-10-09). Only
+    words of NEAR_MISS_MIN+ letters, no stopwords, at most NEAR_MISS_MAX words, the closest name word each."""
+    index: dict[str, list[str]] = {}
+    for item_id, names in all_names.items():
+        for word in {w for n in names for w in _words(n) if len(w) >= NEAR_MISS_MIN}:
+            index.setdefault(word, []).append(item_id)
+    out: list[tuple[str, str]] = []
+    for word in dict.fromkeys(w for w in _words(question) if len(w) >= NEAR_MISS_MIN and w not in STOPWORDS):
+        if word in index or any(word.removesuffix(end) in index for end in ("s", "n", "en", "e", "es")):
+            continue                  # a real item word (or its plural): no typo
+        close = difflib.get_close_matches(word, list(index), n=1, cutoff=NEAR_MISS_CUTOFF)
+        if close and len(index[close[0]]) == 1:
+            out.append((word, index[close[0]][0]))
+    return out[:NEAR_MISS_MAX]
+
+
+def _near_miss_sections(question: str, have: dict, lookups: ItemLookups) -> tuple[list[str], list[str], list[str]]:
+    """(notes saying how a misspelt word was read, owned item ids, other item ids) for `near_miss_items`."""
+    near = near_miss_items(question, lookups.all_names)
+    notes = [f'(The question word "{w}" was read as "{lookups.name_of(i)}" [{i}].)' for w, i in near]
+    return notes, [i for _, i in near if i in have], [i for _, i in near if i not in have]
+
+
+def _merge_section(question: str, snap: dict, lookups: ItemLookups, asked: list[str]) -> list[str]:
+    """The stacks to merge in the inventories asked about (all when none is named) - the plugin finds the
+    duplicates, the model only copies them; items the question names (also misspelt) are explained."""
+    scope = [(p, [r for r in rows if ITEM_ID_RE.match(str(r[0]))]) for p, rows in places(snap) if not asked or p in asked]
+    have = holdings(snap)
+    named = set(match_items(question, {i: lookups.names_of(i) for i in have}))
+    notes, owned, _other = _near_miss_sections(question, have, lookups) if not named else ([], [], [])
+    out = merge_lines(scope, lookups.name_of, named | set(owned))
+    return out[:1] + notes + out[1:] if notes else out
+
+
+def _names_a_place(names: list[str]) -> bool:
+    """True when every name of an item is made of place words only ('Storage Container', 'Lagerbehälter')."""
+    return bool(names) and all(w in PLACE_WORDS for name in names for w in _words(name))
+
+
 def _question_sections(question: str, snap: dict, lookups: ItemLookups) -> list[str]:
     """The part of the data that depends on the question: stacks to merge, or the trade goods by kind, the items the
     question names, the contents of a named inventory, or the largest stacks."""
     asked = places_asked(question, snap)
-    if is_merge_question(question):        # the plugin finds the duplicates - the model only copies them
-        scope = [(p, [r for r in rows if ITEM_ID_RE.match(str(r[0]))]) for p, rows in places(snap) if not asked or p in asked]
-        named = set(match_items(question, {i: lookups.names_of(i) for i in holdings(snap)}))
-        return merge_lines(scope, lookups.name_of, named)
+    if is_merge_question(question):
+        return _merge_section(question, snap, lookups, asked)
     out: list[str] = []
     have = holdings(snap)
     matched = match_items(question, {item_id: lookups.names_of(item_id) for item_id in have})
@@ -365,6 +410,9 @@ def _question_sections(question: str, snap: dict, lookups: ItemLookups) -> list[
     if asked:        # "Lagerbehälter" is the place and also the name of the Storage Container item: here, the place
         matched = [i for i in matched if not _names_a_place(lookups.names_of(i))]
         missing = [i for i in missing if not _names_a_place(lookups.all_names[i])]
+    elif not (matched or missing):        # nothing named exactly: a misspelt item name ("Aroniun")
+        notes, matched, missing = _near_miss_sections(question, have, lookups)
+        out += [""] + notes if notes else []
     if matched or missing:
         out += _named_items_section(matched, missing, have, lookups)
     if asked:        # a named place always lists its contents - an item matched by chance must not replace them

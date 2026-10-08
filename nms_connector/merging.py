@@ -34,8 +34,8 @@ def _stacks_after(total: int, maximum: int) -> int:
     return -(-total // maximum) if maximum > 0 else 0
 
 
-def merge_groups(places: list[tuple[str, list]]) -> dict[str, dict]:
-    """{item id: {stacks: [(place, amount)], total, maximum}} for every item with more than one stack in `places`."""
+def merge_groups(places: list[tuple[str, list]], min_stacks: int = 2) -> dict[str, dict]:
+    """{item id: {stacks: [(place, amount)], total, maximum}} for every item with at least `min_stacks` stacks."""
     found: dict[str, dict] = defaultdict(lambda: {"stacks": [], "total": 0, "maximum": 0})
     for place, rows in places:
         for item_id, amount, maximum in rows:
@@ -43,7 +43,7 @@ def merge_groups(places: list[tuple[str, list]]) -> dict[str, dict]:
             entry["stacks"].append((place, int(amount or 0)))
             entry["total"] += int(amount or 0)
             entry["maximum"] = max(entry["maximum"], int(maximum or 0))
-    return {i: e for i, e in found.items() if len(e["stacks"]) > 1}
+    return {i: e for i, e in found.items() if len(e["stacks"]) >= min_stacks}
 
 
 def _saving(entry: dict) -> int:
@@ -52,6 +52,9 @@ def _saving(entry: dict) -> int:
 
 def _line(item_id: str, entry: dict, name: str, twins: list[str]) -> str:
     where = "; ".join(f"{place}: {amount:,}" for place, amount in entry["stacks"])
+    if len(entry["stacks"]) == 1:        # a named item with one stack: say so instead of leaving the model to guess
+        return (f"- {name} [{item_id}]: {entry['total']:,} in 1 stack, stack limit {entry['maximum']:,} - {where} "
+                "(only one stack: nothing to merge)")
     after = _stacks_after(entry["total"], entry["maximum"])
     text = (f"- {name} [{item_id}]: {entry['total']:,} in {len(entry['stacks'])} stacks, stack limit "
             f"{entry['maximum']:,} -> {after} stack{'s' if after != 1 else ''} after merging - {where}")
@@ -65,9 +68,10 @@ def _line(item_id: str, entry: dict, name: str, twins: list[str]) -> str:
 def merge_lines(places: list[tuple[str, list]], name_of: Callable[[str], str], named: set[str] | None = None) -> list[str]:
     """The 'Stacks that can be merged' section for the inventories `places` (most stacks saved first, at most
     MAX_LINES). Items whose stacks would not shrink are left out - unless the question names them (`named`): then
-    the line says why nothing is saved. An empty result says so plainly."""
+    the line says why nothing is saved (or that there is one stack only). An empty result says so plainly."""
     named = named or set()
-    groups = {i: e for i, e in merge_groups(places).items() if _saving(e) > 0 or i in named}
+    groups = {i: e for i, e in merge_groups(places, 1).items()
+              if i in named or (len(e["stacks"]) > 1 and _saving(e) > 0)}
     head = ["", "Stacks that can be merged (items with more than one stack in the inventories asked about; each "
                 "entry is ONE item id, 'after merging' = stacks left when the amounts are put together up to the "
                 "stack limit):"]

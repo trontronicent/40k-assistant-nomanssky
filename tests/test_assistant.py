@@ -233,3 +233,30 @@ def test_the_merge_list_is_capped():
     lines = merging.merge_lines([("A", rows), ("B", rows)], str)
     items = [line for line in lines if line.startswith("- I")]
     assert len(items) == merging.MAX_LINES and lines[-1].startswith("- ... and 15 more items")
+
+
+def test_a_misspelt_item_name_is_read_as_the_item_and_says_so():
+    """'wieviel Aroniun hab ich' (one letter off) is read as Aronium: the data names the item, its total and place,
+    and a note says how the word was read. A word that is no item word and not close to one ('Einhornstaub') still
+    gives no item, and a real item word ('Copper') is never 'corrected'. Before: the persona said 0 for the typo."""
+    names = dict(NAMES, ALLOY1=["Aronium", "Aronium"])
+    snap = snapshot()
+    snap["storage"][1]["rows"].append(["ALLOY1", 2, 20])
+    look = lookups(names)
+    text = assistant.build_context("wieviel Aroniun hab ich?", snap, look, ["STATUS"], [])
+    assert '(The question word "aroniun" was read as "Aronium" [ALLOY1].)' in text
+    assert "- Aronium [ALLOY1]: 2 in total - Storage Container 7: 2" in text
+    assert assistant.near_miss_items("Wie viel Einhornstaub habe ich?", names) == []
+    assert assistant.near_miss_items("how much Copper do I have", names) == []
+    assert assistant.near_miss_items("Aroni", names) == []                       # too short to guess
+
+
+def test_a_named_item_with_one_stack_says_there_is_nothing_to_merge():
+    """'Kann ich mein Aronium zusammenlegen?' (and with the typo 'Aroniun'): one stack of 2 in container 7 -
+    the section says 'only one stack: nothing to merge' instead of leaving the model to say the data has no answer."""
+    names = dict(NAMES, ALLOY1=["Aronium", "Aronium"])
+    snap = snapshot()
+    snap["storage"][1]["rows"].append(["ALLOY1", 2, 20])
+    for question in ("Kann ich mein Aronium zusammenlegen?", "Kann ich mein Aroniun zusammenlegen?"):
+        text = assistant.build_context(question, snap, lookups(names), ["STATUS"], [])
+        assert "- Aronium [ALLOY1]: 2 in 1 stack, stack limit 20 - Storage Container 7: 2 (only one stack: nothing to merge)" in text, question
