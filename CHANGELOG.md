@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.13.0 — 2026-10-07
+## 0.13.0 — 2026-10-08
 
 Needs the 40k Assistant 3.12.0 (unchanged).
 
