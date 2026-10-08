@@ -68,7 +68,8 @@ into `J:\40k-assistant\plugins\.data\nomanssky`, the installed plugin's data, un
   release recipe is in the app's `CLAUDE.md` ("Plugin release recipe"). Push/tag only when the user says so.
 - Every user-visible change updates `HELP.md` (shown in the app manual's *Plugin Help*), `CHANGELOG.md`, and the No
   Man's Sky section of `J:\40k-assistant\frontend\src\manual\USER_MANUAL.md`.
-- **Code shape** (`ruff.toml`: complexity <= 12, <= 50 statements, <= 6 arguments, explicit `zip` strictness, no unused
+- **Code shape - the full guide is `J:\40k-assistant\docs\architecture\code-shape.md` (read it before writing or changing a
+  long function; new backend plugins copy this repo's `ruff.toml` and `tests/test_code_shape.py`).** (`ruff.toml`: complexity <= 12, <= 50 statements, <= 6 arguments, explicit `zip` strictness, no unused
   names or arguments; `tests/test_code_shape.py` runs it and fails with the findings - zero today, and the single
   `noqa` is `planets_view.Context.__init__`, the one dependency-injection constructor): a function does one thing
   and stays under ~50 statements; more than five parameters means a small dataclass (`assistant.ItemLookups`,
