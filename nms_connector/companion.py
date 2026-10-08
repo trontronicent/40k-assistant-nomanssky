@@ -96,7 +96,10 @@ TECH_WORDS = {"upgrade", "upgrades", "module", "modules", "modul", "technology",
 RECIPE_WORDS = {"recipe", "recipes", "refine", "refiner", "refining", "craft", "crafting", "make", "made", "produce",
                 "obtain", "get", "find", "where", "mine", "mining", "harvest", "extract", "farm", "source",
                 "rezept", "rezepte", "raffinerie", "raffinieren", "herstellen", "herstellung", "bauen", "machen",
-                "bekommen", "finden", "wo", "abbauen", "gewinnen", "erzeugen", "farmen", "woher"}
+                "bekommen", "finden", "wo", "abbauen", "gewinnen", "erzeugen", "farmen", "woher",
+                # 2026-10-09: "how do I create X?" and the split German verb "wie stelle ich X her?" got no recipes
+                "create", "creating", "build", "synthesize", "synthesise", "stelle", "stellen", "stellt",
+                "erstellen", "erstelle", "craften", "crafte", "baue", "mache", "kriege", "kriegen"}
 MAX_RECIPE_ITEMS = 3
 MAX_RECIPES_PER_ITEM = 6
 
@@ -456,7 +459,9 @@ class PluginCompanion:
         names = c.gamedata.names()
         lookup = c.gamedata.lookup
         out = []
-        for item in assistant.match_items(question, names)[:MAX_RECIPE_ITEMS]:
+        # A misspelt name ("wie stelle ich Paraphine her?") is read as the item it is closest to (2026-10-09).
+        items = assistant.match_items(question, names) or [i for _, i in assistant.near_miss_items(question, names)]
+        for item in items[:MAX_RECIPE_ITEMS]:
             refined = book.made_by(item)
             crafted = book.crafting.get(item)
             entry = lookup(item) or {}

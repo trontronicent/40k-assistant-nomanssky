@@ -260,3 +260,16 @@ def test_a_named_item_with_one_stack_says_there_is_nothing_to_merge():
     for question in ("Kann ich mein Aronium zusammenlegen?", "Kann ich mein Aroniun zusammenlegen?"):
         text = assistant.build_context(question, snap, lookups(names), ["STATUS"], [])
         assert "- Aronium [ALLOY1]: 2 in 1 stack, stack limit 20 - Storage Container 7: 2 (only one stack: nothing to merge)" in text, question
+
+
+def test_misspellings_are_read_by_sound():
+    """'Paraphinium', 'Paraphine' and 'Paraphenium' (chat of 2026-10-09, ph for f) all mean Paraffinium: words are
+    compared folded (ph -> f, doubled letters single, y -> i, umlauts plain), then by closeness, then as a stem one
+    letter short. An item word that exists is never corrected, and a word close to nothing stays unmatched."""
+    names = dict(NAMES, LUSH1=["Paraffinium", "Paraffinium"], PLANT_LUSH=["Star Bulb", "Sternenknolle"])
+    for question, word in (("Wie viel Paraphinium habe ich?", "paraphinium"), ("wie stelle ich Paraphine her?", "paraphine"),
+                           ("how do I create Paraphenium?", "paraphenium")):
+        assert assistant.near_miss_items(question, names) == [(word, "LUSH1")], question
+    assert assistant.near_miss_items("how much Paraffinium", names) == []
+    assert assistant.near_miss_items("Wie viel Einhornstaub habe ich?", names) == []
+    assert assistant.fold("Paraphinium") == assistant.fold("Paraffinium") == "parafinium"

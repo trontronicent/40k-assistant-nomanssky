@@ -212,6 +212,21 @@ def test_the_persona_gets_recipes_when_the_question_asks_how_to_get_an_item(tmp_
     assert copper[-1] == "  no refiner or crafting recipe makes it: it is gathered only"
 
 
+def test_recipes_for_a_misspelt_item_and_the_split_german_verb(tmp_path, monkeypatch):
+    """Chat of 2026-10-09: 'wie stelle ich Paraphine her?' and 'how do I create Paraphenium?' got no recipes - the
+    split verb 'stelle ... her' and 'create' were no recipe words, and the misspelt name matched no item. Now both
+    give the item's recipes, with the name read by sound ('Ammoniack' and 'Amonia' -> Ammonia)."""
+    from test_connector import FakeCtx, create_plugin
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    plugin.tables.recipes = book()
+    plugin.gamedata.items = dict(ITEMS)
+    for question in ("wie stelle ich Ammoniack her?", "how do I create Amonia?"):
+        words = set(question.lower().rstrip("?").split())
+        lines = plugin.companion.recipe_lines(question, words)
+        assert lines and lines[0] == "How to get Ammonia (Ammoniak) (from the game's files):", question
+
+
 def test_the_codex_tool_finds_the_item_cache_installed_or_beside_a_checkout(tmp_path):
     """Run from the installed plugin (plugins/nomanssky) the cache is plugins/.data/nomanssky; run from a
     development checkout beside the app it is the app's - the old default only worked for the checkout."""

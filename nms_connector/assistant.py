@@ -351,21 +351,81 @@ NEAR_MISS_MIN = 6                # shorter words are too likely to be a differen
 NEAR_MISS_MAX = 3
 
 
+FOLDS = (("ph", "f"), ("th", "t"), ("ck", "k"), ("ß", "ss"), ("ä", "a"), ("ö", "o"), ("ü", "u"), ("y", "i"),
+         ("ie", "i"))
+DOUBLE_RE = re.compile(r"(.)\1+")
+PLURAL_ENDS = ("s", "n", "en", "e", "es")
+
+
+def fold(word: str) -> str:
+    """A word as it sounds rather than how it is spelt: 'Paraphinium' and 'Paraffinium' both become 'parafinium'
+    (ph -> f, doubled letters single, y -> i, umlauts plain). Applied to question and item words alike."""
+    word = word.lower()
+    for a, b in FOLDS:
+        word = word.replace(a, b)
+    return DOUBLE_RE.sub(r"\1", word)
+
+
+@dataclass
+class _NameIndex:
+    """The words of every item name (>= NEAR_MISS_MIN letters): as spelt, and folded -> item ids."""
+    real: set[str]
+    folded: dict[str, set[str]]
+    whole: dict[str, set[str]]          # folded one-word names -> item ids (to pick among several)
+
+    @classmethod
+    def build(cls, all_names: dict[str, list[str]]) -> _NameIndex:
+        real, folded, whole = set(), {}, {}
+        for item_id, names in all_names.items():
+            for name in filter(None, names):
+                words = [w for w in _words(name) if len(w) >= NEAR_MISS_MIN]
+                real.update(words)
+                for w in words:
+                    folded.setdefault(fold(w), set()).add(item_id)
+                if len(_words(name)) == 1:
+                    whole.setdefault(fold(name), set()).add(item_id)
+        return cls(real, folded, whole)
+
+    def pick(self, key: str) -> str | None:
+        """The one item a folded name word means: the only item with it, or the one whose whole name it is."""
+        ids = self.folded.get(key, set())
+        if len(ids) != 1:
+            ids = ids & self.whole.get(key, set())
+        return next(iter(ids)) if len(ids) == 1 else None
+
+    def closest(self, word: str) -> str | None:
+        """The item a misspelt word means: same when folded (also without a plural ending), else the closest folded
+        word (difflib ratio >= NEAR_MISS_CUTOFF), else the only word starting with it minus its last letter
+        ('Paraphine' -> 'parafin...' -> Paraffinium; only for 7+ letters)."""
+        key = fold(word)
+        for k in (key, *(key.removesuffix(end) for end in PLURAL_ENDS)):
+            if k in self.folded:
+                return self.pick(k)
+        close = difflib.get_close_matches(key, list(self.folded), n=1, cutoff=NEAR_MISS_CUTOFF)
+        if close:
+            return self.pick(close[0])
+        stem = [k for k in self.folded if len(key) >= 7 and k.startswith(key[:-1])]
+        return self.pick(stem[0]) if len(stem) == 1 else None
+
+
+_index_cache: tuple = (None, 0, None)
+
+
 def near_miss_items(question: str, all_names: dict[str, list[str]]) -> list[tuple[str, str]]:
-    """[(question word, item id)] for words of the question that are no word of any item name but one letter or two
-    away from one ("wieviel Aroniun hab ich" -> Aronium): the persona said 0 for a typo before (2026-10-09). Only
-    words of NEAR_MISS_MIN+ letters, no stopwords, at most NEAR_MISS_MAX words, the closest name word each."""
-    index: dict[str, list[str]] = {}
-    for item_id, names in all_names.items():
-        for word in {w for n in names for w in _words(n) if len(w) >= NEAR_MISS_MIN}:
-            index.setdefault(word, []).append(item_id)
+    """[(question word, item id)] for words of the question that are no word of any item name but close to one
+    ("wieviel Aroniun hab ich" -> Aronium, "Paraphinium" -> Paraffinium): the persona said 0 or "no data" for a
+    typo before (2026-10-09). Only words of NEAR_MISS_MIN+ letters, no stopwords, at most NEAR_MISS_MAX words."""
+    global _index_cache
+    if _index_cache[0] is not all_names or _index_cache[1] != len(all_names):    # ~50 ms to build: once per names
+        _index_cache = (all_names, len(all_names), _NameIndex.build(all_names))
+    index = _index_cache[2]
     out: list[tuple[str, str]] = []
     for word in dict.fromkeys(w for w in _words(question) if len(w) >= NEAR_MISS_MIN and w not in STOPWORDS):
-        if word in index or any(word.removesuffix(end) in index for end in ("s", "n", "en", "e", "es")):
+        if word in index.real or any(word.removesuffix(end) in index.real for end in PLURAL_ENDS):
             continue                  # a real item word (or its plural): no typo
-        close = difflib.get_close_matches(word, list(index), n=1, cutoff=NEAR_MISS_CUTOFF)
-        if close and len(index[close[0]]) == 1:
-            out.append((word, index[close[0]][0]))
+        item_id = index.closest(word)
+        if item_id:
+            out.append((word, item_id))
     return out[:NEAR_MISS_MAX]
 
 
