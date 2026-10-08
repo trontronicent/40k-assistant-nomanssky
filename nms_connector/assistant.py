@@ -26,6 +26,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 
+from .merging import is_merge_question, merge_lines
+
 WORD_RE = re.compile(r"[\w'-]+", re.UNICODE)
 MIN_WORD = 4                      # question words shorter than this never match by themselves
 # Words of a question that name no item (English and German).
@@ -66,6 +68,7 @@ PLACE_WORDS = {
     "lagern": ("Storage Container", "Other storage"), "schiffen": ("Starship",), "frachtern": ("Freighter",),
 }
 TRADE_GOODS_RE = re.compile(r"trade ?goods?|trade commodit|handelsware|handelsgüter|handelsgut|commodit", re.I)
+CONTAINER_WORDS = {"container", "containers", "containern", "behälter", "behältern", "lagerbehälter", "lagerbehältern"}
 MAX_PLACE_ROWS = 60
 MAX_ITEMS = 12
 TOP_STACKS = 25
@@ -151,6 +154,8 @@ def places_asked(question: str, snap: dict) -> list[str]:
         wanted.update(PLACE_WORDS.get(w, ()))
     if not wanted:
         return []
+    if CONTAINER_WORDS & set(words):        # "storage containers" are the numbered containers, not the other storage
+        wanted.discard("Other storage")
     # "ship" means the one you fly; "ships" all of them.
     primary_only = "Starship" in wanted and not ({"ships", "schiffe", "starships", "raumschiffe"} & set(words))
     numbers = {int(w) for w in words if w.isdigit() and int(w) < 10}
@@ -335,30 +340,47 @@ def _missing_items(question: str, have: dict, all_names: dict[str, list[str]]) -
         len(n) >= MIN_WORD and f" {' '.join(_words(n))} " in q_text for n in names if n)][:5]
 
 
-def build_context(question: str, snap: dict | None, lookups: ItemLookups, status_lines: list[str],
-                  extra_lines: list[str]) -> str:
-    """The data text for one question: `status_lines` (ready-made), the trade goods by kind when asked, the items the
-    question names with totals and places, or the contents of a named inventory, or the largest stacks; then the
-    inventory overview and `extra_lines` (ready-made)."""
-    if not snap:
-        return "No save has been read yet, so there is no game data."
-    out = list(status_lines)
+def _names_a_place(names: list[str]) -> bool:
+    """True when every name of an item is made of place words only ('Storage Container', 'Lagerbehälter')."""
+    return bool(names) and all(w in PLACE_WORDS for name in names for w in _words(name))
+
+
+def _question_sections(question: str, snap: dict, lookups: ItemLookups) -> list[str]:
+    """The part of the data that depends on the question: stacks to merge, or the trade goods by kind, the items the
+    question names, the contents of a named inventory, or the largest stacks."""
+    asked = places_asked(question, snap)
+    if is_merge_question(question):        # the plugin finds the duplicates - the model only copies them
+        scope = [(p, [r for r in rows if ITEM_ID_RE.match(str(r[0]))]) for p, rows in places(snap) if not asked or p in asked]
+        named = set(match_items(question, {i: lookups.names_of(i) for i in holdings(snap)}))
+        return merge_lines(scope, lookups.name_of, named)
+    out: list[str] = []
     have = holdings(snap)
     matched = match_items(question, {item_id: lookups.names_of(item_id) for item_id in have})
-    trade_goods = bool(TRADE_GOODS_RE.search(question or ""))
-    if trade_goods:
+    if TRADE_GOODS_RE.search(question or ""):
         matched = list(dict.fromkeys([i for i in have if i.startswith("TRA_")] + [m for m in matched if m.startswith("TRA_")]))
-        lines = lookups.kind_lines(places_asked(question, snap) or None) if lookups.kind_lines else []
+        lines = lookups.kind_lines(asked or None) if lookups.kind_lines else []
         if lines:
             out += [""] + lines
     missing = _missing_items(question, have, lookups.all_names)
-    asked = places_asked(question, snap)
+    if asked:        # "Lagerbehälter" is the place and also the name of the Storage Container item: here, the place
+        matched = [i for i in matched if not _names_a_place(lookups.names_of(i))]
+        missing = [i for i in missing if not _names_a_place(lookups.all_names[i])]
     if matched or missing:
         out += _named_items_section(matched, missing, have, lookups)
     if asked:        # a named place always lists its contents - an item matched by chance must not replace them
         out += _place_sections(asked, snap, lookups)
     elif not (matched or missing) and INVENTORY_WORDS & set(_words(question)):
         out += _largest_stacks(have, lookups)
+    return out
+
+
+def build_context(question: str, snap: dict | None, lookups: ItemLookups, status_lines: list[str],
+                  extra_lines: list[str]) -> str:
+    """The data text for one question: `status_lines` (ready-made), the sections the question asks for
+    (`_question_sections`), then the inventory overview and `extra_lines` (ready-made)."""
+    if not snap:
+        return "No save has been read yet, so there is no game data."
+    out = list(status_lines) + _question_sections(question, snap, lookups)
     counts = [(place, sum(1 for r in rows if ITEM_ID_RE.match(str(r[0])))) for place, rows in places(snap)]
     out += ["", "Inventories: " + "; ".join(f"{place} ({n} stacks)" for place, n in counts if n)]
     return "\n".join(out + extra_lines)

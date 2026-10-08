@@ -130,17 +130,65 @@ def build_merge(question):
     return assistant.build_context(question, snap, lookups(MERGE_NAMES), ["STATUS"], [])
 
 
-def test_merge_questions_list_the_contents_of_every_storage_container_in_english_and_german():
-    """The same request in English and in two German wordings must give the persona the contents of both storage
-    containers (the rows it needs to find an item in two of them) and no stray 'Items the question names' section.
-    Before: 'sich' matched 'Sich selbst reparierendes Heridium' and 'Containern' the Storage Container items, and an
-    item match replaced the container contents, so the model could only answer 'the data has no contents'."""
-    for question in MERGE_QUESTIONS:
+def test_a_non_merge_place_question_lists_the_contents_in_english_and_german():
+    """'What is in my containers?' (English, German with the dative plural 'Containern') names no item, so the
+    persona gets the contents of both storage containers. Before: 'sich' matched 'Sich selbst reparierendes
+    Heridium' and 'Containern' the Storage Container items, and an item match replaced the container contents."""
+    for question in ("What is in my storage containers?", "Was liegt in meinen Containern?",
+                     "Zeig mir den Inhalt der Lagerbehälter, die sich auf dem Frachter befinden"):
         text = build_merge(question)
         assert "Contents of Storage Container 0 (2 stacks):" in text, question
         assert "Contents of Storage Container 7 (2 stacks):" in text, question
-        assert "- Copper [YELLOW2]: 581" in text and "- Copper [YELLOW2]: 119" in text, question
-        assert "Items the question names" not in text, question
+        assert "Items the question names" not in text and "Stacks that can be merged" not in text, question
+
+
+def test_merge_questions_get_the_stacks_to_merge_not_the_contents():
+    """English and German merge wordings (incl. the two of the chat of 2026-10-08) get the 'Stacks that can be
+    merged' section: copper is in both containers (581 + 119 fits in one stack), nothing else is listed, and the
+    raw contents, an item section and trade goods are not added - the plugin did the grouping the model got wrong."""
+    for question in MERGE_QUESTIONS + ["Welche Items liegen in mehr als einem Lagerbehälter?",
+                                       "Which items are in several containers and could be merged?"]:
+        text = build_merge(question)
+        assert "Stacks that can be merged" in text, question
+        assert "- Copper [YELLOW2]: 700 in 2 stacks, stack limit 9,999 -> 1 stack after merging - "                "Storage Container 0: 581; Storage Container 7: 119" in text, question
+        assert "Contents of" not in text and "Items the question names" not in text, question
+        assert "[EX_YELLOW]" not in text and "[CAVE1]" not in text, question     # one stack in the asked inventories
+
+
+def test_merge_without_a_named_place_looks_across_all_inventories():
+    """'Which items have several stacks I could merge?' names no place: cobalt in the exosuit and in container 7
+    (1,875 + 3,052) is a candidate too, with each place and its amount."""
+    text = build_merge("Which items have several stacks that I could merge?")
+    assert "- Cobalt [CAVE1]: 4,927 in 2 stacks" in text and "Exosuit: 1,875; Storage Container 7: 3,052" in text
+
+
+def test_merging_respects_the_stack_limit_and_names_lookalikes():
+    """Two full stacks cannot merge (nothing saved: left out); 30 + 5 with limit 40 -> 1 stack. Two ids with the
+    same name (the two Geode items) are each flagged as a different item than the other, never added together."""
+    from nms_connector import merging
+    places = [("A", [["FULL", 9999, 9999], ["PART", 30, 40], ["GEODE_LAND", 40, 100], ["GEODE_CAVE", 30, 100]]),
+              ("B", [["FULL", 9999, 9999], ["PART", 5, 40], ["GEODE_LAND", 30, 100], ["GEODE_CAVE", 30, 100]])]
+    text = "\n".join(merging.merge_lines(places, lambda i: "Geode" if i.startswith("GEODE") else i))
+    assert "[FULL]" not in text and "- PART [PART]: 35 in 2 stacks, stack limit 40 -> 1 stack after merging" in text
+    assert "(not the same item as GEODE_CAVE: same name, other id)" in text
+    assert "(not the same item as GEODE_LAND: same name, other id)" in text
+
+
+def test_merging_nothing_to_merge_says_so():
+    """When no item has stacks that would fit together the section says 'none', so the model does not invent any."""
+    from nms_connector import merging
+    text = "\n".join(merging.merge_lines([("A", [["X", 9999, 9999]]), ("B", [["X", 9999, 9999]])], str))
+    assert "- none:" in text
+
+
+def test_is_merge_question_tells_merging_from_crafting():
+    """Merge wordings match; plain inventory and crafting questions do not (they must keep their own sections)."""
+    from nms_connector.merging import is_merge_question
+    for q in ("zusammengeführt werden können", "Stacks zusammenlegen", "doppelte Items", "merge my stacks",
+              "items in several containers", "one single stack please"):
+        assert is_merge_question(q), q
+    for q in ("Wie viel Kobalt habe ich?", "what can I craft with copper?", "Was ist in Container 7?"):
+        assert not is_merge_question(q), q
 
 
 def test_a_named_place_and_a_named_item_both_get_their_section():
@@ -155,3 +203,33 @@ def test_german_place_inflections_name_the_place():
     """'Containern', 'Behältern' and 'Lagern' (dative plurals) name the storage containers like 'containers' does."""
     for question in ("was liegt in meinen Containern", "was liegt in meinen Behältern", "was ist in meinen Lagern"):
         assert assistant.places_asked(question, snapshot()) == ["Storage Container 0", "Storage Container 7"], question
+
+
+def test_storage_containers_do_not_include_the_other_storage():
+    """'Storage Containern' / 'Lagerbehälter' name the numbered containers only; 'storage' or 'Lager' alone keep
+    meaning containers and the other storage. Seen 2026-10-08: the merge list held CookingIngredients and ChestMagic."""
+    snap = snapshot()
+    snap["storage"].append({"number": None, "key": "CookingIngredientsInventory", "rows": [["YELLOW2", 5, 9999]]})
+    assert assistant.places_asked("merge items in storage containers", snap) == ["Storage Container 0", "Storage Container 7"]
+    assert assistant.places_asked("Was liegt in den Lagerbehältern", snap) == ["Storage Container 0", "Storage Container 7"]
+    assert "Other storage (CookingIngredients)" in assistant.places_asked("what is in my storage", snap)
+
+
+def test_a_named_item_that_does_not_fit_in_one_stack_is_explained():
+    """'Can I merge my cobalt into one stack?' - cobalt (1,875 + 3,052 = 4,927) fits, but with a limit of 3,000 it
+    would not: the line says there is no saving instead of the persona answering about another cobalt item."""
+    from nms_connector import merging
+    places = [("Exosuit", [["CAVE1", 1875, 3000]]), ("Storage Container 7", [["CAVE1", 3052, 3000]])]
+    text = "\n".join(merging.merge_lines(places, lambda i: "Cobalt", {"CAVE1"}))
+    assert "- Cobalt [CAVE1]: 4,927 in 2 stacks, stack limit 3,000 -> 2 stacks after merging" in text
+    assert "no saving: the amounts do not fit into fewer stacks" in text
+    assert "- none:" in "\n".join(merging.merge_lines(places, lambda i: "Cobalt"))     # not named: left out
+
+
+def test_the_merge_list_is_capped():
+    """A vague question over every inventory lists at most MAX_LINES items and says how many more there are."""
+    from nms_connector import merging
+    rows = [[f"I{n}", 1, 10] for n in range(40)]
+    lines = merging.merge_lines([("A", rows), ("B", rows)], str)
+    items = [line for line in lines if line.startswith("- I")]
+    assert len(items) == merging.MAX_LINES and lines[-1].startswith("- ... and 15 more items")

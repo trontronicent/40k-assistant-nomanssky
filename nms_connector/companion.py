@@ -18,7 +18,7 @@ import re
 import time
 from datetime import date
 
-from . import (assistant, cooking, logs, galaxy, page as page_module, planet_search, planets_view, recipes, seasons,
+from . import (assistant, cooking, logs, galaxy, merging, page as page_module, planet_search, planets_view, recipes, seasons,
                settlements, timers, trade)
 
 PERSONA_PROMPT = (
@@ -184,7 +184,7 @@ class PluginCompanion:
         lookups = self._item_lookups(snap, ctx, here, name_of)
         return {"title": "No Man's Sky", "text": assistant.build_context(question, snap, lookups, status, extra),
                 # How the plugin asks its data to be answered - outside the data block (app 3.12.0).
-                "instructions": answer_rules,
+                "instructions": answer_rules + ([merging.RULE] if merging.is_merge_question(question) else []),
                 # The Settings tab's "Single Context Per Question": this plugin's persona gets no earlier turns (3.11.0).
                 "single_context": bool(c.settings.single_context)}
 
