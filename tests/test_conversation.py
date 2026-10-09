@@ -85,3 +85,33 @@ def test_nanites_are_a_currency_not_an_inventory_item():
     item record TECHFRAG_R is also named Nanites; the currencies stay with the status line."""
     from nms_connector import assistant
     assert {"UNITS", "NANITES", "QUICKSILVER", "TECHFRAG_R"} <= assistant.CURRENCY_IDS
+
+
+def test_the_follow_up_label_of_the_app_is_removed_before_matching():
+    """'(follow-up to the user's previous message: ...)' carries the word 'message', which matched the item Message in
+    a Bottle: 3 of 10 ordinal follow-ups ('and the last one?') were answered about a bottle. Only the label goes; the
+    earlier question stays, also in the plural form for a chain of follow-ups."""
+    one = "and the last one?" + chr(10) * 2 + "(follow-up to the user's previous message: recipe for ammonia)"
+    many = "und das?" + chr(10) * 2 + "(follow-up to the user's previous messages, oldest first: a / b)"
+    assert conversation.plain_question(one).endswith("(recipe for ammonia)") and "message" not in conversation.plain_question(one)
+    assert conversation.plain_question(many).endswith("(a / b)") and "message" not in conversation.plain_question(many)
+    assert conversation.plain_question("how much copper") == "how much copper"
+
+
+def test_the_recipes_of_a_wrapped_follow_up_are_those_of_the_earlier_question(tmp_path, monkeypatch):
+    """The recipe lines for a wrapped follow-up name the item of the earlier question and not the bottle the label's
+    word 'message' used to match (the item exists in the game: Message in a Bottle). Without the label removal this
+    test returns 'How to get Message in a Bottle' as well."""
+    from test_connector import FakeCtx, create_plugin
+    from test_recipes import ITEMS, book
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    plugin.tables.recipes = book()
+    plugin.gamedata.items = dict(ITEMS, BOTTLE={"en": "Message in a Bottle", "local": "Flaschenpost",
+                                                "desc_en": "A sealed bottle."})
+    wrapped = "and the last one?" + chr(10) * 2 + "(follow-up to the user's previous message: recipe for ammonia)"
+    words = {"and", "the", "last", "one", "recipe", "for", "ammonia", "message"}
+    labelled = " ".join(plugin.companion.recipe_lines(wrapped, words))
+    plain = " ".join(plugin.companion.recipe_lines(conversation.plain_question(wrapped), words))
+    assert "Bottle" in labelled and "How to get Ammonia" in labelled          # the old behaviour, for the record
+    assert "How to get Ammonia" in plain and "Bottle" not in plain

@@ -71,7 +71,8 @@ PERSONA_PROMPT = (
     "says the item is unknown, or nothing matches) is not in No Man's Sky: say so; do not substitute a similar "
     "item. A question that has nothing to do with the game (general knowledge, programming, jokes): answer in a "
     "sentence or two or say you are here for No Man's Sky; never list game items for it. Say \"I\" as the "
-    "companion, not \"the plugin\".\n\n"
+    "companion, not \"the plugin\". Never write a line such as \"Total: data not available\" and never cite "
+    "\"[GAME DATA]\" as a source: when the question needs no amount, start with the answer.\n\n"
     "For general No Man's Sky questions (recipes, mechanics, lore) use the Codex excerpts or web search results when "
     "you are given them and cite them as given; otherwise answer from your own knowledge and say that it is not from "
     "their save. The player's own numbers come only from the game data. Be concise and friendly; answer in the "
@@ -114,8 +115,23 @@ RECIPE_WORDS = {"recipe", "recipes", "refine", "refiner", "refining", "craft", "
                 "bekommen", "finden", "wo", "abbauen", "gewinnen", "erzeugen", "farmen", "woher",
                 # 2026-10-09: "how do I create X?" and the split German verb "wie stelle ich X her?" got no recipes
                 "create", "creating", "build", "synthesize", "synthesise", "stelle", "stellen", "stellt",
-                "erstellen", "erstelle", "craften", "crafte", "baue", "mache", "kriege", "kriegen"}
+                "erstellen", "erstelle", "craften", "crafte", "baue", "mache", "kriege", "kriegen",
+                # Spanish, French, Italian (2026-10-09: "¿Cómo consigo amoníaco?" got no recipes)
+                "como", "cómo", "consigo", "conseguir", "obtener", "encontrar", "fabricar", "receta", "recetas",
+                "dónde", "donde", "recette", "recettes", "comment", "obtenir", "trouver", "fabriquer", "où",
+                "ricetta", "ricette", "ottenere", "trovare", "dove", "come", "ottengo", "trovo"}
 MAX_RECIPE_ITEMS = 3
+# Chat test 2026-10-09: the settlement figures came back as "Population: 21/69 | Happiness: 62% | ..." although the
+# prompt forbids label lists; a note beside the figures is closer to the answer than the prompt.
+SENTENCE_NOTE = ("(Answer about the settlement in full sentences - \"Kay City has 21 of 69 inhabitants and 62 % "
+                 "happiness; it produces ...\" - not as a list of labels.)")
+# "what about the second one?" after a recipe answer: the model sees one question only, so the recipes are numbered
+# in the order of the answer before (same order every time) and the note says which one is meant.
+ORDINAL_WORDS = {"first", "second", "third", "fourth", "last", "1st", "2nd", "3rd", "4th", "erste", "ersten", "zweite",
+                 "zweiten", "dritte", "dritten", "vierte", "vierten", "letzte", "letzten", "premier", "deuxième",
+                 "segundo", "tercero", "secondo"}
+ORDINAL_NOTE = ("  (The player means one of the numbered recipes above by its position - first = 1, second = 2 ..., last = the highest number - "
+                "answered earlier in the same order: give that recipe in full, without stock totals or locations.)")
 MAX_RECIPES_PER_ITEM = 6
 
 PLANET_WORDS = {"planet", "planets", "planeten", "welt", "welten", "world", "worlds", "mond", "monde", "moon", "moons"}
@@ -179,6 +195,7 @@ class PluginCompanion:
     def _chat_context(self, question: str) -> dict:
         c = self.connector
         which = conversation.kind(question)
+        question = conversation.plain_question(question)
         if which:                       # a greeting or a request for the instructions: no game data on purpose
             return {"title": "No Man's Sky", "text": conversation.minimal_text(which), "instructions": [],
                     "single_context": bool(c.settings.single_context)}
@@ -278,7 +295,7 @@ class PluginCompanion:
 
         def names_of(item_id):
             entry = c.gamedata.lookup(item_id) or {}
-            return [n for n in dict.fromkeys([entry.get("en"), entry.get("local")]) if n]
+            return [n for n in dict.fromkeys([entry.get("en"), entry.get("local"), *c.gamedata.alt_of(item_id)]) if n]
 
         def item_notes(item_id):
             hint = ctx.trade_hint(item_id)        # trade goods: who pays well, the nearest known such system
@@ -475,7 +492,7 @@ class PluginCompanion:
         book = c.tables.recipes
         if not (words & RECIPE_WORDS) or book is None or not book.recipes:
             return []
-        names = c.gamedata.names()
+        names = c.gamedata.names_with_alt()        # also French, Spanish ... names (2026-10-09)
         lookup = c.gamedata.lookup
         out = []
         # A misspelt name ("wie stelle ich Paraphine her?") is read as the item it is closest to (2026-10-09).
@@ -492,8 +509,10 @@ class PluginCompanion:
             out.append(f"How to get {recipes.item_label(lookup, item)} (from the game's files):")
             if entry.get("desc_en"):
                 out.append("  where it comes from: " + " ".join(entry["desc_en"].split()))
-            for r in refined[:MAX_RECIPES_PER_ITEM]:
-                out.append("  refiner: " + recipes.recipe_line(lookup, r, c.tables.terms))
+            for n, r in enumerate(refined[:MAX_RECIPES_PER_ITEM], 1):       # numbered: "the second one" can point at one
+                out.append(f"  refiner {n}: " + recipes.recipe_line(lookup, r, c.tables.terms))
+            if refined and words & ORDINAL_WORDS:
+                out.append(ORDINAL_NOTE)
             if len(refined) > MAX_RECIPES_PER_ITEM:
                 out.append(f"  ... {len(refined) - MAX_RECIPES_PER_ITEM} more refiner recipes")
             if crafted:
@@ -579,6 +598,8 @@ class PluginCompanion:
                 out.append(f"  construction: {build['label']} - " + (f"finished at {timers.clock(build['ends_at'])}"
                            if build["ends_at"] <= now else f"ends {timers.clock(build['ends_at'])}"))
             out.append(f"  perks: {len(s['perks'])} (details in the plugin's Settlements tab)")
+        if out:
+            out.append(SENTENCE_NOTE)
         return out
 
     def economy_lines(self, question: str, ctx, here) -> list[str]:

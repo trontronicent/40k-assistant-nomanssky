@@ -1,11 +1,12 @@
 """Recipes from the game's files (recipes.py): the refiner/cooking table, crafting requirements, the recipe book,
 the Codex documents written from it and the persona's recipe lines."""
 
+import re
 import struct
 
 import pytest
 
-from nms_connector import mbin, recipes
+from nms_connector import companion, mbin, recipes
 
 ROOT, START = 0x10, 0x20
 
@@ -206,10 +207,27 @@ def test_the_persona_gets_recipes_when_the_question_asks_how_to_get_an_item(tmp_
     lines = plugin.companion.recipe_lines("Wie bekomme ich Ammoniak?", {"wie", "bekomme", "ich", "ammoniak", "bekommen"})
     assert lines[0] == "How to get Ammonia (Ammoniak) (from the game's files):"
     assert any("toxic environment" in line for line in lines)
-    assert any(line.startswith("  refiner: 2 Fungal Mould (Pilzschimmel) + 1 Salt (Salz) → 1 Ammonia") for line in lines)
+    assert any(re.match(r"  refiner \d: 2 Fungal Mould \(Pilzschimmel\) \+ 1 Salt \(Salz\) → 1 Ammonia", line) for line in lines)
     assert plugin.companion.recipe_lines("How much Ammonia do I have?", {"how", "much", "ammonia", "do", "i", "have"}) == []
     copper = plugin.companion.recipe_lines("where do I find copper", {"where", "do", "i", "find", "copper"})
     assert copper[-1] == "  no refiner or crafting recipe makes it: it is gathered only"
+
+
+def test_recipes_are_numbered_and_an_ordinal_follow_up_says_which_one(tmp_path, monkeypatch):
+    """Chat test 2026-10-09: 'what about the second one?' after a recipe answer was garbled ('Totals: data not
+    available'), since the model sees one question only. The refiner recipes are numbered in the fixed order of the
+    earlier answer and an ordinal word adds a note naming the numbered recipe as the one meant."""
+    from test_connector import FakeCtx, create_plugin
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    plugin.tables.recipes = book()
+    plugin.gamedata.items = dict(ITEMS)
+    plain = plugin.companion.recipe_lines("recipe for ammonia", {"recipe", "for", "ammonia"})
+    assert [line.split(":")[0] for line in plain if "refiner" in line] == ["  refiner 1", "  refiner 2"]
+    assert companion.ORDINAL_NOTE not in plain
+    wrapped = "what about the second one?" + chr(10) * 2 + "(follow-up to the user's previous message: recipe for ammonia)"
+    follow = plugin.companion.recipe_lines(wrapped, {"recipe", "second", "one", "ammonia"})
+    assert companion.ORDINAL_NOTE in follow and [l for l in follow if "refiner" in l] == [l for l in plain if "refiner" in l]
 
 
 def test_an_item_that_is_no_raw_material_is_not_called_gathered(tmp_path, monkeypatch):
@@ -226,6 +244,25 @@ def test_an_item_that_is_no_raw_material_is_not_called_gathered(tmp_path, monkey
     assert "do not say it is gathered" in lines[-1] and "gathered only" not in lines[-1]
     copper = plugin.companion.recipe_lines("where do I find copper", {"where", "do", "i", "find", "copper"})
     assert copper[-1].endswith("it is gathered only")
+
+
+def test_recipes_are_found_for_a_question_in_spanish_french_or_italian(tmp_path, monkeypatch):
+    """Chat test 2026-10-09: '¿Cómo consigo amoníaco?' got no recipes - the item was only known by its English and
+    German names and 'cómo consigo' was no recipe phrase. With the names in the other languages (gamedata.alt) and
+    their recipe words the four Ammonia recipes are found, also for a name typed without its accent."""
+    from test_connector import FakeCtx, create_plugin
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    plugin.tables.recipes = book()
+    plugin.gamedata.items = dict(ITEMS)
+    plugin.gamedata.alt = {"TOXIC1": ["Ammoniac", "Amoníaco", "Ammoniaca"]}
+    for question in ("¿Cómo consigo amoníaco?", "Comment fabriquer de l'ammoniac ?", "Come ottengo ammoniaca?",
+                     "como consigo amoniaco"):
+        words = set(re.findall(r"[\w'-]+", question.lower()))
+        lines = plugin.companion.recipe_lines(question, words)
+        assert lines and lines[0].startswith("How to get Ammonia"), question
+    plugin.gamedata.alt = {}
+    assert plugin.companion.recipe_lines("¿Cómo consigo amoníaco?", {"cómo", "consigo", "amoníaco"}) == []
 
 
 def test_recipes_for_a_misspelt_item_and_the_split_german_verb(tmp_path, monkeypatch):

@@ -28,6 +28,9 @@ from .hgpak import PAK_HINTS, TABLE_DIR, PakError, PakSet, ZstdUnavailable
 CACHE_FORMAT = 7                 # 2: categories, descriptions (0.9.0); 3-4: upgrade texts, fill-ins; 5: product
                                  # base values (0.10.0); 6: substance base values too (2026-10-07)
 DESC_CHARS = 600
+# Other languages whose item names the persona also understands (a separate cache, alt_names.json).
+ALT_LANGUAGES = ("french", "italian", "spanish", "portuguese", "dutch")
+ALT_FORMAT = 1
 ICON_PX = 64
 # Tables that hold everything an inventory slot can contain; first one wins an id clash.
 PROC_TABLE = "nms_reality_gcproceduraltechnologytable"
@@ -145,19 +148,46 @@ def _read_item_tables(paks: PakSet) -> tuple[dict[str, mbin.ItemRecord], dict[st
     return records, upgrade_texts, raw
 
 
+def _language_strings(paks: PakSet, wanted: set[str], lang: str) -> dict[str, str] | None:
+    """{key: text} of the wanted keys in one language, or None when the game has no such language files."""
+    files = paks.names_matching("language/", f"_{lang}.mbin")
+    if not files:
+        return None
+    merged: dict[str, str] = {}
+    for name in files:
+        for key, text in mbin.parse_language_table(paks.read(name), wanted).items():
+            merged.setdefault(key, text)
+    return merged
+
+
 def _read_item_strings(paks: PakSet, wanted: set[str], language: str) -> dict[str, dict[str, str]]:
     """{language: {key: text}} of the wanted keys, English and (when different) the game's language."""
     strings: dict[str, dict[str, str]] = {}
     for lang in (["english"] if language == "english" else ["english", language]):
-        files = paks.names_matching("language/", f"_{lang}.mbin")
-        if not files:
+        merged = _language_strings(paks, wanted, lang)
+        if merged is None:
             raise GameDataError(f"the game has no '{lang}' language files")
-        merged: dict[str, str] = {}
-        for name in files:
-            for key, text in mbin.parse_language_table(paks.read(name), wanted).items():
-                merged.setdefault(key, text)
         strings[lang] = merged
     return strings
+
+
+def build_alt_names(paks: PakSet, language: str) -> dict[str, list[str]]:
+    """{item id: names in the other big Latin-script languages} (ALT_LANGUAGES without English and the game's
+    language; a language the game lacks is skipped). Lets a player who writes Spanish or French find "amoníaco" /
+    "ammoniac" - the persona matched only English and the game's language (chat test 2026-10-09: Spanish got no recipes)."""
+    records, _upgrades, _raw = _read_item_tables(paks)
+    keys = {k for r in records.values() for k in (r.name_key, r.lower_key, r.subtitle_key) if k}
+    tables = {}
+    for lang in ALT_LANGUAGES:
+        strings = None if lang in ("english", language) else _language_strings(paks, keys, lang)
+        if strings:
+            tables[lang] = strings
+    out: dict[str, list[str]] = {}
+    for item_id, record in records.items():
+        names = list(dict.fromkeys(n for strings in tables.values() if (n := mbin.display_name(record, strings))))
+        if names:
+            out[item_id] = names
+    return out
 
 
 def _item_values(raw: dict[str, bytes], known_ids: set[str]) -> dict[str, int]:
@@ -304,6 +334,11 @@ class GameData:
         self.stored = False                            # True: adopted from the cache without the game files
         self._names: dict[str, list[str]] = {}
         self._names_for: dict | None = None            # the items dict `_names` was built from
+        self.alt: dict[str, list[str]] = {}            # item id -> names in ALT_LANGUAGES (alt_names.json)
+        self.alt_build: str | None = None              # the build `alt` was loaded for (tried once per build)
+        self.alt_cache_file = Path(data_dir) / "gamedata" / "alt_names.json"
+        self._alt_names: dict[str, list[str]] = {}
+        self._alt_names_for: tuple | None = None
         self.built_at: str | None = None
         self.build_seconds: float | None = None
         self.error: str | None = None
@@ -331,8 +366,52 @@ class GameData:
             self._names_for = self.items
         return self._names
 
+    def names_with_alt(self) -> dict[str, list[str]]:
+        """`names()` plus the names in the other languages (ALT_LANGUAGES): for matching what a player wrote in
+        French, Spanish ... against items they ask the recipe of. Built once per items/alt pair."""
+        marker = (id(self.items), id(self.alt))
+        if self._alt_names_for != marker:
+            self._alt_names = {i: list(dict.fromkeys(n + self.alt.get(i, []))) for i, n in self.names().items()}
+            self._alt_names_for = marker
+        return self._alt_names
+
+    def alt_of(self, item_id: str) -> list[str]:
+        """The item's names in ALT_LANGUAGES (empty before they are loaded)."""
+        return self.alt.get(item_key(item_id), [])
+
+    def load_alt_names(self, install: GameInstall) -> None:
+        """Adopt the alternative-language names cached for this build and language, else read them from the game's
+        language files and cache them. Never raises: without them the persona knows English and the game's language."""
+        self.alt_build = install.build_id
+        cached = logs.read_json(self.alt_cache_file, "The alternative item names cache")
+        if (isinstance(cached, dict) and cached.get("format") == ALT_FORMAT and isinstance(cached.get("names"), dict)
+                and cached.get("build_id") == install.build_id and cached.get("language") == install.language):
+            self.alt = cached["names"]
+            return
+        try:
+            with PakSet(install.pcbanks, PAK_HINTS) as paks:
+                self.alt = build_alt_names(paks, install.language)
+        except (OSError, PakError, GameDataError, mbin.MbinError, ZstdUnavailable) as exc:
+            logs.warn_once("alt-names", "Item names in other languages could not be read: %s: %s", type(exc).__name__, exc)
+            self.alt = {}
+            return
+        try:
+            self.alt_cache_file.parent.mkdir(parents=True, exist_ok=True)
+            self.alt_cache_file.write_text(json.dumps(
+                {"format": ALT_FORMAT, "build_id": install.build_id, "language": install.language, "names": self.alt},
+                ensure_ascii=False), encoding="utf-8")
+        except OSError as exc:
+            logs.warn_once("alt-names-write", "The alternative item names cache could not be written: %s", exc)
+
+    def load_stored_alt_names(self) -> None:
+        """The cached alternative names of whatever build (the game's files cannot be found)."""
+        cached = logs.read_json(self.alt_cache_file, "The alternative item names cache")
+        if isinstance(cached, dict) and cached.get("format") == ALT_FORMAT and isinstance(cached.get("names"), dict):
+            self.alt = cached["names"]
+
     def release(self) -> None:
         """Drop the item database, the texts and the name index from memory (the cache on disk stays)."""
+        self.alt, self._alt_names, self._alt_names_for = {}, {}, None
         self.items = {}
         self._texts, self._texts_for, self._unknown_texts = {}, None, set()
         self._names, self._names_for = {}, None

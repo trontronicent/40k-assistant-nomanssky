@@ -104,7 +104,17 @@ best refiner recipes with the refiner they need, and its crafting recipe.
 Ammoniak?*, *how do I make Sulphurine?*, *where do I find copper?* - and the persona
 gets, from the game's own files, where it comes from (the game's description: which
 planets, which tool), every refiner recipe that makes it with the refiner size it
-needs, and its crafting recipe; an item no recipe makes is gathered only.
+needs, and its crafting recipe; an item no recipe makes is gathered only when it is a raw
+material (a technology such as the Pulse Engine is not). Recipes are numbered, so a follow-up
+such as *and the second one?* or *und das dritte?* points at one. You can also ask in
+**French, Italian, Spanish, Portuguese or Dutch** (*¿Cómo consigo amoníaco?*, *Comment fabriquer
+de l'ammoniac ?*): the plugin reads the item names of these languages from the game's language
+files once per game build (`gamedata/alt_names.json`, about 0.7 MB) and answers in your language.
+
+**Small talk and jokes.** *hi*, *thanks*, *who are you?*, *tell me a joke* or random letters get a short
+answer without your game data; a request to print the persona's instructions or its raw data block is
+declined. Settlements are described in sentences, and a message that is no item question
+(*write a python function ...*) no longer lists look-alike items.
 
 **World types in German.** The plugin knows every name the game gives a kind of world, in English and the
 game's language. *stickig* is the German game's **airless** (a dead world without atmosphere - not "sticky"),

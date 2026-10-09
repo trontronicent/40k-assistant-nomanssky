@@ -433,8 +433,10 @@ class NmsConnector:
             if not self.gamedata.ready and await self.ctx.run_blocking(self.gamedata.load_stored):
                 self.ctx.logger.warning("[NMS] Game files not found: item database of build %s taken from the "
                                         "stored copy (%d items)", self.gamedata.build_id, len(self.gamedata.items))
+                await self.ctx.run_blocking(self.gamedata.load_stored_alt_names)
             return
         if self.gamedata.matches(self.install) and not force:
+            await self._ensure_alt_names()
             return
         if not force and self.gamedata.error and now - self._game_failed < GAME_RETRY_S:
             return
@@ -448,6 +450,12 @@ class NmsConnector:
             self.ctx.logger.info("[NMS] Item database: %d items, %s (build %s, %s s)", len(self.gamedata.items),
                                  self.gamedata.language_label, self.gamedata.build_id, self.gamedata.build_seconds)
             await self._ensure_icons()
+            await self._ensure_alt_names()
+
+    async def _ensure_alt_names(self) -> None:
+        """The item names in French, Italian, Spanish, Portuguese and Dutch (once per game build; a cache file)."""
+        if self.install and self.gamedata.ready and self.gamedata.alt_build != self.install.build_id:
+            await self.ctx.run_blocking(self.gamedata.load_alt_names, self.install)
 
     async def _ensure_texts(self) -> None:
         """The game texts the page and the persona need beyond item names - perk names, the current mission,

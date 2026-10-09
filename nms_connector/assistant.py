@@ -52,6 +52,9 @@ STOPWORDS = {
     "execute", "materials", "material", "currently", "right-now", "make", "made", "hold", "holding", "season",
     "seasons", "expedition", "expeditions", "dish", "dishes", "meal", "meals", "food", "today",
     "beste", "besten", "rezept", "rezepte", "kochen", "gericht", "gerichte", "wertvollste", "jetzt", "gerade",
+    # Ordinals of a follow-up ("and the last one?" matched the poster "Built to Last", 2026-10-09):
+    "first", "second", "third", "fourth", "last", "erste", "ersten", "zweite", "zweiten", "dritte", "dritten", "vierte",
+    "vierten", "letzte", "letzten",
 }
 INVENTORY_WORDS = {"inventory", "inventories", "items", "inventar", "carry", "carrying", "storage", "lager", "haben",
                    "have", "own", "besitze"}
@@ -76,8 +79,12 @@ TOP_STACKS = 25
 NEAREST_PLANETS = 3
 
 
+ELISION_RE = re.compile(r"\b(?:l|d|j|n|s|c|m|t|qu|dell|all|nell|sull|un)['\u2019]", re.I)
+
+
 def _words(text: str) -> list[str]:
-    return [w.lower() for w in WORD_RE.findall(text or "")]
+    """The lower-case words of a text; a French/Italian elision is cut off first ("l'ammoniac" -> "ammoniac")."""
+    return [w.lower() for w in WORD_RE.findall(ELISION_RE.sub(" ", text or ""))]
 
 
 def places(snap: dict) -> list[tuple[str, list]]:

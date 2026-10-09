@@ -359,6 +359,7 @@ def test_settlement_and_economy_questions_get_their_details(tmp_path):
     assert lines[0] == "Settlement Kay City: population 20 (Explorers)"
     assert "  a decision is waiting: Stranger visit" in lines and "  construction: Kay City: Farm built - finished at" in lines[2]
     assert plugin.companion.settlement_lines({"copper"}, 200.0) == []
+    assert lines[-1].startswith("(Answer about the settlement in full sentences")     # not a list of labels (2026-10-09)
     assert plugin.describe.settlements().startswith("Kay City: Farm finished, a decision is waiting")
 
 

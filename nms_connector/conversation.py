@@ -57,6 +57,16 @@ def _gibberish(word: str) -> bool:
     return len(word) >= 4 and any(word in row or word[::-1] in row for row in KEYBOARD_ROWS)
 
 
+WRAPPER_RE = re.compile(r"\(follow-up to the user's previous messages?(?:, oldest first)?: ?")
+
+
+def plain_question(question: str) -> str:
+    """The question without the app's follow-up label. The app appends "(follow-up to the user's previous message:
+    <earlier question>)" to a short message so the plugin sees what it is about; the label's own words matched items
+    ("message" -> Message in a Bottle: 3 of 10 ordinal follow-ups answered about a bottle, chat test 2026-10-09)."""
+    return WRAPPER_RE.sub("(", question or "")
+
+
 def kind(question: str) -> str | None:
     """"extraction", "small talk" or None for a question that needs the game data."""
     # The app appends "(follow-up to the user's previous message: ...)" to a short message: only the message counts.

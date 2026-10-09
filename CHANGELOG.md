@@ -24,6 +24,19 @@ extraction, follow-ups, typos, German/French/Spanish) against the live persona, 
   string* listed Piston, Funktion and Stirring Void Egg with "0 - not in any inventory").
 - **Currencies are no inventory items**: *how many units / nanites do I have?* no longer adds
   "UNITS: 0 - not in any of your inventories" (the status line holds the balance).
+- **Item names in French, Italian, Spanish, Portuguese and Dutch**: read from the game's language
+  files once per build into their own cache (`gamedata/alt_names.json`, ~0.7 MB; `items.json` and
+  its icons are untouched) and used for recipe questions and for items you own - *¿Cómo consigo
+  amoníaco?*, *Comment fabriquer de l'ammoniac ?*, *Come ottengo l'ammoniaca?*, *¿Cuánto cobre
+  tengo?* now find the item. Recipe words of these languages and the French/Italian elision
+  (*l'ammoniac*) are understood.
+- **Numbered recipes for follow-ups**: the refiner recipes are numbered and an ordinal word (*the
+  second one*, *und das dritte*, *the last one*) adds a note naming the numbered recipe.
+- **A bug in follow-ups**: the app's label "(follow-up to the user's previous message: ...)" put the
+  word *message* into the question and it matched the item *Message in a Bottle* (3 of 10 ordinal
+  follow-ups answered about a bottle). The label is removed before matching.
+- **Settlements in sentences**: a note beside the settlement figures asks for sentences; 9 of 9
+  answers (English and German) were full sentences instead of "Population: ... | Happiness: ...".
 - Persona prompt: conversation rules (answer only what was asked, no invented earlier turns,
   off-topic in a sentence, unknown items are not substituted, list recipes in full when the
   player says one exists).

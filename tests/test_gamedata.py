@@ -493,3 +493,42 @@ def test_substances_carry_their_base_value_too():
     assert gamedata.substance_values(data, {"OTHER", "IDS"}) == {}          # layout moved: no values
     assert gamedata.substance_values(b"short", {"X"}) == {}
     assert gamedata.substance_values(table([("ROCKETSUB", -5)]), {"ROCKETSUB"}) == {}
+
+
+def add_languages(game: GameInstall, **tables: dict[str, str]) -> None:
+    """Add language files (spanish=..., french=...) to the fake installation as one more pak."""
+    (game.pcbanks / "NMSARC.Languages.pak").write_bytes(build_pak(
+        {f"language/nms_loc1_{lang}.mbin": build_language(entries, slot=2) for lang, entries in tables.items()}))
+
+
+def test_item_names_in_other_languages_are_read_cached_and_kept_apart(tmp_path):
+    """Chat test 2026-10-09: '¿Cómo consigo amoníaco?' found no item because only English and the game's language were
+    known. Names in French/Italian/Spanish/Portuguese/Dutch are read from the language files into their own cache
+    (items.json is untouched, so no icon rebuild); `names()` stays English + local, `names_with_alt()` adds them;
+    a second start adopts the cache without the game files."""
+    game = make_game(tmp_path / "game")
+    add_languages(game, spanish={"UI_FUEL_1_NAME_L": "Carbono", "UI_CATA_NAME_L": "Sodio"},
+                  french={"UI_FUEL_1_NAME_L": "Carbone"})
+    data = GameData(tmp_path / "data")
+    data.load(game)
+    items_before = (data.cache_file.read_bytes())
+    data.load_alt_names(game)
+    assert data.alt["FUEL1"] == ["Carbone", "Carbono"]          # ALT_LANGUAGES order: French before Spanish
+    assert data.names()["FUEL1"] == ["Carbon", "Kohlenstoff"]
+    assert data.names_with_alt()["FUEL1"][:2] == ["Carbon", "Kohlenstoff"] and "Carbono" in data.names_with_alt()["FUEL1"]
+    assert data.alt_of("^FUEL1") and data.cache_file.read_bytes() == items_before
+    again = GameData(tmp_path / "data")
+    again.load_alt_names(GameInstall(tmp_path / "nothing", "100", "german", "steam"))     # cache hit: no files needed
+    assert again.alt == data.alt
+    other_build = GameData(tmp_path / "data")
+    other_build.load_alt_names(GameInstall(game.root, "101", "german", "steam"))           # new build: read again
+    assert other_build.alt == data.alt and other_build.alt_build == "101"
+
+
+def test_missing_language_files_leave_the_alternative_names_empty(tmp_path):
+    """A game without French/Spanish files (or unreadable ones) costs nothing: no names, no exception."""
+    game = make_game(tmp_path / "game")
+    data = GameData(tmp_path / "data")
+    data.load(game)
+    data.load_alt_names(game)
+    assert data.alt == {} and data.names_with_alt() == data.names() and data.alt_of("^FUEL1") == []

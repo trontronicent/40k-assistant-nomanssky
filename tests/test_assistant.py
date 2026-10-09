@@ -303,3 +303,20 @@ def test_a_currency_is_not_reported_as_an_item_the_player_lacks():
     names = dict(NAMES, UNITS=["UNITS", "UNITS"])
     text = assistant.build_context("how many units do I have?", snapshot(), lookups(names), ["Units 38,221,481"], [])
     assert "[UNITS]" not in text and "Units 38,221,481" in text
+
+
+def test_a_french_or_italian_elision_does_not_hide_the_item_word():
+    """'l'ammoniac' and 'dell'ammoniaca' are one token for the word regex; the elision is cut off so the item is
+    found. English contractions ('don't', 'it's') keep their words."""
+    assert assistant._words("Comment fabriquer de l'ammoniac ?") == ["comment", "fabriquer", "de", "ammoniac"]
+    assert assistant._words("la ricetta dell'ammoniaca") == ["la", "ricetta", "ammoniaca"]
+    assert assistant._words("don't tell me it's gold") == ["don't", "tell", "me", "it's", "gold"]
+
+
+def test_an_ordinal_of_a_follow_up_names_no_item():
+    """'and the last one?' matched the poster 'Built to Last' and answered with its recipe (chat test 2026-10-09).
+    Ordinals are stopwords: they never name an item by themselves."""
+    names = {"POSTER": ["Built to Last Poster", "Poster"], "SKIN1": ["Second Skin", "Zweite Haut"]}
+    for question in ("and the last one?", "what about the second one?", "und das dritte, zweite, letzte?"):
+        assert assistant.match_items(question, names) == [], question
+    assert assistant.match_items("recipe for the Built to Last Poster", names) == ["POSTER"]
