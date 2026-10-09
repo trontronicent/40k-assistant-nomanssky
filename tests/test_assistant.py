@@ -282,3 +282,24 @@ def test_misspellings_are_read_by_sound():
     assert assistant.near_miss_items("how much Paraffinium", names) == []
     assert assistant.near_miss_items("Wie viel Einhornstaub habe ich?", names) == []
     assert assistant.fold("Paraphinium") == assistant.fold("Paraffinium") == "parafinium"
+
+
+def test_a_long_message_without_an_item_cue_gets_no_near_miss_item():
+    """Chat test 2026-10-09: 'write me a python function that reverses a string' was read as Piston, Funktion and
+    Stirring Void Egg (three near matches), and the persona listed them with '0 - not in any inventory'. A message of
+    more than 6 words without an amount/recipe/place cue is no item question; short ones and ones with a cue keep
+    the typo reading."""
+    names = dict(NAMES, TRA_COMPONENT2=["Non-Stick Piston", "Antihaftkolben"], NEW_PERK=["Feature", "Funktion"],
+                 LUSH1=["Paraffinium", "Paraffinium"])
+    assert assistant.near_miss_items("write me a python function that reverses a string", names) == []
+    assert assistant.near_miss_items("how much Paraphinium do I have?", names) == [("paraphinium", "LUSH1")]
+    assert assistant.near_miss_items("I would like to know about the Paraphinium situation", names) == []
+    assert assistant.near_miss_items("I would like to know where to find Paraphinium", names) == [("paraphinium", "LUSH1")]
+
+
+def test_a_currency_is_not_reported_as_an_item_the_player_lacks():
+    """'how many units do I have?' printed 'UNITS [UNITS]: 0 - not in any of your inventories' beside the real balance
+    of the status line. Currencies are in the player state, so the item section leaves them out."""
+    names = dict(NAMES, UNITS=["UNITS", "UNITS"])
+    text = assistant.build_context("how many units do I have?", snapshot(), lookups(names), ["Units 38,221,481"], [])
+    assert "[UNITS]" not in text and "Units 38,221,481" in text

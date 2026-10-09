@@ -22,7 +22,7 @@ def test_a_request_for_the_instructions_or_the_raw_block_is_an_extraction(messag
 
 
 @pytest.mark.parametrize("message", [
-    "How much Copper do I have?", "where am I?", "recipe for ammonia", "asdf qwer", "yes", "ok, the second one",
+    "How much Copper do I have?", "where am I?", "recipe for ammonia", "yes", "ok, the second one",
     "Wie viel Kupfer habe ich?", "what is the pulse engine", "who is Nada?", "help me find Copper"])
 def test_real_questions_keep_the_game_data(message):
     """Questions (and short answers such as 'yes') are never small talk: the data block stays complete."""
@@ -58,3 +58,30 @@ def test_the_chat_context_of_small_talk_holds_no_game_data(tmp_path, monkeypatch
     result = plugin.companion.chat_context("hi")
     assert result["text"] == conversation.SMALL_TALK_TEXT and result["instructions"] == []
     assert "single_context" in result and "Units" not in result["text"]
+
+
+@pytest.mark.parametrize("message", ["asdf qwer zxcv", "qwertz", "hjkl", "xkcd brrr pfft", "asdfghjkl"])
+def test_a_key_mash_is_small_talk(message):
+    """Random letters ask nothing: the chat test of 2026-10-09 answered 'asdf qwer zxcv' with the whole status."""
+    assert conversation.kind(message) == "small talk"
+
+
+@pytest.mark.parametrize("message", ["how much ferrite", "what is a nexus", "Wieviel Kupfer", "where is my base"])
+def test_short_real_questions_are_not_key_mashes(message):
+    """Words with vowels that are not on a keyboard row stay questions."""
+    assert conversation.kind(message) is None
+
+
+@pytest.mark.parametrize("message", ["tell me a joke", "Erzähl mir einen Witz", "write a haiku about Gek"])
+def test_entertainment_requests_get_the_chatter_block(message):
+    """A joke or poem needs none of the player's data: the chat test of 2026-10-09 put units, nanites and location
+    in front of the joke. The block is its own text (a short piece, no numbers)."""
+    assert conversation.kind(message) == "chatter"
+    assert conversation.minimal_text("chatter") == conversation.CHATTER_TEXT
+
+
+def test_nanites_are_a_currency_not_an_inventory_item():
+    """'how many nanites do I have' said '3,007 Nanites. They are not located in any of your inventories' because the
+    item record TECHFRAG_R is also named Nanites; the currencies stay with the status line."""
+    from nms_connector import assistant
+    assert {"UNITS", "NANITES", "QUICKSILVER", "TECHFRAG_R"} <= assistant.CURRENCY_IDS

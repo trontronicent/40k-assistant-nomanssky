@@ -349,6 +349,16 @@ def _names_a_place(names: list[str]) -> bool:
 NEAR_MISS_CUTOFF = 0.84          # difflib ratio: "Aroniun" -> "Aronium" (0.86); at 0.8 "ersten" matched an emote item
 NEAR_MISS_MIN = 6                # shorter words are too likely to be a different word
 NEAR_MISS_MAX = 3
+# Kept in the player state, not in an inventory (TECHFRAG_R is the item record named "Nanites").
+CURRENCY_IDS = {"UNITS", "QUICKSILVER", "NANITES", "TECHFRAG_R"}
+NEAR_MISS_SHORT_WORDS = 6        # up to this many words a message may name an item without any cue word
+# Words that make a longer message an item question (amount, recipe, place of an item), English and German.
+ITEM_QUESTION_WORDS = {
+    "much", "many", "have", "has", "own", "owned", "count", "total", "recipe", "recipes", "craft", "make", "made",
+    "create", "refine", "get", "find", "where", "obtain", "mine", "need", "merge", "viel", "viele", "habe", "hab",
+    "besitze", "wieviel", "wo", "rezept", "rezepte", "herstellen", "stelle", "bekomme", "bekommen", "finden",
+    "gewinnen", "brauche", "zusammenlegen", "zusammenführen",
+}
 
 
 FOLDS = (("ph", "f"), ("th", "t"), ("ck", "k"), ("ß", "ss"), ("ä", "a"), ("ö", "o"), ("ü", "u"), ("y", "i"),
@@ -418,6 +428,9 @@ def near_miss_items(question: str, all_names: dict[str, list[str]]) -> list[tupl
     ("wieviel Aroniun hab ich" -> Aronium, "Paraphinium" -> Paraffinium): the persona said 0 or "no data" for a
     typo before (2026-10-09). Only words of NEAR_MISS_MIN+ letters, no stopwords, at most NEAR_MISS_MAX words."""
     global _index_cache
+    asked = set(_words(question))
+    if len(asked) > NEAR_MISS_SHORT_WORDS and not asked & ITEM_QUESTION_WORDS:
+        return []         # a long message with no item cue is no item question ("write a python function" -> Piston)
     if _index_cache[0] is not all_names or _index_cache[1] != len(all_names):    # ~50 ms to build: once per names
         _index_cache = (all_names, len(all_names), _NameIndex.build(all_names))
     index = _index_cache[2]
@@ -469,6 +482,10 @@ def _question_sections(question: str, snap: dict, lookups: ItemLookups) -> list[
         if lines:
             out += [""] + lines
     missing = _missing_items(question, have, lookups.all_names)
+    # Currencies are no inventory items: "how many units do I have?" said "UNITS: 0 - not in any inventory" beside
+    # the real balance of the status line (chat test 2026-10-09).
+    matched = [i for i in matched if i not in CURRENCY_IDS]
+    missing = [i for i in missing if i not in CURRENCY_IDS]
     if asked:        # "Lagerbehälter" is the place and also the name of the Storage Container item: here, the place
         matched = [i for i in matched if not _names_a_place(lookups.names_of(i))]
         missing = [i for i in missing if not _names_a_place(lookups.all_names[i])]

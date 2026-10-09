@@ -16,6 +16,14 @@ extraction, follow-ups, typos, German/French/Spanish) against the live persona, 
   raw material; the *Pulse Engine* is now "a technology, a reward or a purchase".
 - **No false typo match**: a misspelt name must keep its first letter, so *Dilithium* (no such
   item) is no longer read as *Lithium*.
+- **Key mashes and entertainment requests**: *asdf qwer zxcv* is treated like small talk; *tell
+  me a joke* / *Witz* / *haiku* get a block without the player's data (a joke no longer opens with
+  units, nanites and location).
+- **No item noise on off-topic messages**: a message of more than 6 words without an
+  amount/recipe/place cue gets no near-miss item reading (*write a python function that reverses a
+  string* listed Piston, Funktion and Stirring Void Egg with "0 - not in any inventory").
+- **Currencies are no inventory items**: *how many units / nanites do I have?* no longer adds
+  "UNITS: 0 - not in any of your inventories" (the status line holds the balance).
 - Persona prompt: conversation rules (answer only what was asked, no invented earlier turns,
   off-topic in a sentence, unknown items are not substituted, list recipes in full when the
   player says one exists).
