@@ -114,7 +114,17 @@ files once per game build (`gamedata/alt_names.json`, about 0.7 MB) and answers 
 **How many can I make?** Ask *How many Antimatter can I make?* or *Hab ich genug Antimaterie für 3
 Warpzellen?* and the plugin does the sum from your holdings: how often the crafting recipe and the best
 refiner recipes can be done, which ingredient limits it and, for a wanted number, what is missing.
+Asking **what something needs** does the same for one of it - *What do I need for a Warp Cell?*, *Which
+ingredients for Antimatter am I missing?*, *Was brauche ich für Antimaterie?*, *Welche Zutaten fehlen mir?*
 Ask for your **portal address in glyphs** and it names the glyphs (the community's English names).
+
+**Equipment of one ship or tool.** Name it - *What technology is installed in the Mad Falcon?* - and you get
+that ship's parts with what each does, instead of a little of everything. Without a name you get as much as
+fits, and the answer says which of your ships, tools and exocraft to ask about for the rest.
+
+**Empty containers and unnamed things.** A storage container that holds nothing says so, and names the
+containers that do. Items and parts the game has no name for - procedural loot, the corvette upgrades - are
+counted as *unnamed items*; their internal id is never read out to you.
 
 **Small talk and jokes.** *hi*, *thanks*, *who are you?*, *tell me a joke* or random letters get a short
 answer without your game data; a request to print the persona's instructions or its raw data block is

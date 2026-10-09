@@ -376,12 +376,14 @@ def test_the_persona_asks_for_a_codex_library_and_web_search_and_answers_equipme
     plugin.equipment = equipment.Equipment.from_save(save())
 
     class Named(Texts):
+        # A name that differs from the id: a name equal to the id means the game has no key for it, and the
+        # persona then says "an unnamed upgrade module" instead of reading the id out.
         def name(self, item_id):
-            return item_id.split("#")[0]
+            return "Part " + item_id.split("#")[0]
 
     lines = plugin.companion.equipment_lines({"which", "upgrades", "multitool"}, Named())
-    assert lines[0] == ("Multi-tool Quantum Kay Needler (class A, in your hand): UP_LASER1 (Mining Speed +5-10 %, "
-                        "Heat Dispersion +5-15 %); TERRAINEDITOR")
+    assert lines[0] == ("Multi-tool Quantum Kay Needler (class A, in your hand): Part UP_LASER1 (Mining Speed "
+                        "+5-10 %, Heat Dispersion +5-15 %); Part TERRAINEDITOR")
     assert len(lines) == 3 and "exact values are not stored" in lines[-1]
     assert plugin.companion.equipment_lines({"how", "much", "copper"}, Named()) == []
 

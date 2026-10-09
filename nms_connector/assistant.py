@@ -92,6 +92,38 @@ def _words(text: str) -> list[str]:
     return [w.lower() for w in WORD_RE.findall(ELISION_RE.sub(" ", text or ""))]
 
 
+# The generic parts of an equipment group title ("Starship Mad Falcon (primary)", "Multi-tool Quantum Kay Needler
+# (class A, in your hand)"): only the player's own name may pick one group out of all of them.
+TITLE_WORDS = {"starship", "ship", "multi", "tool", "multitool", "exocraft", "freighter", "exosuit", "primary",
+               "class", "your", "hand", "the"}
+TITLE_NAME_MIN = 4          # shorter words of a name ("Mad", "USS") are too likely to be another word
+
+
+def titles_named(words: set[str], titles: list[str]) -> list[int]:
+    """Indexes of the equipment titles the question names by the player's own name ("in the Mad Falcon" -> that
+    starship); [] when it names none, so a general equipment question still gets every group. Chat test 2026-10-09:
+    the ships come last and were cut by the character budget, so even "What technology is installed in the Mad
+    Falcon?" carried no ship technology at all."""
+    out = []
+    for i, title in enumerate(titles):
+        own = {w for w in _words(title) if len(w) >= TITLE_NAME_MIN and w not in TITLE_WORDS}
+        if own & words:
+            out.append(i)
+    return out
+
+
+def without_own_names(question: str, own_names: tuple[str, ...] | list[str]) -> str:
+    """The question with the words of the player's own names dropped, for item matching only.
+
+    "What technology is installed in the Mad Falcon?" becomes "what technology is installed in the", so no item can
+    be matched through a name the player gave their ship. Everything else (the places asked, the recipe words, the
+    equipment group named) still reads the whole question."""
+    drop = {w for name in own_names or () for w in _words(name) if len(w) >= MIN_WORD}
+    if not drop:
+        return question or ""
+    return " ".join(w for w in _words(question) if w not in drop)
+
+
 def places(snap: dict) -> list[tuple[str, list]]:
     """(place name, rows) for every inventory of the snapshot, as the game names them."""
     out = [("Exosuit", snap.get("exosuit") or []), ("Exosuit cargo", snap.get("exosuit_cargo") or [])]
@@ -185,6 +217,22 @@ def places_asked(question: str, snap: dict) -> list[str]:
         out.append(place)
     out.sort(key=lambda p: (not p.startswith("Starship") or "(primary)" not in p,))
     return out
+
+
+def container_without_contents(question: str, snap: dict) -> list[str]:
+    """The note for a numbered storage container the question names that holds nothing ("is there anything in
+    storage container 3?"). Without it `places_asked` returned nothing, the question fell through to the largest
+    stacks, and the model answered "there is no data for storage container 3" (chat test 2026-10-09)."""
+    words = set(_words(question))
+    numbers = sorted({int(w) for w in words if w.isdigit() and int(w) < 10})
+    if not numbers or not (CONTAINER_WORDS & words):
+        return []
+    filled = sorted(place[len("Storage Container "):].split(" ")[0]
+                    for place, rows in places(snap) if place.startswith("Storage Container") and rows)
+    asked = ", ".join(str(n) for n in numbers)
+    have = ("Containers that hold something: " + ", ".join(filled) + ".") if filled else \
+        "None of your storage containers holds anything."
+    return ["", f"Storage Container {asked}: nothing in it (the save records no contents for it). {have}"]
 
 
 def trade_kinds(snap: dict, place_names: list[str] | None, value_of) -> list[dict]:
@@ -288,6 +336,11 @@ class ItemLookups:
     item_notes: Callable[[str], str | None] | None = None
     kind_lines: Callable[[list[str] | None], list[str]] | None = None
     value_of: Callable[[str], int | None] | None = None
+    #: The player's own names - ships, multi-tools, exocraft, the freighter, settlements. They are removed from a
+    #: question before items are matched: item names are known in six languages, so "the Mad Falcon" matched the
+    #: Osprey Wing Module through its Italian name "Modulo ali falco pescatore" ("falcon" with the plural -n
+    #: dropped is "falco"; chat test 2026-10-09).
+    own_names: tuple[str, ...] = ()
 
 
 def _named_item_lines(item_id: str, entry: dict | None, lk: ItemLookups, noted: dict[str, str]) -> list[str]:
@@ -327,6 +380,14 @@ def _named_items_section(matched: list[str], missing: list[str], have: dict, lk:
     return out
 
 
+def _is_unnamed(item_id: str, lk: ItemLookups) -> bool:
+    """True when the game has no name for an item, so the lookup gives the raw id back.
+
+    Procedural loot ("PROC_BIO#27442") has no language key. Listing the id made the persona print it to the player
+    as the item (chat test 2026-10-09: "1 PROC_BIO#27442, and 1 PROC_LOOT#08424")."""
+    return lk.name_of(item_id) == item_id
+
+
 def _place_sections(asked: list[str], snap: dict, lk: ItemLookups, limit: int = MAX_PLACE_ROWS) -> list[str]:
     """The contents of the inventories asked about, at most `limit` stacks each; the rest is counted, not silent."""
     out: list[str] = []
@@ -335,17 +396,23 @@ def _place_sections(asked: list[str], snap: dict, lk: ItemLookups, limit: int = 
             continue
         out += ["", f"Contents of {place} ({len(rows)} stacks):"]
         stacks = [r for r in rows if ITEM_ID_RE.match(str(r[0]))]
-        for item_id, amount, _maximum in stacks[:limit]:
+        named = [r for r in stacks if not _is_unnamed(str(r[0]), lk)]
+        for item_id, amount, _maximum in named[:limit]:
             note = lk.item_notes(item_id) if lk.item_notes and item_id.startswith("TRA_") else None
             out.append(f"- {lk.name_of(item_id)} [{item_id}]: {_fmt(int(amount or 0))}" + (f" - {note}" if note else ""))
-        if len(stacks) > limit:
-            out.append(f"- ... {len(stacks) - limit} more stacks not listed (ask about this inventory alone for all)")
+        if len(named) > limit:
+            out.append(f"- ... {len(named) - limit} more stacks not listed (ask about this inventory alone for all)")
+        unnamed = len(stacks) - len(named)
+        if unnamed:
+            out.append(f"- ... and {unnamed} stack(s) the game has no name for (procedural loot): "
+                       "say that there are unnamed items, never their internal id")
     return out
 
 
 def _largest_stacks(have: dict, lk: ItemLookups) -> list[str]:
     out = ["", f"Your largest stacks in all (top {TOP_STACKS}, totals across all inventories):"]
-    for item_id, entry in sorted(have.items(), key=lambda kv: -kv[1]["total"])[:TOP_STACKS]:
+    ranked = [kv for kv in sorted(have.items(), key=lambda kv: -kv[1]["total"]) if not _is_unnamed(kv[0], lk)]
+    for item_id, entry in ranked[:TOP_STACKS]:
         out.append(f"- {lk.name_of(item_id)} [{item_id}]: {_fmt(entry['total'])}")
     return out
 
@@ -507,13 +574,15 @@ def _question_sections(question: str, snap: dict, lookups: ItemLookups, rows: in
         return _merge_section(question, snap, lookups, asked)
     out: list[str] = []
     have = holdings(snap)
-    matched = match_items(question, {item_id: lookups.names_of(item_id) for item_id in have})
+    # The player's own ship and settlement names are not items, in any language.
+    item_question = without_own_names(question, lookups.own_names)
+    matched = match_items(item_question, {item_id: lookups.names_of(item_id) for item_id in have})
     if TRADE_GOODS_RE.search(question or ""):
         matched = list(dict.fromkeys([i for i in have if i.startswith("TRA_")] + [m for m in matched if m.startswith("TRA_")]))
         lines = lookups.kind_lines(asked or None) if lookups.kind_lines else []
         if lines:
             out += [""] + lines
-    missing = _missing_unless_knowledge(question, _missing_items(question, have, lookups.all_names))
+    missing = _missing_unless_knowledge(item_question, _missing_items(item_question, have, lookups.all_names))
     # Currencies are no inventory items: "how many units do I have?" said "UNITS: 0 - not in any inventory" beside
     # the real balance of the status line (chat test 2026-10-09).
     matched = [i for i in matched if i not in CURRENCY_IDS]
@@ -522,13 +591,17 @@ def _question_sections(question: str, snap: dict, lookups: ItemLookups, rows: in
         matched = [i for i in matched if not _names_a_place(lookups.names_of(i))]
         missing = [i for i in missing if not _names_a_place(lookups.all_names[i])]
     elif not (matched or missing):        # nothing named exactly: a misspelt item name ("Aroniun")
-        notes, matched, missing = _near_miss_sections(question, have, lookups)
+        notes, matched, missing = _near_miss_sections(item_question, have, lookups)
         out += [""] + notes if notes else []
     if matched or missing:
         out += _named_items_section(matched, missing, have, lookups, min(MAX_ITEMS, max(6, rows // 5)))
     if asked:        # a named place always lists its contents - an item matched by chance must not replace them
         out += _place_sections(asked, snap, lookups, rows)
-    elif _wants_largest_stacks(question) and not (matched or missing):
+        return out
+    empty = container_without_contents(question, snap)
+    if empty:        # a container the question names that holds nothing: say that, do not list other stacks
+        return out + empty
+    if _wants_largest_stacks(question) and not (matched or missing):
         out += _largest_stacks(have, lookups)
     return out
 

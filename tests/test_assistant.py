@@ -385,3 +385,101 @@ def test_generic_trade_words_name_no_item_and_trade_item_is_a_trade_goods_questi
     for question in ("most valuable trade item category", "my trade goods", "Handelsgegenstände", "trade categories"):
         assert assistant.TRADE_GOODS_RE.search(question), question
     assert not assistant.TRADE_GOODS_RE.search("how much copper do I have")
+# ── The 2026-10-09 live battery: four answers the data block got wrong ───────
+
+def test_a_named_container_that_holds_nothing_says_so_instead_of_listing_other_stacks():
+    """"Is there anything in storage container 3?" gets a line about container 3 and the numbers that do hold
+    something - not the top-25 stacks of every inventory.
+
+    Expected: the note names container 3 and lists 0 and 7 as the filled ones, and no "largest stacks" block
+    appears. It matters because the question used to fall through to the largest stacks (the player has no
+    container 3), and the persona answered "there is no data for storage container 3" - the player cannot tell
+    that apart from the plugin being broken."""
+    text = build("Is there anything in storage container 3?")
+    assert "Storage Container 3: nothing in it" in text
+    assert "Containers that hold something: 0, 7." in text
+    assert "largest stacks" not in text
+
+
+def test_a_container_number_that_does_hold_something_still_lists_its_contents():
+    """Container 7 is filled, so the question gets its contents and no "nothing in it" note.
+
+    Expected: the Copper and Cobalt stacks of container 7. The guard above must not swallow a real container."""
+    text = build("What is in storage container 7?")
+    assert "Contents of Storage Container 7" in text
+    assert "nothing in it" not in text
+
+
+def test_items_the_game_has_no_name_for_are_counted_not_printed_as_their_id():
+    """A procedural stack whose lookup gives the raw id back is counted in a line that forbids naming the id.
+
+    Expected: PROC_BIO#27442 appears nowhere in the text, the named stacks are listed, and the count of unnamed
+    ones is stated. It matters because the persona printed "1 PROC_BIO#27442, and 1 PROC_LOOT#08424" to the player
+    as if those were item names (chat test 2026-10-09)."""
+    snap = snapshot()
+    snap["storage"][0]["rows"] += [["PROC_BIO#27442", 1, 9999], ["PROC_LOOT#08424", 1, 9999]]
+    names = {**NAMES, "PROC_BIO#27442": ["PROC_BIO#27442"], "PROC_LOOT#08424": ["PROC_LOOT#08424"]}
+    text = assistant.build_context("What is in storage container 0?", snap,
+                                   lookups(names, name_of=lambda i: names[i][0]), ["STATUS"], [])
+    assert "PROC_BIO" not in text and "PROC_LOOT" not in text
+    assert "Copper [YELLOW2]: 581" in text
+    assert "2 stack(s) the game has no name for (procedural loot)" in text
+
+
+def test_an_unnamed_item_never_reaches_the_largest_stacks_either():
+    """The top-stacks list skips items the game has no name for.
+
+    Expected: the raw id is absent and the named items are still ranked. The list is the fallback for "what do I
+    have most of", where a procedural id would be the least useful possible answer."""
+    snap = snapshot()
+    snap["exosuit"].append(["PROC_BIO#27442", 99999, 99999])
+    names = {**NAMES, "PROC_BIO#27442": ["PROC_BIO#27442"]}
+    text = assistant.build_context("What do I have the most of?", snap,
+                                   lookups(names, name_of=lambda i: names[i][0]), ["STATUS"], [])
+    assert "PROC_BIO" not in text
+    assert "Cobalt [CAVE1]: 4,927" in text
+
+
+def test_the_players_own_equipment_name_picks_one_group():
+    """"What technology is installed in the Mad Falcon?" names that starship; a general question names none.
+
+    Expected: the index of the Mad Falcon only, by the word "falcon"; the generic title words (Starship, primary,
+    Multi-tool, class) select nothing, so a question about equipment in general still gets every group. It matters
+    because the ships are built last and were cut by the character budget: the ship question carried no ship
+    technology at all."""
+    titles = ["Exosuit", "Multi-tool Quantum Kay Needler (class A, in your hand)", "Exocraft Roamer",
+              "Freighter", "Starship Mad Falcon (primary)", "Starship Galactica Raptor"]
+    assert assistant.titles_named({"what", "technology", "is", "installed", "in", "the", "mad", "falcon"}, titles) == [4]
+    assert assistant.titles_named({"whats", "on", "the", "galactica", "raptor"}, titles) == [5]
+    assert assistant.titles_named({"needler"}, titles) == [1]
+    assert assistant.titles_named({"what", "technology", "do", "i", "have", "installed"}, titles) == []
+    assert assistant.titles_named({"my", "starship", "class", "primary"}, titles) == []
+
+
+def test_the_players_own_names_cannot_match_an_item_in_another_language():
+    """A ship called "Mad Falcon" must not pull in an item whose Italian name holds the word "falco".
+
+    Expected: with the ship among the own names, the question matches no item; without them it does (the bug). Item
+    names are known in six languages and `match_items` drops a plural -n, so "falcon" reached "Modulo ali falco
+    pescatore" - the persona listed an Osprey Wing Module for a question about ship technology (chat test
+    2026-10-09)."""
+    question = "What technology is installed in the Mad Falcon?"
+    # "Mad" is too short to ever be a match key, so only "falcon" has to go.
+    assert assistant.without_own_names(question, ("Mad Falcon",)) == "what technology is installed in the mad"
+    assert assistant.without_own_names(question, ()) == question
+
+    names = {"B_WNG_E": ["Osprey Wing Module", "Modulo ali falco pescatore"]}
+    assert assistant.match_items(question, names) == ["B_WNG_E"]
+    assert assistant.match_items(assistant.without_own_names(question, ("Mad Falcon",)), names) == []
+
+
+def test_an_own_name_that_is_also_an_item_word_still_finds_the_item_elsewhere():
+    """Dropping own names must not hide an item the question names in its own right.
+
+    Expected: a settlement called "Kay City" does not stop "How much Copper do I have?" from matching Copper. The
+    removal is per word and only for the names the player gave."""
+    text = assistant.build_context("How much Copper do I have?", snapshot(),
+                                   lookups(name_of=lambda i: NAMES[i][0], own_names=("Kay City", "Bang")),
+                                   ["STATUS"], [])
+    assert "Copper [YELLOW2]: 700 in total" in text
+

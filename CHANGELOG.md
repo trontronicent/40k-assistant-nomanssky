@@ -101,6 +101,43 @@ extraction, follow-ups, typos, German/French/Spanish) against the live persona, 
     ("Total: 4,755"): a currency word adds one sentence with the three balances (5,057 Nanites, 3 of
     3 right).
 
+A second battery of ~40 questions against the live persona, 2026-10-09 (aggregates, arithmetic,
+negation, categories, places, times, equipment, cross-language, off-topic and follow-up chains).
+Six fixes: three questions were answered with "the data does not contain that" while the data *was*
+in the save, and three answers printed something the player cannot use - a wrong item or an internal
+id. In each case the block had to carry the answer, not the model:
+
+- **What a recipe needs** (*Which ingredients for Antimatter am I missing?*, *What do I need for a
+  Warp Cell?*, *Was brauche ich für Antimaterie?*, *Welche Zutaten fehlen mir?*) reaches the craft
+  counts: the ingredients, how much of each you hold, and what is short of one. The question carries
+  neither a make word nor an amount word, so it used to produce a block with no item lines at all
+  and the answer *"the game data does not contain the specific quantities ... in your inventories"*
+  for an item whose both ingredients were in the exosuit. Needs/ingredient/missing words in English,
+  German, Spanish, French and Italian.
+- **A ship, tool or settlement you named** (*What technology is installed in the Mad Falcon?*) gets
+  that one group's technology. The ships are built last and were cut by the character budget, so the
+  answer was *"the provided data does not contain information regarding technology installed in the
+  Mad Falcon"* - with 32 parts of it in the save. What the budget does cut is now named ("not listed
+  here, ask about one of them for its parts: ...") instead of a generic note.
+- **Your own names are not items.** *Mad Falcon* matched the Osprey Wing Module, whose Italian name
+  is *Modulo ali falco pescatore* (*falcon* minus the plural *-n* is *falco*): item names are known
+  in six languages, so the names you gave your ships, multi-tools, freighter and settlements are
+  removed from a question before items are matched - and only for that.
+- **An empty storage container** (*Is there anything in storage container 3?*) says so and names the
+  containers that do hold something. The question named a container the save has no contents for, so
+  it fell through to the top-25 stacks of everything and was answered *"there is no data for storage
+  container 3"*, which reads like a broken plugin.
+- **Items and parts the game has no name for** are counted, never read out as their internal id. The
+  persona listed *"1 PROC_BIO#27442, and 1 PROC_LOOT#08424"* among the freighter's cargo and
+  *"CV_INV2#53297 (Cargo Slots +3)"* among a ship's technology; those are now "2 unnamed items" and
+  "an unnamed upgrade module (Cargo Slots +3)". Procedural loot and the corvette upgrades have no
+  key in the language files.
+
+Verified live after each fix (same questions, model 40k-12b-companion): *"You are not missing any
+ingredients to craft Antimatter. Your current holdings allow you to craft it 54 times."*, the Mad
+Falcon's 27 parts listed, *"There is nothing in storage container 3."*, *"and 2 unnamed items"*,
+*"three unnamed upgrade modules for Cargo Slots +3"*. 375 tests.
+
 ## 0.14.1 — 2026-10-09
 
 Needs the 40k Assistant 3.12.0 (unchanged).

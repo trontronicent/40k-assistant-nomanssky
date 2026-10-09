@@ -345,7 +345,24 @@ class PluginCompanion:
         return assistant.ItemLookups(
             name_of, names_of, c.gamedata.names(), lambda item_id: self._planets_offering(item_id, ctx, here), item_notes,
             lambda place_names: self.kind_lines(snap, place_names, ctx, name_of),
-            lambda item_id: (c.gamedata.lookup(item_id) or {}).get("value"))
+            lambda item_id: (c.gamedata.lookup(item_id) or {}).get("value"),
+            self._own_names())
+
+    def _own_names(self) -> tuple[str, ...]:
+        """The names the player gave their own things: ships, the freighter, multi-tools, exocraft, settlements.
+
+        They are kept out of item matching (assistant.without_own_names); an item is known in six languages, so a
+        ship called "Mad Falcon" otherwise matches whatever is called "falco" somewhere."""
+        c = self.connector
+        names = [s["name"] for s in c.ships if s.get("name")]
+        if c.freighter and c.freighter.get("name"):
+            names.append(c.freighter["name"])
+        names += [s.get("name") for s in c.settlements if s.get("name")]
+        if c.equipment is not None:
+            # A multi-tool's title is the name the player gave it ("Quantum Kay Needler"); the exocraft titles are
+            # the game's own types, which the equipment words already cover.
+            names += [t.title for t in c.equipment.multitools]
+        return tuple(dict.fromkeys(n for n in names if isinstance(n, str) and n.strip()))
 
     def overlay(self) -> dict:
         """The desktop overlay in this plugin's mode (app 3.11.0): the running timers, where you are, the persona
@@ -570,7 +587,8 @@ class PluginCompanion:
         data holds no ingredient quantities)."""
         c = self.connector
         book = c.tables.recipes
-        if not snap or book is None or not book.recipes or not craftable.asks_craft_count(words):
+        needs_only = not craftable.asks_craft_count(words) and craftable.asks_needs(words)
+        if not snap or book is None or not book.recipes or not (craftable.asks_craft_count(words) or needs_only):
             return []
         items = [i for i in assistant.match_items(question, c.gamedata.names_with_alt())
                  if book.crafting.get(i) or book.made_by(i)][:MAX_CRAFT_ITEMS]
@@ -581,7 +599,10 @@ class PluginCompanion:
         label = lambda i: recipes.item_label(c.gamedata.lookup, i)      # noqa: E731 - a callback for the helpers
         out: list[str] = []
         for item in items:
-            times = wanted if item == target else None          # "for 3 Warp Cells": the number is the Warp Cells'
+            # "for 3 Warp Cells": the number is the Warp Cells'. A question that only asks what
+            # is needed counts as one, so the line spells out what is missing for it rather than only how
+            # often the recipe can be done.
+            times = wanted if item == target else (1 if needs_only and wanted is None else None)
             out.append(f"What you can make of {label(item)} from your holdings (as of the last save):")
             if book.crafting.get(item):
                 out.append("  crafted from " + craftable.option_line(list(book.crafting[item]), have, label, times))
@@ -790,12 +811,19 @@ class PluginCompanion:
         if not words & TECH_WORDS:
             return self._owned_vehicle_lines(words, texts)
         asked = {EQUIPMENT_WORDS[w] for w in words if w in EQUIPMENT_WORDS}
+        groups = self._equipment_groups(asked, texts)
+        named = assistant.titles_named(words, [title for title, _technology in groups])
+        if named:        # the player named one of their own ships, tools or exocraft: only that one
+            groups = [groups[i] for i in named]
         out: list[str] = []
         used = 0
-        for title, technology in self._equipment_groups(asked, texts):
+        for title, technology in groups:
             line = f"{title}: " + self._technology_text(technology, texts)
             if out and (used + len(line) > MAX_TECH_CHARS or len(out) >= MAX_TECH_LINES):
-                out.append("(more equipment in the plugin's Equipment tab - ask about one item, e.g. the multi-tool)")
+                # What is left out must be named: the ships come last, so a question about one of them used to get
+                # a generic note and the model answered that there is no technology data for it (test 2026-10-09).
+                out.append("(not listed here, ask about one of them for its parts: "
+                           + "; ".join(t for t, _technology in groups[len(out):]) + ")")
                 break
             out.append(line)
             used += len(line)
@@ -835,13 +863,20 @@ class PluginCompanion:
         return groups
 
     def _technology_text(self, technology: list[dict], texts) -> str:
-        """"Mining Beam (Mining Speed +5-10 %); Scanner" - each part with its stat ranges, damaged slots left out."""
+        """"Mining Beam (Mining Speed +5-10 %); Scanner" - each part with its stat ranges, damaged slots left out.
+
+        A part the game's language files have no key for (the procedural corvette upgrades, "CV_INV2#53297") is
+        named "an unnamed upgrade module" and keeps its stats: the persona read the raw id out to the player as if
+        it were the name of the part (chat test 2026-10-09)."""
         parts = []
         for tech in technology:
             if tech["id"].startswith("SHIPSLOT_DMG"):
                 continue
             mods = self._english_modifiers(tech["id"], texts)
-            parts.append(texts.name(tech["id"]) + (f" ({', '.join(mods)})" if mods else ""))
+            name = texts.name(tech["id"])
+            if name == tech["id"]:              # no language key for this id: never print it
+                name = "an unnamed upgrade module"
+            parts.append(name + (f" ({', '.join(mods)})" if mods else ""))
         return "; ".join(parts) if parts else "no technology"
 
     def _english_modifiers(self, item_id: str, texts) -> list[str]:

@@ -16,6 +16,14 @@ MAKE_WORDS = {"make", "craft", "build", "produce", "create", "refine", "cook", "
 AMOUNT_WORDS = {"many", "much", "enough", "sufficient", "viele", "genug", "ausreichend", "wieviele", "wieviel",
                 "cuántos", "cuantos", "combien", "quanti", "suffisamment", "suficiente"}
 ENOUGH_WORDS = {"enough", "genug", "sufficient", "ausreichend", "suficiente", "suffisamment"}
+# "What do I need for an Antimatter?", "which ingredients am I missing?", "what does a Warp Cell require?" ask for
+# the same computed lines but carry neither a make word nor an amount word. Chat test 2026-10-09: "Which ingredients
+# for Antimatter am I missing?" got no item lines at all, and the model answered that the data holds no ingredient
+# quantities - while the holdings of both ingredients were in the save.
+NEED_WORDS = {"need", "needs", "needed", "require", "requires", "required", "ingredient", "ingredients", "missing",
+              "brauche", "brauchst", "braucht", "benötige", "benötigt", "benoetige", "benoetigt", "zutat", "zutaten",
+              "fehlt", "fehlen", "fehlende", "necesito", "necesita", "ingrediente", "ingredientes", "falta",
+              "faltan", "besoin", "ingrédient", "ingrédients", "manque", "ingredienti", "manca", "mancano", "serve"}
 GLYPH_WORDS = {"glyph", "glyphs", "glyphe", "glyphen", "glyphes", "glifos", "glifi"}
 # The portal's 16 glyphs in the order of the address digits 0-F (the community's English names).
 GLYPHS = ("Sunset", "Bird", "Face", "Diplo", "Eclipse", "Balloon", "Boat", "Bug", "Dragonfly", "Galaxy", "Voxel",
@@ -27,6 +35,11 @@ FOLLOW_UP_RE = re.compile(r"\(follow-up to the user's")
 def asks_craft_count(words: set[str]) -> bool:
     """True for "how many can I make", "do I have enough X for 3 ..." (a make word with an amount word, or enough)."""
     return bool(words & ENOUGH_WORDS) or bool(words & MAKE_WORDS and words & AMOUNT_WORDS)
+
+
+def asks_needs(words: set[str]) -> bool:
+    """True for "what do I need for X", "which ingredients am I missing", "what does X require"."""
+    return bool(words & NEED_WORDS)
 
 
 def requested_times(question: str) -> int | None:

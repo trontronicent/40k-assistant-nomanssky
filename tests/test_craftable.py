@@ -100,3 +100,59 @@ def test_only_the_target_item_gets_the_enough_check(tmp_path, monkeypatch):
                                          {"enough", "chromatic", "metal", "for", "3", "antimatter"}, snap)
     text = "\n".join(lines)
     assert text.count("enough for 3") == 1 and "NOT enough for 3, missing 10 Condensed Carbon" in text   # one line, the Antimatter's
+def test_a_needs_question_asks_for_the_craft_counts_too():
+    """"what do I need", "which ingredients am I missing", "was brauche ich" ask; a plain amount question does not.
+
+    Expected: asks_needs is true for the need/ingredient/missing words in five languages and false otherwise, while
+    asks_craft_count keeps its own meaning. It matters because "Which ingredients for Antimatter am I missing?"
+    produced a block with no item lines at all, and the persona answered that the data holds no ingredient
+    quantities - with both ingredients in the save (chat test 2026-10-09)."""
+    assert craftable.asks_needs({"what", "do", "i", "need", "for", "antimatter"})
+    assert craftable.asks_needs({"which", "ingredients", "am", "i", "missing"})
+    assert craftable.asks_needs({"was", "brauche", "ich", "für", "antimaterie"})
+    assert craftable.asks_needs({"welche", "zutaten", "fehlen", "mir"})
+    assert craftable.asks_needs({"qué", "ingredientes", "necesito"}) and craftable.asks_needs({"il", "manque", "quoi"})
+    assert not craftable.asks_needs({"how", "much", "copper", "do", "i", "have"})
+    assert not craftable.asks_craft_count({"what", "do", "i", "need", "for", "antimatter"})
+
+
+def test_a_needs_question_spells_out_what_is_missing_for_one(tmp_path, monkeypatch):
+    """"Which ingredients for Antimatter am I missing?" gets the ingredients, the holdings of each and what is
+    short of one Antimatter.
+
+    Expected: the lines name both ingredients with the owned amounts and end in "NOT enough for 1, missing ..."
+    when one is short; with the holdings sufficient they say "enough for 1". Why: the counting is what the model
+    cannot do reliably, and this is the phrasing a player uses most."""
+    from test_connector import FakeCtx, create_plugin
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    plugin.tables.recipes = book()
+    plugin.gamedata.items = dict(ITEMS)
+    short = {"exosuit": [["STELLAR2", 1314, 9999], ["FUEL2", 5, 9999]], "exosuit_cargo": [], "ships": [],
+             "freighter": {"inventory": []}, "storage": []}
+    question = "Which ingredients for Antimatter am I missing?"
+    words = {"which", "ingredients", "for", "antimatter", "am", "i", "missing"}
+    lines = plugin.companion.craft_lines(question, words, short)
+    assert lines[0].startswith("What you can make of Antimatter")
+    assert "25 Chromatic Metal (you have 1,314)" in lines[1] and "20 Condensed Carbon (you have 5)" in lines[1]
+    assert lines[1].endswith("NOT enough for 1, missing 15 Condensed Carbon")
+
+    plenty = {**short, "exosuit": [["STELLAR2", 1314, 9999], ["FUEL2", 50, 9999]]}
+    assert plugin.companion.craft_lines(question, words, plenty)[1].endswith("enough for 1")
+
+
+def test_an_explicit_number_still_wins_over_the_implicit_one(tmp_path, monkeypatch):
+    """"Do I need more for 3 Antimatter?" counts three, not one.
+
+    Expected: the line is about 3. The implicit "one" of a needs question must not override a number the player
+    actually gave."""
+    from test_connector import FakeCtx, create_plugin
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    plugin.tables.recipes = book()
+    plugin.gamedata.items = dict(ITEMS)
+    snap = {"exosuit": [["STELLAR2", 1314, 9999], ["FUEL2", 50, 9999]], "exosuit_cargo": [], "ships": [],
+            "freighter": {"inventory": []}, "storage": []}
+    lines = plugin.companion.craft_lines("Do I need more for 3 Antimatter?",
+                                         {"do", "i", "need", "more", "for", "3", "antimatter"}, snap)
+    assert "NOT enough for 3, missing 10 Condensed Carbon" in lines[1]

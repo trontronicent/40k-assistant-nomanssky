@@ -78,3 +78,26 @@ def test_the_equipment_tab_has_sub_tabs_with_what_each_part_does():
     assert tabs[2]["sections"][0]["title"] == "Exocraft: Roamer (Rover) (summoned first)"
     assert "seed" in out[1]["text"]
     assert equipment.equipment_sections(None, Texts())[0]["type"] == "text"
+
+
+def test_a_technology_part_without_a_name_is_not_read_out_as_its_id(tmp_path, monkeypatch):
+    """A procedural corvette upgrade the language files have no key for is called "an unnamed upgrade module".
+
+    Expected: the raw id is absent from the text and the stat ranges survive. It matters because the persona listed
+    "CV_INV2#53297 (Cargo Slots +3)" to the player as the name of a ship part (chat test 2026-10-09)."""
+    from test_connector import FakeCtx, create_plugin
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+
+    class OneNamed:
+        """Names the known part and gives the raw id back for the procedural one, as the game's texts do."""
+
+        def name(self, item_id):
+            return "Photon Cannon" if item_id == "SHIPGUN1" else item_id
+
+    monkeypatch.setattr(type(plugin.companion), "_english_modifiers",
+                        lambda self, item_id, texts: ["Cargo Slots +3"] if item_id == "CV_INV2#53297" else [])
+    text = plugin.companion._technology_text([{"id": "SHIPGUN1"}, {"id": "CV_INV2#53297"}], OneNamed())
+    assert "CV_INV2" not in text
+    assert text == "Photon Cannon; an unnamed upgrade module (Cargo Slots +3)"
+
