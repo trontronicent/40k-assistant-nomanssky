@@ -148,11 +148,23 @@ def test_the_data_replies_carry_the_conversation_rules_as_answer_rules(tmp_path,
 
 
 def test_a_hyphenated_compound_also_gives_its_parts():
-    """'Exocraft-Fahrzeuge' gives exocraft and fahrzeuge besides the compound, so the equipment trigger fires; plain
-    words, contractions and a lone hyphen are unchanged."""
-    words = conversation.word_set("Welche Exocraft-Fahrzeuge habe ich? Don't - stop")
-    assert {"exocraft-fahrzeuge", "exocraft", "fahrzeuge", "don't", "stop"} <= words and "-" not in words
-    assert conversation.word_set("copper") == {"copper"} and conversation.word_set("") == set()
+    """'Exocraft-Fahrzeuge' gives exocraft and fahrzeuge besides the compound; words without a hyphen, contractions
+    and a lone hyphen are unchanged."""
+    words = conversation.split_compounds({"exocraft-fahrzeuge", "don't", "-", "copper"})
+    assert words == {"exocraft-fahrzeuge", "exocraft", "fahrzeuge", "don't", "-", "copper"}
+    assert conversation.split_compounds(set()) == set()
+
+
+def test_a_hyphenated_trade_question_gets_no_equipment_dump(tmp_path, monkeypatch):
+    """'wo kann ich meine Technologie-Handelswaren verkaufen?' became a technology question when every trigger saw the
+    split compound (5,000 characters of equipment in a trade answer: a 16,274-character block, over the app's cut).
+    Only the exocraft ownership check splits compounds."""
+    from test_connector import FakeCtx, create_plugin
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    monkeypatch.setattr(type(plugin.companion), "_equipment_groups", lambda self, asked, texts: [("Exosuit", [{}])])
+    monkeypatch.setattr(type(plugin.companion), "_technology_text", lambda self, technology, texts: "parts")
+    assert plugin.companion.equipment_lines({"technologie-handelswaren", "verkaufen"}, None) == []
 
 
 def test_an_ownership_question_about_exocraft_lists_the_vehicles(tmp_path, monkeypatch):
@@ -166,7 +178,7 @@ def test_an_ownership_question_about_exocraft_lists_the_vehicles(tmp_path, monke
     groups = [("Exocraft Roamer", [{"id": "a"}]), ("Exocraft Nomad", [{"id": "b"}])]
     monkeypatch.setattr(type(plugin.companion), "_equipment_groups", lambda self, asked, texts: groups)
     monkeypatch.setattr(type(plugin.companion), "_technology_text", lambda self, technology, texts: "parts")
-    words = conversation.word_set("Welche Exocraft-Fahrzeuge habe ich?")
+    words = {"welche", "exocraft-fahrzeuge", "habe", "ich"}
     lines = plugin.companion.equipment_lines(words, None)
     assert lines == ["Exocraft you own (those with technology installed): Exocraft Roamer; Exocraft Nomad. Ask what "
                      "is installed on one of them for its parts."]
@@ -174,3 +186,14 @@ def test_an_ownership_question_about_exocraft_lists_the_vehicles(tmp_path, monke
     parts = plugin.companion.equipment_lines({"exocraft", "upgrades"}, None)
     assert parts[0] == "Exocraft Roamer: parts" and not any(line.startswith("Exocraft you own") for line in parts)
     assert companion.EQUIPMENT_WORDS["exocraft"] == "exocraft"
+
+
+def test_the_answer_rules_stay_within_the_apps_limits(tmp_path, monkeypatch):
+    """The app keeps at most 8 answer instructions of 600 characters per plugin (plugins/personas.py): the five
+    conversation rules, the position rule, the merge rule and every special-case line must fit, or the app would cut
+    a rule in the middle of a sentence without a word."""
+    from nms_connector import companion, merging
+    assert len(companion.CONVERSATION_RULES) + 2 <= 8          # + the position rule and the merge rule
+    longest = [companion.ONLY_THESE, companion.ORDINAL_NOTE, merging.RULE, *companion.CONVERSATION_RULES]
+    assert all(len(line) <= 600 for line in longest), [len(line) for line in longest]
+    assert len(companion.ONLY_THESE) + 120 <= 600              # the sentence it follows in the recipe follow-up rule

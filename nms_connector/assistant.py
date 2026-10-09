@@ -74,6 +74,7 @@ PLACE_WORDS = {
 TRADE_GOODS_RE = re.compile(r"trade ?goods?|trade commodit|handelsware|handelsgüter|handelsgut|commodit", re.I)
 CONTAINER_WORDS = {"container", "containers", "containern", "behälter", "behältern", "lagerbehälter", "lagerbehältern"}
 MAX_PLACE_ROWS = 60
+CONTEXT_BUDGET = 7600       # the app cuts a data block at 8,000 characters; leave room for what it adds
 MAX_ITEMS = 12
 TOP_STACKS = 25
 NEAREST_PLANETS = 3
@@ -309,27 +310,32 @@ def _named_item_lines(item_id: str, entry: dict | None, lk: ItemLookups, noted: 
     return out
 
 
-def _named_items_section(matched: list[str], missing: list[str], have: dict, lk: ItemLookups) -> list[str]:
+def _named_items_section(matched: list[str], missing: list[str], have: dict, lk: ItemLookups,
+                         limit: int = MAX_ITEMS) -> list[str]:
     out = ["", "Items the question names (totals across all your inventories, as of the last save):"]
     noted: dict[str, str] = {}      # a trade good's sell note is the same for its whole kind: once each
-    for item_id in matched[:MAX_ITEMS]:
+    for item_id in matched[:limit]:
         out += _named_item_lines(item_id, have[item_id], lk, noted)
-    if len(matched) > MAX_ITEMS:
-        out.append(f"- ... and {len(matched) - MAX_ITEMS} more items with these words in their names")
+    if len(matched) > limit:
+        out.append(f"- ... and {len(matched) - limit} more items with these words in their names")
     for item_id in missing:
         out += _named_item_lines(item_id, None, lk, noted)
     return out
 
 
-def _place_sections(asked: list[str], snap: dict, lk: ItemLookups) -> list[str]:
+def _place_sections(asked: list[str], snap: dict, lk: ItemLookups, limit: int = MAX_PLACE_ROWS) -> list[str]:
+    """The contents of the inventories asked about, at most `limit` stacks each; the rest is counted, not silent."""
     out: list[str] = []
     for place, rows in places(snap):
         if place not in asked:
             continue
         out += ["", f"Contents of {place} ({len(rows)} stacks):"]
-        for item_id, amount, _maximum in [r for r in rows if ITEM_ID_RE.match(str(r[0]))][:MAX_PLACE_ROWS]:
+        stacks = [r for r in rows if ITEM_ID_RE.match(str(r[0]))]
+        for item_id, amount, _maximum in stacks[:limit]:
             note = lk.item_notes(item_id) if lk.item_notes and item_id.startswith("TRA_") else None
             out.append(f"- {lk.name_of(item_id)} [{item_id}]: {_fmt(int(amount or 0))}" + (f" - {note}" if note else ""))
+        if len(stacks) > limit:
+            out.append(f"- ... {len(stacks) - limit} more stacks not listed (ask about this inventory alone for all)")
     return out
 
 
@@ -489,9 +495,9 @@ def _merge_section(question: str, snap: dict, lookups: ItemLookups, asked: list[
     return out[:1] + notes + out[1:] if notes else out
 
 
-def _question_sections(question: str, snap: dict, lookups: ItemLookups) -> list[str]:
+def _question_sections(question: str, snap: dict, lookups: ItemLookups, rows: int = MAX_PLACE_ROWS) -> list[str]:
     """The part of the data that depends on the question: stacks to merge, or the trade goods by kind, the items the
-    question names, the contents of a named inventory, or the largest stacks."""
+    question names, the contents of a named inventory (<= `rows` stacks each), or the largest stacks."""
     asked = places_asked(question, snap)
     if is_merge_question(question):
         return _merge_section(question, snap, lookups, asked)
@@ -515,9 +521,9 @@ def _question_sections(question: str, snap: dict, lookups: ItemLookups) -> list[
         notes, matched, missing = _near_miss_sections(question, have, lookups)
         out += [""] + notes if notes else []
     if matched or missing:
-        out += _named_items_section(matched, missing, have, lookups)
+        out += _named_items_section(matched, missing, have, lookups, min(MAX_ITEMS, max(3, rows // 5)))
     if asked:        # a named place always lists its contents - an item matched by chance must not replace them
-        out += _place_sections(asked, snap, lookups)
+        out += _place_sections(asked, snap, lookups, rows)
     elif _wants_largest_stacks(question) and not (matched or missing):
         out += _largest_stacks(have, lookups)
     return out
@@ -529,11 +535,17 @@ def build_context(question: str, snap: dict | None, lookups: ItemLookups, status
     (`_question_sections`), then the inventory overview and `extra_lines` (ready-made)."""
     if not snap:
         return "No save has been read yet, so there is no game data."
-    out = list(status_lines) + _question_sections(question, snap, lookups)
     counts = [(place, sum(1 for r in rows if ITEM_ID_RE.match(str(r[0])))) for place, rows in places(snap)]
-    out += ["", "Inventories: " + "; ".join(f"{place} ({n} stacks)" for place, n in counts if n)
+    tail = ["", "Inventories: " + "; ".join(f"{place} ({n} stacks)" for place, n in counts if n)
             + f". {len(holdings(snap))} different items in total."]
-    return "\n".join(out + extra_lines)
+    # The app cuts a block at 8,000 characters from the end (plugins/personas.MAX_CONTEXT_CHARS): a ships question that
+    # listed every stack of every ship (12,120 characters) lost the overview and the recipe lines behind it. The
+    # listings shrink until the block fits; the rest is counted in the listing itself.
+    for rows in (MAX_PLACE_ROWS, 30, 15, 8, 4):
+        text = "\n".join(list(status_lines) + _question_sections(question, snap, lookups, rows) + tail + extra_lines)
+        if len(text) <= CONTEXT_BUDGET:
+            break
+    return text
 
 
 def saved_text(iso: str | None) -> str:

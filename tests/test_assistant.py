@@ -341,3 +341,32 @@ def test_most_abundant_questions_get_the_largest_stacks_and_the_item_count_is_st
     assert "Your largest stacks in all" in text and text.index("Cobalt") < text.index("Copper")
     assert "different items in total." in text
     assert "Your largest stacks" not in assistant.build_context("how is the weather", snapshot(), lookups(), ["S"], [])
+
+
+def test_a_block_over_the_apps_limit_shrinks_its_listings_and_says_so():
+    """The app cuts a data block at 8,000 characters from the end. A 'ships' question listed every stack of every
+    ship (12,120 characters on the real save) and lost the overview and recipe lines behind it - silently. The
+    listings now shrink until the block fits, and a shortened listing counts what it leaves out; a small block is
+    unchanged."""
+    names = {f"ITEM{i}": [f"Material number {i} with a long name", f"Material {i}"] for i in range(200)}
+    snap = {"exosuit": [], "exosuit_cargo": [], "freighter": {"name": None, "inventory": []}, "storage": [],
+            "ships": [{"name": "Bang", "primary": True, "inventory": [[f"ITEM{i}", 100 + i, 500] for i in range(120)]},
+                      {"name": "Boom", "primary": False, "inventory": [[f"ITEM{i}", 50 + i, 500] for i in range(120)]}]}
+    extra = ["Recipes: the tail that must survive"]
+    text = assistant.build_context("which ships do I own?", snap, lookups(names), ["STATUS"], extra)
+    assert len(text) <= assistant.CONTEXT_BUDGET and text.endswith("Recipes: the tail that must survive")
+    assert "more stacks not listed (ask about this inventory alone for all)" in text
+    small = assistant.build_context("which ships do I own?", snapshot(), lookups(), ["STATUS"], extra)
+    assert "more stacks not listed" not in small and small.endswith("Recipes: the tail that must survive")
+
+
+def test_the_named_item_listing_shrinks_with_the_block():
+    """A question naming 40 items lists 12 of them and counts the rest; when the block is over the budget (here: long
+    extra lines) the listing shrinks to 3 and still counts. Trade-goods questions were 16,274 characters before."""
+    names = {f"W{i}": [f"Widget {i}", f"Widget {i}"] for i in range(40)}
+    snap = {"exosuit": [[f"W{i}", 10, 99] for i in range(40)], "exosuit_cargo": [], "ships": [],
+            "freighter": {"name": None, "inventory": []}, "storage": []}
+    small = assistant.build_context("how many widgets", snap, lookups(names), ["S"], [])
+    assert small.count("] : ") + small.count("]: ") >= 12 and "... and 28 more items" in small
+    crowded = assistant.build_context("how many widgets", snap, lookups(names), ["S"], ["x" * 150] * 60)
+    assert "... and 37 more items" in crowded and len(crowded) > assistant.CONTEXT_BUDGET   # fixed filler: still over

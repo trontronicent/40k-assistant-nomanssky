@@ -75,12 +75,12 @@ def plain_question(question: str) -> str:
     return WRAPPER_RE.sub("(", question or "")
 
 
-def word_set(question: str) -> set[str]:
-    """The lower-case words of a question for the keyword triggers. A German compound with a hyphen also gives its
-    parts: "Welche Exocraft-Fahrzeuge habe ich?" was one word "exocraft-fahrzeuge" that matched no equipment word,
-    so the persona said its data held nothing on exocraft although "my Roamer" worked (chat test 2026-10-09)."""
-    words = {w for w in re.findall(r"[\w'-]+", (question or "").lower()) if re.search(r"\w", w)}
-    return words | {part for word in words for part in word.split("-") if len(part) > 1}
+def split_compounds(words: set[str]) -> set[str]:
+    """`words` plus the parts of hyphenated compounds: "Welche Exocraft-Fahrzeuge habe ich?" was one word
+    "exocraft-fahrzeuge" that matched no equipment word, so the persona said its data held nothing on exocraft
+    although "my Roamer" worked (chat test 2026-10-09). Only for the exocraft ownership check: for every trigger it
+    made "Technologie-Handelswaren" a technology question and added 5,000 characters of equipment to a trade answer."""
+    return words | {part for word in words if "-" in word for part in word.split("-") if len(part) > 1}
 
 
 def kind(question: str) -> str | None:

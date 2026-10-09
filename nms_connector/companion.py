@@ -240,8 +240,8 @@ class PluginCompanion:
 
         status, answer_rules = self._status_lines(snap, ctx, here)
         now = time.time()
-        extra = self._overview_lines(now)
-        words = conversation.word_set(question)
+        words = set(re.findall(r"[\w'-]+", (question or "").lower()))
+        extra: list[str] = []
         extra += self._block("settlement details", self.settlement_lines, words, now)
         extra += self._block("bases", self.base_lines, words, ctx)
         extra += self._block("economy details", self.economy_lines, question, ctx, here)
@@ -254,6 +254,9 @@ class PluginCompanion:
         extra += self._block("inventory worth", self.worth_lines, question, words, snap, name_of)
         extra += self._block("expeditions", self.expedition_lines, question, snap)
         extra += self._block("game terms", self.world_lines, question)
+        # The overview (timers, settlements, frigates) comes last: when a block is over the app's 8,000-character cut it
+        # is the tail that goes, and that should be the lines every question gets, not the ones this question asked for.
+        extra += self._overview_lines(now)
         lookups = self._item_lookups(snap, ctx, here, name_of)
         return {"title": "No Man's Sky", "text": assistant.build_context(question, snap, lookups, status, extra),
                 # How the plugin asks its data to be answered - outside the data block (app 3.12.0).
@@ -790,7 +793,7 @@ class PluginCompanion:
     def _owned_vehicle_lines(self, words: set[str], texts) -> list[str]:
         """"Which exocraft do I have?": the vehicles the save lists, by name (their parts come with an equipment word).
         Without it the persona said its data held nothing on exocraft (chat test 2026-10-09)."""
-        if not any(EQUIPMENT_WORDS.get(w) == "exocraft" for w in words):
+        if not any(EQUIPMENT_WORDS.get(w) == "exocraft" for w in conversation.split_compounds(words)):
             return []
         titles = [title for title, _technology in self._equipment_groups({"exocraft"}, texts)]
         if not titles:

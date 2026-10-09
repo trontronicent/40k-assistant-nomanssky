@@ -76,7 +76,17 @@ extraction, follow-ups, typos, German/French/Spanish) against the live persona, 
 - **Which exocraft do I own?** (*Welche Exocraft-Fahrzeuge habe ich?*, *do I have a Colossus?*):
   the block names the vehicles the save lists. Before, only a question with a technology word got
   any exocraft data and the persona said it held nothing on exocraft. A German compound with a
-  hyphen (*Exocraft-Fahrzeuge*) also gives its parts to the keyword triggers. Live: 9 of 9 correct.
+  hyphen (*Exocraft-Fahrzeuge*) also gives its parts to that check (not to the other triggers:
+  *Technologie-Handelswaren* must not become a technology question). Live: 9 of 9 correct.
+- **Data blocks fit the app's 8,000-character cut**: the app cuts a block from the end, silently.
+  Found by fuzzing `chat_context` with 4,500 mutated and hostile inputs on the real save (no
+  exception, worst call 0.8 s) and by measuring the 166 questions of the test batteries: 3 of them
+  (*which ships do I own?* 12,120 characters, the trade-goods questions up to 16,274) lost their
+  tail. Now the stack listings and the named-item listing shrink until the block fits (a shortened
+  listing counts what it leaves out), and the overview lines (timers, settlements, frigates) come
+  last, so the cut takes those and not the lines the question asked for. All 166 questions are now
+  <= 7,041 characters. Side effect: *Was sind meine wertvollsten Handelswaren?* ranks by value (Ion
+  Capacitor 4,755,000 first) instead of by amount - the "most valuable" line used to be cut off.
 
 ## 0.14.1 — 2026-10-09
 
