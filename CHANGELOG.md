@@ -30,8 +30,11 @@ extraction, follow-ups, typos, German/French/Spanish) against the live persona, 
   amoníaco?*, *Comment fabriquer de l'ammoniac ?*, *Come ottengo l'ammoniaca?*, *¿Cuánto cobre
   tengo?* now find the item. Recipe words of these languages and the French/Italian elision
   (*l'ammoniac*) are understood.
-- **Numbered recipes for follow-ups**: the refiner recipes are numbered and an ordinal word (*the
-  second one*, *und das dritte*, *the last one*) adds a note naming the numbered recipe.
+- **Ordinal follow-ups answered by the plugin**: the refiner recipes are numbered, and *and the
+  second one?*, *und das dritte?*, *the last one?* (last = the highest number) get a block with that
+  one recipe only - no stock totals, no other recipes. Before, the model saw the whole list and
+  answered "Total: data not available" or took *last* for the last Codex entry (the Herox recipe).
+  Live: 24 of 24 correct (second, dritte, last, 8 runs each); before, "last" was right 3 of 5.
 - **A bug in follow-ups**: the app's label "(follow-up to the user's previous message: ...)" put the
   word *message* into the question and it matched the item *Message in a Bottle* (3 of 10 ordinal
   follow-ups answered about a bottle). The label is removed before matching.

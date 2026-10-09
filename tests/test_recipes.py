@@ -342,3 +342,26 @@ def test_the_write_codex_action_writes_both_languages(tmp_path, monkeypatch):
     assert (library / "Deutsch" / "Rohstoffe" / "Ammoniak.md").is_file()
     assert (library / "English" / "Raw Materials" / "Ammonia.md").is_file()
     assert (library / "Deutsch" / "Welten" / "Stickige Welten (tot, ohne Atmosphäre).md").is_file()
+
+
+def test_an_ordinal_follow_up_gets_only_the_recipe_it_means(tmp_path, monkeypatch):
+    """Chat test 2026-10-09: 'the last one?' was read as the last Codex entry in 2 of 5 runs and 'the second one' got
+    a junk 'Total: data not available' line, since the model saw the whole list beside the stock totals. The plugin
+    now answers an ordinal itself: the block holds that numbered recipe only (last = highest number, German and
+    wrapped follow-ups too); no ordinal, two items or a number beyond the list keep the normal block."""
+    from test_connector import FakeCtx, create_plugin
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    plugin.tables.recipes = book()
+    plugin.gamedata.items = dict(ITEMS)
+    wrap = chr(10) * 2 + "(follow-up to the user's previous message: recipe for ammonia)"
+    second = plugin.companion.chat_context("what about the second one?" + wrap)
+    assert second["text"].splitlines()[0].startswith("The player asks for refiner recipe number 2 of 2 for Ammonia")
+    assert "refiner 2:" in second["text"] and "refiner 1:" not in second["text"] and "Total" not in second["text"]
+    last = plugin.companion.chat_context("and the last one?" + wrap)["text"]
+    assert "number 2 of 2" in last and "Built to Last" not in last
+    assert "number 1 of 2" in plugin.companion.chat_context("und das erste?" + wrap.replace("recipe for", "Rezept für"))["text"]
+    words = {"third", "recipe", "ammonia"}
+    assert plugin.companion.picked_recipe_lines("the third recipe for ammonia", words) == []       # only two exist
+    assert plugin.companion.picked_recipe_lines("recipe for ammonia", {"recipe", "ammonia"}) == []   # no ordinal
+    assert plugin.companion.picked_recipe_lines("the second recipe", {"second", "recipe"}) == []     # no item
