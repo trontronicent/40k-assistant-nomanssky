@@ -122,6 +122,8 @@ RECIPE_WORDS = {"recipe", "recipes", "refine", "refiner", "refining", "craft", "
                 "ricetta", "ricette", "ottenere", "trovare", "dove", "come", "ottengo", "trovo"}
 MAX_RECIPE_ITEMS = 3
 MAX_CRAFT_ITEMS = 2
+CURRENCY_WORDS = {"nanite", "nanites", "nanit", "units", "quicksilver", "currency", "currencies", "geld", "währung",
+                  "money", "balance", "kontostand"}
 # Chat test 2026-10-09: the settlement figures came back as "Population: 21/69 | Happiness: 62% | ..." although the
 # prompt forbids label lists; a note beside the figures is closer to the answer than the prompt.
 SENTENCE_NOTE = ("(Answer about the settlement in full sentences - \"Kay City has 21 of 69 inhabitants and 62 % "
@@ -250,6 +252,7 @@ class PluginCompanion:
         extra += self._block("recipes", self.recipe_lines, question, words)
         extra += self._block("craft counts", self.craft_lines, question, words, snap)
         extra += self._block("glyphs", self.glyph_lines, words, snap)
+        extra += self._block("currencies", self.currency_answer_lines, words, snap)
         extra += self._block("cooking", self.cooking_lines, question, snap)
         extra += self._block("inventory worth", self.worth_lines, question, words, snap, name_of)
         extra += self._block("expeditions", self.expedition_lines, question, snap)
@@ -587,6 +590,16 @@ class PluginCompanion:
             out += ["  refiner: " + craftable.option_line(list(r.ingredients), have, label, times, r.amount)
                     for r in options[:3]]
         return out
+
+    def currency_answer_lines(self, words: set[str], snap: dict | None) -> list[str]:
+        """For a question that names a currency ("whats my current nanite level?", "wie viele Nanites"): one sentence
+        with the three balances. The status line has them, but between five other lines a 12B model answered
+        "Total: 4,755" (a number that is nowhere in the data) to the nanite question of a real chat (replay 2026-10-09)."""
+        if not snap or not words & CURRENCY_WORDS:
+            return []
+        return [f"Your currencies right now: {snap.get('units') or 0:,} Units, {snap.get('nanites') or 0:,} Nanites, "
+                f"{snap.get('quicksilver') or 0:,} Quicksilver. A 'nanite level' or 'how many nanites' means the Nanites "
+                "amount here; the balances are not inventory items."]
 
     def glyph_lines(self, words: set[str], snap: dict | None) -> list[str]:
         """The portal address as glyph names for a question that says glyphs (the save holds it as hex digits)."""

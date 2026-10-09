@@ -362,11 +362,26 @@ def test_a_block_over_the_apps_limit_shrinks_its_listings_and_says_so():
 
 def test_the_named_item_listing_shrinks_with_the_block():
     """A question naming 40 items lists 12 of them and counts the rest; when the block is over the budget (here: long
-    extra lines) the listing shrinks to 3 and still counts. Trade-goods questions were 16,274 characters before."""
+    extra lines) the listing shrinks to 6 (never fewer: 'list each stack' needs them) and still counts. Trade-goods
+    questions were 16,274 characters before."""
     names = {f"W{i}": [f"Widget {i}", f"Widget {i}"] for i in range(40)}
     snap = {"exosuit": [[f"W{i}", 10, 99] for i in range(40)], "exosuit_cargo": [], "ships": [],
             "freighter": {"name": None, "inventory": []}, "storage": []}
     small = assistant.build_context("how many widgets", snap, lookups(names), ["S"], [])
     assert small.count("] : ") + small.count("]: ") >= 12 and "... and 28 more items" in small
     crowded = assistant.build_context("how many widgets", snap, lookups(names), ["S"], ["x" * 150] * 60)
-    assert "... and 37 more items" in crowded and len(crowded) > assistant.CONTEXT_BUDGET   # fixed filler: still over
+    assert "... and 34 more items" in crowded and len(crowded) > assistant.CONTEXT_BUDGET   # fixed filler: still over
+
+
+def test_generic_trade_words_name_no_item_and_trade_item_is_a_trade_goods_question():
+    """A real question ('lists me all trade goods I have each stack with name, value and where to sell') named three
+    unrelated items through the words goods, trade and name ('Suspicious Packet (Goods)', 'Salvaged Fleet Trade Unit',
+    '%NAME% Exhibit') and 'trade item category' was no trade-goods question, so the persona answered that the data
+    holds no trade values. Both fixed; a whole item name still matches."""
+    names = {"PACKET": ["Suspicious Packet (Goods)", "Verdächtiges Päckchen"], "UNIT": ["Salvaged Fleet Trade Unit", "Einheit"],
+             "EXHIBIT": ["%NAME% Exhibit", "Exponat"], "TRA": ["Trade Goods Crate", "Kiste"]}
+    assert assistant.match_items("lists me all trade goods with name, value and where to sell", names) == []
+    assert assistant.match_items("how much is a Trade Goods Crate worth", names) == ["TRA"]
+    for question in ("most valuable trade item category", "my trade goods", "Handelsgegenstände", "trade categories"):
+        assert assistant.TRADE_GOODS_RE.search(question), question
+    assert not assistant.TRADE_GOODS_RE.search("how much copper do I have")

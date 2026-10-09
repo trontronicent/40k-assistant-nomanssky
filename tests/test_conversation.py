@@ -197,3 +197,17 @@ def test_the_answer_rules_stay_within_the_apps_limits(tmp_path, monkeypatch):
     longest = [companion.ONLY_THESE, companion.ORDINAL_NOTE, merging.RULE, *companion.CONVERSATION_RULES]
     assert all(len(line) <= 600 for line in longest), [len(line) for line in longest]
     assert len(companion.ONLY_THESE) + 120 <= 600              # the sentence it follows in the recipe follow-up rule
+
+
+def test_a_currency_question_gets_one_sentence_with_the_balances(tmp_path, monkeypatch):
+    """'whats my current nanite level?' was answered 'Total: 4,755' - a number that is nowhere in the data - while the
+    balances sat in the status line between five others. A currency word adds one sentence with all three balances;
+    other questions do not get it."""
+    from test_connector import FakeCtx, create_plugin
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    snap = {"units": 30991862, "nanites": 5057, "quicksilver": 600}
+    lines = plugin.companion.currency_answer_lines({"whats", "my", "current", "nanite", "level"}, snap)
+    assert lines and "30,991,862 Units, 5,057 Nanites, 600 Quicksilver" in lines[0]
+    assert plugin.companion.currency_answer_lines({"how", "much", "copper"}, snap) == []
+    assert plugin.companion.currency_answer_lines({"nanites"}, None) == []

@@ -87,6 +87,19 @@ extraction, follow-ups, typos, German/French/Spanish) against the live persona, 
   last, so the cut takes those and not the lines the question asked for. All 166 questions are now
   <= 7,041 characters. Side effect: *Was sind meine wertvollsten Handelswaren?* ranks by value (Ion
   Capacitor 4,755,000 first) instead of by amount - the "most valuable" line used to be cut off.
+- **Found by replaying 64 of the user's own earlier questions** (sessions of 2026-10-05 to 10-08) on
+  the current build:
+  - *tell me the most valuable trade item category ...* got "the data holds no trade values":
+    *trade item(s)*, *trade category*, *Handelsgegenstände* are now trade-goods questions (3 of 3
+    right).
+  - *lists me all trade goods I have each stack with name, value and where to sell* named three
+    unrelated items through the words *goods*, *trade* and *name* ("Suspicious Packet (Goods)",
+    "Salvaged Fleet Trade Unit", "%NAME% Exhibit") and added their recipes; those words (and *sell*)
+    are stopwords now, and the named-item listing never shrinks below 6 items. The answer lists the
+    stacks with the per-item value instead of the category's.
+  - *whats my current nanite level?* was answered with a number that is nowhere in the data
+    ("Total: 4,755"): a currency word adds one sentence with the three balances (5,057 Nanites, 3 of
+    3 right).
 
 ## 0.14.1 — 2026-10-09
 

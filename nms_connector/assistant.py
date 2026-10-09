@@ -55,6 +55,9 @@ STOPWORDS = {
     # Ordinals of a follow-up ("and the last one?" matched the poster "Built to Last", 2026-10-09):
     "first", "second", "third", "fourth", "last", "erste", "ersten", "zweite", "zweiten", "dritte", "dritten", "vierte",
     "vierten", "letzte", "letzten",
+    # Generic words of a trade question that named three unrelated items - "Suspicious Packet (Goods)", "Salvaged Fleet
+    # Trade Unit", "%NAME% Exhibit" - and added 1,500 characters of recipes for them (replay of a real chat, 2026-10-09):
+    "goods", "trade", "trading", "name", "names", "namen", "sell", "selling",
 }
 INVENTORY_WORDS = {"inventory", "inventories", "items", "inventar", "carry", "carrying", "storage", "lager", "haben",
                    "have", "own", "besitze"}
@@ -71,7 +74,8 @@ PLACE_WORDS = {
     "lagerbehälter": ("Storage Container",), "lagerbehältern": ("Storage Container",),
     "lagern": ("Storage Container", "Other storage"), "schiffen": ("Starship",), "frachtern": ("Freighter",),
 }
-TRADE_GOODS_RE = re.compile(r"trade ?goods?|trade commodit|handelsware|handelsgüter|handelsgut|commodit", re.I)
+TRADE_GOODS_RE = re.compile(r"trade ?goods?|trade ?items?|trade categor|trading goods|trade commodit|handelsware|"
+                            r"handelsgüter|handelsgut|handelsgegenst|commodit", re.I)
 CONTAINER_WORDS = {"container", "containers", "containern", "behälter", "behältern", "lagerbehälter", "lagerbehältern"}
 MAX_PLACE_ROWS = 60
 CONTEXT_BUDGET = 7600       # the app cuts a data block at 8,000 characters; leave room for what it adds
@@ -521,7 +525,7 @@ def _question_sections(question: str, snap: dict, lookups: ItemLookups, rows: in
         notes, matched, missing = _near_miss_sections(question, have, lookups)
         out += [""] + notes if notes else []
     if matched or missing:
-        out += _named_items_section(matched, missing, have, lookups, min(MAX_ITEMS, max(3, rows // 5)))
+        out += _named_items_section(matched, missing, have, lookups, min(MAX_ITEMS, max(6, rows // 5)))
     if asked:        # a named place always lists its contents - an item matched by chance must not replace them
         out += _place_sections(asked, snap, lookups, rows)
     elif _wants_largest_stacks(question) and not (matched or missing):
