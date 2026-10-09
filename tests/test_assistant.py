@@ -320,3 +320,24 @@ def test_an_ordinal_of_a_follow_up_names_no_item():
     for question in ("and the last one?", "what about the second one?", "und das dritte, zweite, letzte?"):
         assert assistant.match_items(question, names) == [], question
     assert assistant.match_items("recipe for the Built to Last Poster", names) == ["POSTER"]
+
+
+def test_unowned_items_are_listed_only_for_ownership_questions():
+    """'what is the difference between a Portable Refiner and a Large Refiner?' began with 'Portable Refiner: 0. Large
+    Refiner: 0.' (chat test 2026-10-09). A '0 - not in any inventory' line needs an ownership cue (how much, do I
+    have ...); 'how much Gold do I have' still says 0."""
+    names = dict(NAMES, REFINER1=["Portable Refiner", "Tragbare Raffinerie"])
+    text = assistant.build_context("what is a Portable Refiner for?", snapshot(), lookups(names), ["S"], [])
+    assert "Portable Refiner" not in text
+    text = assistant.build_context("how much Gold do I have?", snapshot(), lookups(names), ["S"], [])
+    assert "Gold [GOLD]: 0" in text
+
+
+def test_most_abundant_questions_get_the_largest_stacks_and_the_item_count_is_stated():
+    """'what is my most abundant resource?' was answered with the Units balance - the block had no ranking. It now
+    holds the largest stacks, and the inventory line says how many different items the player owns ('how many
+    different items do I own?' was 'data not available')."""
+    text = assistant.build_context("what is my most abundant resource?", snapshot(), lookups(), ["S"], [])
+    assert "Your largest stacks in all" in text and text.index("Cobalt") < text.index("Copper")
+    assert "different items in total." in text
+    assert "Your largest stacks" not in assistant.build_context("how is the weather", snapshot(), lookups(), ["S"], [])

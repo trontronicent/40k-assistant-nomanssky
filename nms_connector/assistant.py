@@ -340,6 +340,26 @@ def _largest_stacks(have: dict, lk: ItemLookups) -> list[str]:
     return out
 
 
+# "Do I have X?" cues: only then is an item the player does not own worth a "0 - not in any inventory" line. A
+# knowledge question ("difference between a Portable Refiner and a Large Refiner") got "Portable Refiner: 0" first.
+OWNERSHIP_WORDS = {"much", "many", "have", "has", "had", "own", "owned", "count", "total", "left", "got", "stock",
+                   "inventory", "inventories", "viel", "viele", "habe", "hab", "habt", "besitze", "besitzen", "wieviel",
+                   "übrig", "bestand", "inventar", "vorrat", "noch"}
+# "What is my most abundant resource?" / "what do I have most of?": the largest stacks answer it.
+MOST_RE = re.compile(r"abundant|largest|biggest|most of|have (the )?most|most (common|plentiful)|am meisten|"
+                     r"meisten|häufigst|haeufigst|größt|groesst", re.I)
+
+
+def _missing_unless_knowledge(question: str, missing: list[str]) -> list[str]:
+    """The unowned items a question names, only when it asks about owning or amounts (OWNERSHIP_WORDS)."""
+    return missing if OWNERSHIP_WORDS & set(_words(question)) else []
+
+
+def _wants_largest_stacks(question: str) -> bool:
+    """True for an inventory question ("what is in my inventory?") or a most/largest question."""
+    return bool(INVENTORY_WORDS & set(_words(question)) or MOST_RE.search(question or ""))
+
+
 def _missing_items(question: str, have: dict, all_names: dict[str, list[str]]) -> list[str]:
     """Items the question names that the player does not have: whole names of every item the game knows (not word
     matches - too broad), at most five."""
@@ -488,7 +508,7 @@ def _question_sections(question: str, snap: dict, lookups: ItemLookups) -> list[
         lines = lookups.kind_lines(asked or None) if lookups.kind_lines else []
         if lines:
             out += [""] + lines
-    missing = _missing_items(question, have, lookups.all_names)
+    missing = _missing_unless_knowledge(question, _missing_items(question, have, lookups.all_names))
     # Currencies are no inventory items: "how many units do I have?" said "UNITS: 0 - not in any inventory" beside
     # the real balance of the status line (chat test 2026-10-09).
     matched = [i for i in matched if i not in CURRENCY_IDS]
@@ -503,7 +523,7 @@ def _question_sections(question: str, snap: dict, lookups: ItemLookups) -> list[
         out += _named_items_section(matched, missing, have, lookups)
     if asked:        # a named place always lists its contents - an item matched by chance must not replace them
         out += _place_sections(asked, snap, lookups)
-    elif not (matched or missing) and INVENTORY_WORDS & set(_words(question)):
+    elif _wants_largest_stacks(question) and not (matched or missing):
         out += _largest_stacks(have, lookups)
     return out
 
@@ -516,7 +536,8 @@ def build_context(question: str, snap: dict | None, lookups: ItemLookups, status
         return "No save has been read yet, so there is no game data."
     out = list(status_lines) + _question_sections(question, snap, lookups)
     counts = [(place, sum(1 for r in rows if ITEM_ID_RE.match(str(r[0])))) for place, rows in places(snap)]
-    out += ["", "Inventories: " + "; ".join(f"{place} ({n} stacks)" for place, n in counts if n)]
+    out += ["", "Inventories: " + "; ".join(f"{place} ({n} stacks)" for place, n in counts if n)
+            + f". {len(holdings(snap))} different items in total."]
     return "\n".join(out + extra_lines)
 
 

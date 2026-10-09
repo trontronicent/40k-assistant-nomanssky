@@ -40,6 +40,15 @@ extraction, follow-ups, typos, German/French/Spanish) against the live persona, 
   follow-ups answered about a bottle). The label is removed before matching.
 - **Settlements in sentences**: a note beside the settlement figures asks for sentences; 9 of 9
   answers (English and German) were full sentences instead of "Population: ... | Happiness: ...".
+- **Most-abundant and item-count questions**: *what is my most abundant resource?* (also *largest*,
+  *biggest*, *am meisten*, *häufigste*) gets the largest stacks - it was answered with the Units
+  balance - and the inventory line states *N different items in total* (*how many different items
+  do I own?* was "data not available"). Live: Carbon 18,743 and 181 items, 3 of 3 each.
+- **No "Portable Refiner: 0" in knowledge questions**: an item the player does not own is listed
+  with "0 - not in any inventory" only when the question has an ownership cue (*how much*, *do I
+  have*, *wie viel*, *habe* ...).
+- **Complaints and compliments** (*you are useless*, *danke, das war hilfreich!*, up to 8 words)
+  get a block without the player's data: a short reply that asks what was wrong or what is next.
 - Persona prompt: conversation rules (answer only what was asked, no invented earlier turns,
   off-topic in a sentence, unknown items are not substituted, list recipes in full when the
   player says one exists).

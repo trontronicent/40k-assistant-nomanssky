@@ -115,3 +115,19 @@ def test_the_recipes_of_a_wrapped_follow_up_are_those_of_the_earlier_question(tm
     plain = " ".join(plugin.companion.recipe_lines(conversation.plain_question(wrapped), words))
     assert "Bottle" in labelled and "How to get Ammonia" in labelled          # the old behaviour, for the record
     assert "How to get Ammonia" in plain and "Bottle" not in plain
+
+
+@pytest.mark.parametrize("message", ["you are useless", "this is stupid", "du bist nutzlos", "danke, das war hilfreich!",
+                                     "great job!", "gut gemacht"])
+def test_a_short_complaint_or_compliment_is_feedback(message):
+    """'you are useless' got the whole status recited back (chat test 2026-10-09). A short complaint or compliment
+    gets a block without the player's data that asks what was wrong or what comes next."""
+    assert conversation.kind(message) == "feedback"
+    assert conversation.minimal_text("feedback") == conversation.FEEDBACK_TEXT
+
+
+def test_a_long_message_with_a_feedback_word_is_still_a_question():
+    """'is there a helpful technology that increases my jetpack boost for exploring caves' is a game question: the
+    feedback path only applies to messages of up to FEEDBACK_MAX_WORDS words."""
+    question = "is there a helpful technology that increases my jetpack boost for exploring caves"
+    assert conversation.kind(question) is None
