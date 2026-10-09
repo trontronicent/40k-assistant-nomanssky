@@ -75,6 +75,14 @@ def plain_question(question: str) -> str:
     return WRAPPER_RE.sub("(", question or "")
 
 
+def word_set(question: str) -> set[str]:
+    """The lower-case words of a question for the keyword triggers. A German compound with a hyphen also gives its
+    parts: "Welche Exocraft-Fahrzeuge habe ich?" was one word "exocraft-fahrzeuge" that matched no equipment word,
+    so the persona said its data held nothing on exocraft although "my Roamer" worked (chat test 2026-10-09)."""
+    words = {w for w in re.findall(r"[\w'-]+", (question or "").lower()) if re.search(r"\w", w)}
+    return words | {part for word in words for part in word.split("-") if len(part) > 1}
+
+
 def kind(question: str) -> str | None:
     """"extraction", "small talk" or None for a question that needs the game data."""
     # The app appends "(follow-up to the user's previous message: ...)" to a short message: only the message counts.

@@ -73,6 +73,10 @@ extraction, follow-ups, typos, German/French/Spanish) against the live persona, 
 - **Portal address as glyphs**: *Wie lautet meine Portal-Adresse in Glyphen?* gets the address as
   the community's English glyph names (0 Sunset, 1 Bird, 2 Face, 3 Diplo, 4 Eclipse, 5 Balloon,
   6 Boat, 7 Bug, 8 Dragonfly, 9 Galaxy, A Voxel, B Fish, C Tent, D Rocket, E Tree, F Atlas).
+- **Which exocraft do I own?** (*Welche Exocraft-Fahrzeuge habe ich?*, *do I have a Colossus?*):
+  the block names the vehicles the save lists. Before, only a question with a technology word got
+  any exocraft data and the persona said it held nothing on exocraft. A German compound with a
+  hyphen (*Exocraft-Fahrzeuge*) also gives its parts to the keyword triggers. Live: 9 of 9 correct.
 
 ## 0.14.1 — 2026-10-09
 

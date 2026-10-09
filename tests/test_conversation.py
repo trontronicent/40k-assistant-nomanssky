@@ -145,3 +145,32 @@ def test_the_data_replies_carry_the_conversation_rules_as_answer_rules(tmp_path,
     assert rules[:len(companion.CONVERSATION_RULES)] == companion.CONVERSATION_RULES
     assert any("Total" in r for r in rules) and any("[GAME DATA]" in r for r in rules)
     assert plugin.companion.chat_context("hi")["instructions"] == []
+
+
+def test_a_hyphenated_compound_also_gives_its_parts():
+    """'Exocraft-Fahrzeuge' gives exocraft and fahrzeuge besides the compound, so the equipment trigger fires; plain
+    words, contractions and a lone hyphen are unchanged."""
+    words = conversation.word_set("Welche Exocraft-Fahrzeuge habe ich? Don't - stop")
+    assert {"exocraft-fahrzeuge", "exocraft", "fahrzeuge", "don't", "stop"} <= words and "-" not in words
+    assert conversation.word_set("copper") == {"copper"} and conversation.word_set("") == set()
+
+
+def test_an_ownership_question_about_exocraft_lists_the_vehicles(tmp_path, monkeypatch):
+    """'Welche Exocraft-Fahrzeuge habe ich?' has no technology word, so no equipment was attached and the persona said
+    its data held nothing on exocraft. The owned vehicles are now listed by name; a question with a technology word
+    keeps the full parts list, and an unrelated question gets nothing."""
+    from nms_connector import companion
+    from test_connector import FakeCtx, create_plugin
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    groups = [("Exocraft Roamer", [{"id": "a"}]), ("Exocraft Nomad", [{"id": "b"}])]
+    monkeypatch.setattr(type(plugin.companion), "_equipment_groups", lambda self, asked, texts: groups)
+    monkeypatch.setattr(type(plugin.companion), "_technology_text", lambda self, technology, texts: "parts")
+    words = conversation.word_set("Welche Exocraft-Fahrzeuge habe ich?")
+    lines = plugin.companion.equipment_lines(words, None)
+    assert lines == ["Exocraft you own (those with technology installed): Exocraft Roamer; Exocraft Nomad. Ask what "
+                     "is installed on one of them for its parts."]
+    assert plugin.companion.equipment_lines({"copper"}, None) == []
+    parts = plugin.companion.equipment_lines({"exocraft", "upgrades"}, None)
+    assert parts[0] == "Exocraft Roamer: parts" and not any(line.startswith("Exocraft you own") for line in parts)
+    assert companion.EQUIPMENT_WORDS["exocraft"] == "exocraft"

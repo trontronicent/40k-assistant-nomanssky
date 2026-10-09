@@ -241,7 +241,7 @@ class PluginCompanion:
         status, answer_rules = self._status_lines(snap, ctx, here)
         now = time.time()
         extra = self._overview_lines(now)
-        words = set(re.findall(r"[\w'-]+", (question or "").lower()))
+        words = conversation.word_set(question)
         extra += self._block("settlement details", self.settlement_lines, words, now)
         extra += self._block("bases", self.base_lines, words, ctx)
         extra += self._block("economy details", self.economy_lines, question, ctx, here)
@@ -772,7 +772,7 @@ class PluginCompanion:
         # Only a question about equipment: "what is aboard my ship" names the ship but means its cargo (seen
         # 2026-10-05: a trade-goods question got the ship's whole technology and ran over the 8,000-character limit).
         if not words & TECH_WORDS:
-            return []
+            return self._owned_vehicle_lines(words, texts)
         asked = {EQUIPMENT_WORDS[w] for w in words if w in EQUIPMENT_WORDS}
         out: list[str] = []
         used = 0
@@ -786,6 +786,17 @@ class PluginCompanion:
         if out:
             out.append("Upgrade modules list the range of each stat they can have; the exact values are not stored.")
         return out
+
+    def _owned_vehicle_lines(self, words: set[str], texts) -> list[str]:
+        """"Which exocraft do I have?": the vehicles the save lists, by name (their parts come with an equipment word).
+        Without it the persona said its data held nothing on exocraft (chat test 2026-10-09)."""
+        if not any(EQUIPMENT_WORDS.get(w) == "exocraft" for w in words):
+            return []
+        titles = [title for title, _technology in self._equipment_groups({"exocraft"}, texts)]
+        if not titles:
+            return []
+        return ["Exocraft you own (those with technology installed): " + "; ".join(titles)
+                + ". Ask what is installed on one of them for its parts."]
 
     def _equipment_groups(self, asked: set[str], texts) -> list[tuple[str, list[dict]]]:
         """(title, installed technology) of the exosuit, multi-tools, exocraft, freighter and ships the question names
