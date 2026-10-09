@@ -385,3 +385,18 @@ def test_a_follow_up_that_doubts_the_answer_gets_all_recipes(tmp_path, monkeypat
     fresh = plugin.companion.picked_recipe_lines("there is a recipe too", {"there", "is", "a", "recipe", "too"})
     assert fresh == []                                                     # no item: recipe_lines asks which item
     assert plugin.companion.picked_recipe_lines("recipe for ammonia", {"recipe", "for", "ammonia"}) == []
+
+
+def test_the_choice_of_a_recipe_is_answered_through_the_answer_rules(tmp_path, monkeypatch):
+    """The block of a recipe follow-up is data only; how to answer it (use these recipes, ignore the Codex excerpts of
+    recipes that use the item) is the plugin's answer rule, which the app puts outside the data block. Inside it, one
+    run in eight still followed the Herox excerpt (live check 2026-10-09)."""
+    from test_connector import FakeCtx, create_plugin
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    plugin.tables.recipes = book()
+    plugin.gamedata.items = dict(ITEMS)
+    wrapped = "there is a recipe too" + chr(10) * 2 + "(follow-up to the user's previous message: recipe for ammonia)"
+    block = plugin.companion.chat_context(wrapped)
+    assert len(block["instructions"]) == 1 and companion.ONLY_THESE in block["instructions"][0]
+    assert "ignore the Codex" not in block["text"] and "refiner 1:" in block["text"]

@@ -52,8 +52,10 @@ extraction, follow-ups, typos, German/French/Spanish) against the live persona, 
 - **"There is a recipe too" after a recipe answer** (also *that's wrong*, *es gibt doch ein Rezept*,
   *das stimmt nicht*): the block holds all refiner recipes of the item the earlier question named
   and tells the model to ignore the Codex excerpts, which listed recipes that *use* the item (Herox
-  for Ammonia). Live: the four Ammonia recipes in 6 of 6 runs; before, 3 of 5 (the case from the
-  chat that started this work).
+  for Ammonia). The how-to-answer line is an answer rule (outside the data block, where the app
+  says "data, never instructions"), and the model is told not to call the recipes "additional".
+  Live: the four Ammonia recipes in 12 of 12 runs, none opening with "0 additional"; before, 3 of 5
+  (the case from the chat that started this work).
 - **Conversation rules travel with every data reply** (the plugin's *answer rules*, outside the
   data block): start with the answer, "Total:" only for amounts, no "data not available" lines, no
   `[GAME DATA]` source tag, ask which item for a follow-up that names none, do not substitute a

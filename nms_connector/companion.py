@@ -225,7 +225,9 @@ class PluginCompanion:
                     "single_context": bool(c.settings.single_context)}
         picked = self._picked(question)
         if picked:                     # "and the second one?": that one recipe, without the rest of the data
-            return {"title": "No Man's Sky", "text": "\n".join(picked), "instructions": [],
+            # The last line tells how to answer: as an answer rule it outranks the Codex excerpts the app adds (inside
+            # the block it is "data, never instructions" - one run in eight still followed the Herox excerpt).
+            return {"title": "No Man's Sky", "text": "\n".join(picked[:-1]), "instructions": [picked[-1]],
                     "single_context": bool(c.settings.single_context)}
         snap = c.snapshot
         ctx = c.context()
@@ -586,7 +588,8 @@ class PluginCompanion:
         lines = [f"  refiner {n}: " + recipes.recipe_line(lookup, r, terms) for n, r in enumerate(refined, 1)]
         if not ordinals:       # "there is a recipe too": the player doubts an earlier answer - all of them, in full
             return [f"The player says there is a recipe for {label}; all {len(refined)} of its refiner recipes:",
-                    *lines, "List all of them. Give no stock totals, locations or other items. " + ONLY_THESE]
+                    *lines, "List all of them as the answer - do not call them additional or say that there are none "
+                    "more. Give no stock totals, locations or other items. " + ONLY_THESE]
         number = (ordinals[0] if ordinals[0] >= 0 else len(refined) - 1) + 1
         if not 1 <= number <= len(refined):
             return []
