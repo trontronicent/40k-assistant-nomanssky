@@ -46,7 +46,7 @@ STOPWORDS = {
     "koennen", "lassen", "liessen", "ließen", "zusammen", "zusammengeführt", "zusammenführen", "zusammenfuehren",
     "zusammengefuehrt", "kombiniert", "kombinieren", "verschiedenen", "verschiedene", "gleiche", "gleichen",
     "containern", "behältern", "behaelter", "lagerbehälter", "lagern", "schiffen", "stapel",
-    "different", "single", "combined", "combine", "merged", "merge", "present", "better", "sorting", "could",
+    "different", "single", "combined", "combine", "merged", "merge", "present", "better", "sorting",
     # Filler of a request that is no item ("the best recipe I can execute right now" matched Liquidator Right Arm):
     "right", "left", "give", "best", "most", "worth", "value", "values", "cook", "cooking", "recipe", "recipes",
     "execute", "materials", "material", "currently", "right-now", "make", "made", "hold", "holding", "season",
@@ -487,11 +487,6 @@ def _merge_section(question: str, snap: dict, lookups: ItemLookups, asked: list[
     notes, owned, _other = _near_miss_sections(question, have, lookups) if not named else ([], [], [])
     out = merge_lines(scope, lookups.name_of, named | set(owned))
     return out[:1] + notes + out[1:] if notes else out
-
-
-def _names_a_place(names: list[str]) -> bool:
-    """True when every name of an item is made of place words only ('Storage Container', 'Lagerbehälter')."""
-    return bool(names) and all(w in PLACE_WORDS for name in names for w in _words(name))
 
 
 def _question_sections(question: str, snap: dict, lookups: ItemLookups) -> list[str]:

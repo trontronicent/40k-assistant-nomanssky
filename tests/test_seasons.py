@@ -111,7 +111,7 @@ def test_the_save_says_whether_it_is_an_expedition():
 def test_the_researched_files_are_valid_and_carry_their_sources():
     """research/expeditions.json and cooking.json parse, name their sources, and every date in them is a real date:
     a researched fact without a source, or a typo in a date, would silently mislead the persona."""
-    for loader, name in ((seasons.load_research, "expeditions"), (None, "cooking")):
+    for loader, _name in ((seasons.load_research, "expeditions"), (None, "cooking")):
         data = loader() if loader else json.loads((seasons.RESEARCH_FILE.parent / "cooking.json").read_text(encoding="utf-8"))
         assert data["researched"] and data["sources"] and all(s.startswith("https://") for s in data["sources"])
         assert data["facts"]

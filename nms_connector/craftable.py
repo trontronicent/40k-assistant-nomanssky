@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from collections.abc import Callable, Iterable
 
-MAKE_WORDS = {"make", "craft", "build", "produce", "create", "refine", "cook", "herstellen", "herstellen", "bauen",
+MAKE_WORDS = {"make", "craft", "build", "produce", "create", "refine", "cook", "herstellen", "bauen",
               "machen", "craften", "erzeugen", "raffinieren", "kochen", "fabricar", "hacer", "fabriquer", "faire",
               "fare", "stelle", "baue", "mache", "crafte"}
 AMOUNT_WORDS = {"many", "much", "enough", "sufficient", "viele", "genug", "ausreichend", "wieviele", "wieviel",
