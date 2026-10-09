@@ -62,7 +62,17 @@ extraction, follow-ups, typos, German/French/Spanish) against the live persona, 
   similar item for one the game lacks, answer in sentences. They are also in `PERSONA_PROMPT`, but
   the app seeds that prompt once and keeps a persona the user has re-saved - the one on the
   development machine holds a 401-character generic text from 2026-10-06 - so only the answer rules
-  reach every persona. 110 answers re-checked: no regression, no "data not available" line.
+  reach every persona. 110 answers re-checked: no regression, no "data not available" line. A
+  requested format (*give me just the number*, *answer in one word*) is followed exactly.
+- **How many can I make? / do I have enough?**: for the item a question names the plugin computes
+  how often its crafting recipe and best refiner recipes can be done from your holdings, what
+  limits it and - for a wanted number (*enough Antimatter for 3 Warp Cells*) - whether it is enough
+  and what is missing; the number belongs to the item after it. Before, the model said the data
+  held no ingredient quantities (*how many of those can I make?* after *recipe for Antimatter*).
+  Live: 52 Antimatter (limited by Chromatic Metal) 8 of 8, "not enough for 3 Warp Cells" 14 of 14.
+- **Portal address as glyphs**: *Wie lautet meine Portal-Adresse in Glyphen?* gets the address as
+  the community's English glyph names (0 Sunset, 1 Bird, 2 Face, 3 Diplo, 4 Eclipse, 5 Balloon,
+  6 Boat, 7 Bug, 8 Dragonfly, 9 Galaxy, A Voxel, B Fish, C Tent, D Rocket, E Tree, F Atlas).
 
 ## 0.14.1 — 2026-10-09
 

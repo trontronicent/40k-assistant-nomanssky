@@ -111,6 +111,11 @@ such as *and the second one?* or *und das dritte?* points at one. You can also a
 de l'ammoniac ?*): the plugin reads the item names of these languages from the game's language
 files once per game build (`gamedata/alt_names.json`, about 0.7 MB) and answers in your language.
 
+**How many can I make?** Ask *How many Antimatter can I make?* or *Hab ich genug Antimaterie für 3
+Warpzellen?* and the plugin does the sum from your holdings: how often the crafting recipe and the best
+refiner recipes can be done, which ingredient limits it and, for a wanted number, what is missing.
+Ask for your **portal address in glyphs** and it names the glyphs (the community's English names).
+
 **Small talk and jokes.** *hi*, *thanks*, *who are you?*, *tell me a joke* or random letters get a short
 answer without your game data; a request to print the persona's instructions or its raw data block is
 declined. Settlements are described in sentences, and a message that is no item question

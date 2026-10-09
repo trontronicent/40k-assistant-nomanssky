@@ -18,7 +18,7 @@ import re
 import time
 from datetime import date
 
-from . import (assistant, conversation, cooking, logs, galaxy, merging, page as page_module, planet_search, planets_view, recipes, seasons,
+from . import (assistant, conversation, cooking, craftable, logs, galaxy, merging, page as page_module, planet_search, planets_view, recipes, seasons,
                settlements, timers, trade)
 
 PERSONA_PROMPT = (
@@ -121,6 +121,7 @@ RECIPE_WORDS = {"recipe", "recipes", "refine", "refiner", "refining", "craft", "
                 "dónde", "donde", "recette", "recettes", "comment", "obtenir", "trouver", "fabriquer", "où",
                 "ricetta", "ricette", "ottenere", "trovare", "dove", "come", "ottengo", "trovo"}
 MAX_RECIPE_ITEMS = 3
+MAX_CRAFT_ITEMS = 2
 # Chat test 2026-10-09: the settlement figures came back as "Population: 21/69 | Happiness: 62% | ..." although the
 # prompt forbids label lists; a note beside the figures is closer to the answer than the prompt.
 SENTENCE_NOTE = ("(Answer about the settlement in full sentences - \"Kay City has 21 of 69 inhabitants and 62 % "
@@ -143,7 +144,8 @@ CONVERSATION_RULES = [
     "You see only the current message. When it depends on an earlier one you cannot see (\"the second one\") and the "
     "data names no item for it, ask which item is meant; never say \"already provided\" or \"as before\".",
     "A name the game has no item for is not in No Man's Sky: say so, do not substitute a similar item.",
-    "Answer in the language the player writes in, in sentences rather than \"Label: value\" lists.",
+    "Answer in the language the player writes in, in sentences rather than \"Label: value\" lists - unless the player "
+    "asks for a format (\"just the number\", \"one word\", a table, a list): then give exactly that and nothing else.",
 ]
 # The app adds Codex excerpts to every reply; for these follow-ups they listed recipes that USE the item (Herox for
 # Ammonia) and the model answered with those instead of the recipes in the block.
@@ -246,6 +248,8 @@ class PluginCompanion:
         extra += self._block("equipment", self.equipment_lines, words, ctx.texts)
         extra += self._block("planet search", self.planet_lines, question, words, ctx)
         extra += self._block("recipes", self.recipe_lines, question, words)
+        extra += self._block("craft counts", self.craft_lines, question, words, snap)
+        extra += self._block("glyphs", self.glyph_lines, words, snap)
         extra += self._block("cooking", self.cooking_lines, question, snap)
         extra += self._block("inventory worth", self.worth_lines, question, words, snap, name_of)
         extra += self._block("expeditions", self.expedition_lines, question, snap)
@@ -552,6 +556,44 @@ class PluginCompanion:
             elif not (refined or crafted):
                 out.append(self._no_recipe_line(item, book))
         return out
+
+    def craft_lines(self, question: str, words: set[str], snap: dict | None) -> list[str]:
+        """For "how many can I make?" / "do I have enough X for 3 Y?": per item the question names (<= MAX_CRAFT_ITEMS)
+        that has a recipe, how often its crafting and best refiner recipes can be done from the holdings, what limits
+        them and, for a wanted number, whether it is enough - computed here (chat test 2026-10-09: the model said the
+        data holds no ingredient quantities)."""
+        c = self.connector
+        book = c.tables.recipes
+        if not snap or book is None or not book.recipes or not craftable.asks_craft_count(words):
+            return []
+        items = [i for i in assistant.match_items(question, c.gamedata.names_with_alt())
+                 if book.crafting.get(i) or book.made_by(i)][:MAX_CRAFT_ITEMS]
+        have = {i: e["total"] for i, e in assistant.holdings(snap).items()}
+        wanted = craftable.requested_times(question)
+        all_names = c.gamedata.names_with_alt()
+        target = craftable.target_item(question, {i: all_names.get(i, []) for i in items}) if wanted else None
+        label = lambda i: recipes.item_label(c.gamedata.lookup, i)      # noqa: E731 - a callback for the helpers
+        out: list[str] = []
+        for item in items:
+            times = wanted if item == target else None          # "for 3 Warp Cells": the number is the Warp Cells'
+            out.append(f"What you can make of {label(item)} from your holdings (as of the last save):")
+            if book.crafting.get(item):
+                out.append("  crafted from " + craftable.option_line(list(book.crafting[item]), have, label, times))
+            options = sorted(book.made_by(item)[:MAX_RECIPES_PER_ITEM],
+                             key=lambda r: -craftable.max_crafts(r.ingredients, have)[0] * r.amount)
+            out += ["  refiner: " + craftable.option_line(list(r.ingredients), have, label, times, r.amount)
+                    for r in options[:3]]
+        return out
+
+    def glyph_lines(self, words: set[str], snap: dict | None) -> list[str]:
+        """The portal address as glyph names for a question that says glyphs (the save holds it as hex digits)."""
+        portal = ((snap or {}).get("location") or {}).get("portal")
+        names = craftable.glyph_names(portal) if words & craftable.GLYPH_WORDS else []
+        if not names:
+            return []
+        shown = ", ".join(f"{n} ({d.upper()})" for n, d in zip(names, portal.strip(), strict=True))
+        return [f"Portal address {portal} as glyphs, in order: {shown}. (The community's English glyph names; the "
+                f"digits 0-F are {', '.join(craftable.GLYPHS)}.)"]
 
     def _recipe_items(self, question: str) -> list[str]:
         """The items a recipe question names, also by their French/Spanish ... names (2026-10-09); a misspelt name
