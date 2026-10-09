@@ -262,6 +262,15 @@ def test_a_named_item_with_one_stack_says_there_is_nothing_to_merge():
         assert "- Aronium [ALLOY1]: 2 in 1 stack, stack limit 20 - Storage Container 7: 2 (only one stack: nothing to merge)" in text, question
 
 
+def test_a_word_with_another_first_letter_is_no_typo():
+    """Chat test 2026-10-09: 'how much Dilithium do I have?' (no such item in the game) was read as a misspelt
+    'Lithium' (ratio 0.875). A typo keeps the first letter, so an unknown name stays unknown and the persona can say
+    the game has no such item instead of reporting a different one."""
+    names = dict(NAMES, WATERWORLD1=["Lithium", "Lithium"])
+    assert assistant.near_miss_items("how much Dilithium do I have?", names) == []
+    assert assistant.near_miss_items("how much Lithum do I have?", names) == [("lithum", "WATERWORLD1")]
+
+
 def test_misspellings_are_read_by_sound():
     """'Paraphinium', 'Paraphine' and 'Paraphenium' (chat of 2026-10-09, ph for f) all mean Paraffinium: words are
     compared folded (ph -> f, doubled letters single, y -> i, umlauts plain), then by closeness, then as a stem one

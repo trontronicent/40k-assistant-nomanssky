@@ -212,6 +212,22 @@ def test_the_persona_gets_recipes_when_the_question_asks_how_to_get_an_item(tmp_
     assert copper[-1] == "  no refiner or crafting recipe makes it: it is gathered only"
 
 
+def test_an_item_that_is_no_raw_material_is_not_called_gathered(tmp_path, monkeypatch):
+    """Chat test 2026-10-09: 'how do I get the Pulse Engine?' was answered 'gathered only, no crafting recipe'. An item
+    without a recipe that is not in the substance table (a technology, a reward) gets a line that forbids 'gathered';
+    a raw material (Copper) keeps 'gathered only'. Why: the model repeated the plugin's false claim to the player."""
+    from test_connector import FakeCtx, create_plugin
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    plugin.tables.recipes = book()
+    plugin.gamedata.items = dict(ITEMS, PULSE={"en": "Pulse Engine", "desc_en": "Faster travel within a system."})
+    lines = plugin.companion.recipe_lines("how do I get the Pulse Engine?", {"how", "do", "i", "get", "the", "pulse", "engine"})
+    assert lines[0].startswith("How to get Pulse Engine")
+    assert "do not say it is gathered" in lines[-1] and "gathered only" not in lines[-1]
+    copper = plugin.companion.recipe_lines("where do I find copper", {"where", "do", "i", "find", "copper"})
+    assert copper[-1].endswith("it is gathered only")
+
+
 def test_recipes_for_a_misspelt_item_and_the_split_german_verb(tmp_path, monkeypatch):
     """Chat of 2026-10-09: 'wie stelle ich Paraphine her?' and 'how do I create Paraphenium?' got no recipes - the
     split verb 'stelle ... her' and 'create' were no recipe words, and the misspelt name matched no item. Now both

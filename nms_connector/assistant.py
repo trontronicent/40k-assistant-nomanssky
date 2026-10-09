@@ -401,7 +401,9 @@ class _NameIndex:
         for k in (key, *(key.removesuffix(end) for end in PLURAL_ENDS)):
             if k in self.folded:
                 return self.pick(k)
-        close = difflib.get_close_matches(key, list(self.folded), n=1, cutoff=NEAR_MISS_CUTOFF)
+        # A typo keeps the first letter: "Dilithium" (no such item) is not a misspelt "Lithium" (chat test 2026-10-09).
+        close = [k for k in difflib.get_close_matches(key, list(self.folded), n=3, cutoff=NEAR_MISS_CUTOFF)
+                 if k[0] == key[0]]
         if close:
             return self.pick(close[0])
         stem = [k for k in self.folded if len(key) >= 7 and k.startswith(key[:-1])]
