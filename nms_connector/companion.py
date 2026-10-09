@@ -132,6 +132,19 @@ ORDINAL_INDEX = {"first": 0, "1st": 0, "erste": 0, "ersten": 0, "premier": 0, "p
                  "third": 2, "3rd": 2, "dritte": 2, "dritten": 2, "tercero": 2, "terzo": 2,
                  "fourth": 3, "4th": 3, "vierte": 3, "vierten": 3, "last": -1, "letzte": -1, "letzten": -1}
 ORDINAL_WORDS = set(ORDINAL_INDEX)
+# Rules for every data reply, sent as the plugin's answer rules (outside the data block). They are here and not only
+# in PERSONA_PROMPT because the app seeds that prompt once: a persona the user has re-saved keeps its own prompt, and
+# the one on this machine (a 401-character generic text from 2026-10-06) never got the conversation rules.
+CONVERSATION_RULES = [
+    "Start with the answer to what was asked. Write a \"Total: ...\" line only when the question asks for an amount, "
+    "and do not recite currencies, location or other data nobody asked for.",
+    "Never write a line such as \"Total: data not available\", and never cite [GAME DATA] as a source: cite Codex "
+    "excerpts as [K1], [K2] ... and give the player's own numbers without a source tag.",
+    "You see only the current message. When it depends on an earlier one you cannot see (\"the second one\") and the "
+    "data names no item for it, ask which item is meant; never say \"already provided\" or \"as before\".",
+    "A name the game has no item for is not in No Man's Sky: say so, do not substitute a similar item.",
+    "Answer in the language the player writes in, in sentences rather than \"Label: value\" lists.",
+]
 # The app adds Codex excerpts to every reply; for these follow-ups they listed recipes that USE the item (Herox for
 # Ammonia) and the model answered with those instead of the recipes in the block.
 ONLY_THESE = ("Use only the recipes above: ignore the Codex excerpts and web results, which list other recipes "
@@ -238,7 +251,8 @@ class PluginCompanion:
         lookups = self._item_lookups(snap, ctx, here, name_of)
         return {"title": "No Man's Sky", "text": assistant.build_context(question, snap, lookups, status, extra),
                 # How the plugin asks its data to be answered - outside the data block (app 3.12.0).
-                "instructions": answer_rules + ([merging.RULE] if merging.is_merge_question(question) else []),
+                "instructions": CONVERSATION_RULES + answer_rules
+                                + ([merging.RULE] if merging.is_merge_question(question) else []),
                 # The Settings tab's "Single Context Per Question": this plugin's persona gets no earlier turns (3.11.0).
                 "single_context": bool(c.settings.single_context)}
 

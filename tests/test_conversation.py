@@ -131,3 +131,17 @@ def test_a_long_message_with_a_feedback_word_is_still_a_question():
     feedback path only applies to messages of up to FEEDBACK_MAX_WORDS words."""
     question = "is there a helpful technology that increases my jetpack boost for exploring caves"
     assert conversation.kind(question) is None
+
+
+def test_the_data_replies_carry_the_conversation_rules_as_answer_rules(tmp_path, monkeypatch):
+    """The persona prompt is seeded once and a re-saved persona keeps its own (the stored one on this machine is a
+    401-character generic text), so the rules that keep answers short and honest travel with every data block as the
+    plugin's answer rules; the one-sentence blocks of small talk do not need them."""
+    from nms_connector import companion
+    from test_connector import FakeCtx, create_plugin
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    rules = plugin.companion.chat_context("how much copper do I have?")["instructions"]
+    assert rules[:len(companion.CONVERSATION_RULES)] == companion.CONVERSATION_RULES
+    assert any("Total" in r for r in rules) and any("[GAME DATA]" in r for r in rules)
+    assert plugin.companion.chat_context("hi")["instructions"] == []

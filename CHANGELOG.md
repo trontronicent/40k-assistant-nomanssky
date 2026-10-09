@@ -54,9 +54,13 @@ extraction, follow-ups, typos, German/French/Spanish) against the live persona, 
   and tells the model to ignore the Codex excerpts, which listed recipes that *use* the item (Herox
   for Ammonia). Live: the four Ammonia recipes in 6 of 6 runs; before, 3 of 5 (the case from the
   chat that started this work).
-- Persona prompt: conversation rules (answer only what was asked, no invented earlier turns,
-  off-topic in a sentence, unknown items are not substituted, list recipes in full when the
-  player says one exists).
+- **Conversation rules travel with every data reply** (the plugin's *answer rules*, outside the
+  data block): start with the answer, "Total:" only for amounts, no "data not available" lines, no
+  `[GAME DATA]` source tag, ask which item for a follow-up that names none, do not substitute a
+  similar item for one the game lacks, answer in sentences. They are also in `PERSONA_PROMPT`, but
+  the app seeds that prompt once and keeps a persona the user has re-saved - the one on the
+  development machine holds a 401-character generic text from 2026-10-06 - so only the answer rules
+  reach every persona. 110 answers re-checked: no regression, no "data not available" line.
 
 ## 0.14.1 — 2026-10-09
 

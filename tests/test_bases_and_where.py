@@ -119,7 +119,8 @@ def test_the_answer_rule_travels_apart_from_the_data(tmp_path, monkeypatch):
     monkeypatch.setattr(type(plugin), "here", lambda self: 0x79)
     monkeypatch.setattr(planets_view, "where_sentence", lambda *a, **k: "You are currently in space in X.")
     block = plugin.companion.chat_context("where am I?")
-    assert block["instructions"] == [
+    # After the conversation rules every data reply carries (companion.CONVERSATION_RULES), the position rule.
+    assert block["instructions"][-1:] == [
         "Asked where they are, answer with this sentence, translated into the player's language and nothing in "
         'front of it: "You are currently in space in X."']
     assert "You are currently in space in X." in block["text"]      # the fact stays data
