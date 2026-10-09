@@ -132,6 +132,15 @@ ORDINAL_INDEX = {"first": 0, "1st": 0, "erste": 0, "ersten": 0, "premier": 0, "p
                  "third": 2, "3rd": 2, "dritte": 2, "dritten": 2, "tercero": 2, "terzo": 2,
                  "fourth": 3, "4th": 3, "vierte": 3, "vierten": 3, "last": -1, "letzte": -1, "letzten": -1}
 ORDINAL_WORDS = set(ORDINAL_INDEX)
+# The app adds Codex excerpts to every reply; for these follow-ups they listed recipes that USE the item (Herox for
+# Ammonia) and the model answered with those instead of the recipes in the block.
+ONLY_THESE = ("Use only the recipes above: ignore the Codex excerpts and web results, which list other recipes "
+              "(ones that use the item), and do not mention them.")
+# A follow-up that doubts the earlier answer ("there is a recipe too", "es gibt doch ein Rezept", "that's wrong"): the
+# model answered about extraction or about recipes that USE the item in 2 of 5 runs, so the plugin lists the recipes.
+CORRECTION_RE = re.compile(r"there (?:is|are|'s) (?:a |an |also |another |still |actually )*recipes?|"
+                           r"es gibt (?:doch |aber |auch |noch |sehr wohl )*(?:ein |ein weiteres )?rezept|"
+                           r"that(?:'s| is) (?:wrong|incorrect|not true)|das stimmt nicht|stimmt so nicht", re.I)
 ORDINAL_NOTE = ("  (The player means one of the numbered recipes above by its position - first = 1, second = 2 ..., last = the highest number - "
                 "answered earlier in the same order: give that recipe in full, without stock totals or locations.)")
 MAX_RECIPES_PER_ITEM = 6
@@ -551,18 +560,24 @@ class PluginCompanion:
         item with at least that many refiner recipes."""
         book = self.connector.tables.recipes
         ordinals = [ORDINAL_INDEX[w] for w in sorted(words & ORDINAL_WORDS)]
-        if not ordinals or not (words & RECIPE_WORDS) or book is None or not book.recipes:
+        correction = bool(CORRECTION_RE.search(question or ""))
+        if not (ordinals or correction) or not (words & RECIPE_WORDS) or book is None or not book.recipes:
             return []
         items = self._recipe_items(question)
         refined = book.made_by(items[0])[:MAX_RECIPES_PER_ITEM] if len(items) == 1 else []
+        if not refined:
+            return []
+        lookup, terms = self.connector.gamedata.lookup, self.connector.tables.terms
+        label = recipes.item_label(lookup, items[0])
+        lines = [f"  refiner {n}: " + recipes.recipe_line(lookup, r, terms) for n, r in enumerate(refined, 1)]
+        if not ordinals:       # "there is a recipe too": the player doubts an earlier answer - all of them, in full
+            return [f"The player says there is a recipe for {label}; all {len(refined)} of its refiner recipes:",
+                    *lines, "List all of them. Give no stock totals, locations or other items. " + ONLY_THESE]
         number = (ordinals[0] if ordinals[0] >= 0 else len(refined) - 1) + 1
         if not 1 <= number <= len(refined):
             return []
-        lookup = self.connector.gamedata.lookup
-        return [f"The player asks for refiner recipe number {number} of {len(refined)} for "
-                f"{recipes.item_label(lookup, items[0])}:",
-                f"  refiner {number}: " + recipes.recipe_line(lookup, refined[number - 1], self.connector.tables.terms),
-                "Answer with this one recipe in a sentence. Give no stock totals, locations or other recipes."]
+        return [f"The player asks for refiner recipe number {number} of {len(refined)} for {label}:", lines[number - 1],
+                "Answer with this one recipe in a sentence. Give no stock totals, locations or other recipes. " + ONLY_THESE]
 
     @staticmethod
     def _no_recipe_line(item: str, book) -> str:

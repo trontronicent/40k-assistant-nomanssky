@@ -49,6 +49,11 @@ extraction, follow-ups, typos, German/French/Spanish) against the live persona, 
   have*, *wie viel*, *habe* ...).
 - **Complaints and compliments** (*you are useless*, *danke, das war hilfreich!*, up to 8 words)
   get a block without the player's data: a short reply that asks what was wrong or what is next.
+- **"There is a recipe too" after a recipe answer** (also *that's wrong*, *es gibt doch ein Rezept*,
+  *das stimmt nicht*): the block holds all refiner recipes of the item the earlier question named
+  and tells the model to ignore the Codex excerpts, which listed recipes that *use* the item (Herox
+  for Ammonia). Live: the four Ammonia recipes in 6 of 6 runs; before, 3 of 5 (the case from the
+  chat that started this work).
 - Persona prompt: conversation rules (answer only what was asked, no invented earlier turns,
   off-topic in a sentence, unknown items are not substituted, list recipes in full when the
   player says one exists).

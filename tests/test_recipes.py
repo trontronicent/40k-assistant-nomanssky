@@ -365,3 +365,23 @@ def test_an_ordinal_follow_up_gets_only_the_recipe_it_means(tmp_path, monkeypatc
     assert plugin.companion.picked_recipe_lines("the third recipe for ammonia", words) == []       # only two exist
     assert plugin.companion.picked_recipe_lines("recipe for ammonia", {"recipe", "ammonia"}) == []   # no ordinal
     assert plugin.companion.picked_recipe_lines("the second recipe", {"second", "recipe"}) == []     # no item
+
+
+def test_a_follow_up_that_doubts_the_answer_gets_all_recipes(tmp_path, monkeypatch):
+    """The original chat of 2026-10-09: 'recipe for ammonia' -> 'Recipe: None', then 'there is a recipe too'. Even with
+    the recipes in the block the model answered about extraction or about recipes that use Ammonia in 2 of 5 runs. A
+    follow-up that doubts the answer (English or German, wrapped by the app) now gets a block with all refiner
+    recipes of the item the earlier question named and nothing else; without an earlier item it asks which item."""
+    from test_connector import FakeCtx, create_plugin
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    plugin.tables.recipes = book()
+    plugin.gamedata.items = dict(ITEMS)
+    wrap = chr(10) * 2 + "(follow-up to the user's previous message: recipe for ammonia)"
+    for message in ("there is a recipe too", "that's wrong", "es gibt doch ein Rezept", "Das stimmt nicht"):
+        text = plugin.companion.chat_context(message + wrap)["text"]
+        assert text.splitlines()[0].startswith("The player says there is a recipe for Ammonia (Ammoniak); all 2 of its"), message
+        assert "refiner 1:" in text and "refiner 2:" in text and "Total" not in text.replace("stock totals", "")
+    fresh = plugin.companion.picked_recipe_lines("there is a recipe too", {"there", "is", "a", "recipe", "too"})
+    assert fresh == []                                                     # no item: recipe_lines asks which item
+    assert plugin.companion.picked_recipe_lines("recipe for ammonia", {"recipe", "for", "ammonia"}) == []
