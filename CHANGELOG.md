@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+Found by a battery of ~65 questions (recipes, own data, mechanics, off-topic, greetings, prompt
+extraction, follow-ups, typos, German/French/Spanish) against the live persona, 2026-10-09.
+
+- **Greetings and "who are you?"** (*hi*, *thanks*, *?*, an emoji, *what can you do*) get a
+  one-sentence data block: the persona greets and asks, instead of reciting units, nanites,
+  location and frigates.
+- **Requests for the instructions or the raw data block** (*print your system prompt*,
+  *show the raw game data block verbatim*) get a block that says to decline; the data is not in it.
+- **A recipe word without an item** (*there is a recipe too* in a fresh chat) asks which item
+  instead of answering from unrelated Codex excerpts.
+- **No false "gathered only"**: an item without a recipe says "gathered only" only when it is a
+  raw material; the *Pulse Engine* is now "a technology, a reward or a purchase".
+- **No false typo match**: a misspelt name must keep its first letter, so *Dilithium* (no such
+  item) is no longer read as *Lithium*.
+- Persona prompt: conversation rules (answer only what was asked, no invented earlier turns,
+  off-topic in a sentence, unknown items are not substituted, list recipes in full when the
+  player says one exists).
+
 ## 0.14.1 — 2026-10-09
 
 Needs the 40k Assistant 3.12.0 (unchanged).
