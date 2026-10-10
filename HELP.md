@@ -132,7 +132,8 @@ Ammoniak?*, *how do I make Sulphurine?*, *where do I find copper?* - and the per
 gets, from the game's own files, where it comes from (the game's description: which
 planets, which tool), every refiner recipe that makes it with the refiner size it
 needs, and its crafting recipe; an item no recipe makes is gathered only when it is a raw
-material (a technology such as the Pulse Engine is not). Recipes are numbered, so a follow-up
+material (a technology such as the Pulse Engine is not). When the 40k Assistant answers with a recipe line, it
+is shown as a small diagram with item pictures instead of plain text (needs app 3.17.0). Recipes are numbered, so a follow-up
 such as *and the second one?* or *und das dritte?* points at one. You can also ask in
 **French, Italian, Spanish, Portuguese or Dutch** (*¿Cómo consigo amoníaco?*, *Comment fabriquer
 de l'ammoniac ?*): the plugin reads the item names of these languages from the game's language

@@ -80,7 +80,9 @@ into `J:\40k-assistant\plugins\.data\nomanssky`, the installed plugin's data, un
   `cooking.CookingView`) and not a longer signature; `NmsConnector.action` is a dispatch table (`_actions`, one
   `_act_*` method per action) and the persona's data is built by small `_*_lines` / `_block` methods, never one
   long function; a module reaches into another class through its public methods (`GameData.release()`/`names()`,
-  `StarmapReader.release()`), never its `_private` fields; no `getattr(x, "attr", None)` for an attribute the class
+  `StarmapReader.release()`), never its `_private` fields; `item_icons()` is one such shared view: every item with a
+  converted icon, under English name, local name and the combined "English (Local)" label (app 3.17.0, feeds the
+  app's chat recipe-diagram feature); no `getattr(x, "attr", None)` for an attribute the class
   always has (only for what an older host app may not provide: `ctx.assets_dir`, `ctx.section_types`, `ctx.root`);
   state derived from the save is set in one place (`NmsConnector._reset_save_state`), not listed twice; the same expression twice becomes a helper; imports
   are at module level unless they would make a cycle or load numpy/ctypes for nothing. `zip` always says

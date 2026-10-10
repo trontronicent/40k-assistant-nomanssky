@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.0-beta.1 (beta; needs app 3.17.0)
+
+- **`item_icons()`.** A name -> icon lookup the app's chat renderer uses to turn a recipe line ("2 Paraffinium +
+  1 Ferrite Dust -> 1 Ammonia") into a small diagram with item pictures: every item with a converted icon, under
+  its English name, local-language name, and the combined "English (Local)" label.
+
 ## 0.15.0-beta.1 - "Discovery" (beta; needs app 3.15.0)
 
 - **Discoveries tab.** What the save's discovery store holds (1,409 records in the measured save): your scans per
