@@ -239,7 +239,7 @@ def test_plugin_reads_saves_read_only_and_builds_a_view(tmp_path, monkeypatch):
 
     plugin, view, result = asyncio.run(scenario())
     main = section(view, type="tabs", id="main")
-    assert [t["label"] for t in main["tabs"]] == ["Overview", "Systems", "Inventory", "Ships & bases", "Settlements", "Saves & source", "Settings"]
+    assert [t["label"] for t in main["tabs"]] == ["Overview", "Systems", "Inventory", "Ships & bases", "Discoveries", "Companions", "Settlements", "Saves & source", "Settings"]
     titles = [s.get("title") for s in all_sections(view["sections"])]
     assert "Status" in titles and "Location (at the last save)" in titles and "Exosuit inventory" in titles
     assert "Status" in [s.get("title") for s in main["tabs"][0]["sections"]]
@@ -396,7 +396,7 @@ def test_game_tables_load_once_per_build_and_report_fallbacks():
     tables = GameTables()
     assert tables.needs_load(None) and tables.ship_ranges is ships.FALLBACK and tables.trait_names == {}
     warnings = tables.load(None)
-    assert not tables.needs_load(None) and len(warnings) == 8 and all("not found" in w for w in warnings)
+    assert not tables.needs_load(None) and len(warnings) == 9 and all("not found" in w for w in warnings)  # 9: + creature battle abilities (0.15.0)
 
     class Install:
         build_id = "new"

@@ -1,6 +1,50 @@
 # Changelog
 
-## Unreleased
+## 0.15.0 - "Discovery" (needs app 3.15.0)
+
+- **Discoveries tab.** What the save's discovery store holds (1,409 records in the measured save): your scans per
+  system (clickable, opens the system map), the records somebody named, and counts split into yours and other players'
+  - the store also contains discoveries you came across. Reads the game's own short keys by hand (`DD`, `DM`, `OWS`,
+  `FL`; they are not in `mapping.json`). **Not claimed:** the flags are shown as stored and not interpreted (`U` is on
+  190 records, all other players' - it is no "uploaded by me"), and there is **no completion percentage**: a planet's
+  record holds fauna and flora as description text, not as totals to compare against. Creatures are never named in a
+  save (0 of 262).
+- **Companions tab.** Pets, eggs and the slots (11 pets, 4 eggs, 11 of 30 slots in the measured save - the save's arrays hold 30 and 18
+  entries, the rest are empty and skipped): name, creature,
+  type, biome, trust, age, arena wins, **abilities** (the five template ids with the game's own description from
+  `petbattlermovestable.mbin`, 61 templates, tooltip), the **harvest** read from the game's text ("Collect Milk ->
+  Fresh Milk / Raw Steak"), the three personality values (header and tooltip name the game's six personality words; the order and sign are flagged unconfirmed), a **Type tooltip** (Passive / Prey / Predator, game wording), **where the kind was first scanned** (the creature seed equals the
+  animal record's `VP[0]`: all 11 pets matched) and the origin system. **Not claimed:** what the three trait numbers
+  mean, how long an egg takes (no constant in the game files) and the species name (generated from the seeds; none of
+  the known genus names occurs in the 84,330 English strings), so none is shown. The move table sits in
+  `NMSARC.Precache.pak` (a pak hint avoids opening 17 paks).
+- **Ask the persona.** Questions about companions (pet / egg / Begleiter / arena, or a pet's own name) get one line per
+  pet, with the abilities spelled out only for abilities / arena / battle questions (about 600 characters per pet
+  otherwise, past the app's 8,000-character cut); questions about discoveries (*discovered*, *entdeckt*, *did I name
+  ...*) get the counts and the named records, narrowed by the words of the question that occur in a name. Both end
+  with what is not known, so the model does not fill the gap. *Name* alone opens nothing (ship and item names).
+- **Planet Subtype.** The Planets tables end with the sub-biome number the game records for every planet (a global
+  1-27 enum). The game files have ocean variants of the normal biomes, so ocean worlds are stored there - but which
+  numbers mean ocean could not be derived (none of 192 recorded planets is a Waterworld and none mentions water), so
+  `planets_view.OCEAN_SUBTYPES` is empty: one in-game observation fills it in and every recorded planet is classified at
+  once, because the number is already in the history.
+- **The knowledge base goes through the app (app 3.15.0).** `write-codex` permission; the generated documents (items
+  and world types, English and the game's language) are written with `ctx.codex.write(...)` as one owner, **automatically
+  once per game build and plugin version** (no *Write Codex documents* + *Sync now* any more; the button stays for a
+  forced run). The app marks the files, never overwrites a document you edited, never writes a deleted one again
+  (*Restore hidden documents* on the page) and indexes everything in one pass. The documents written before (marked
+  `generated: nomanssky-plugin ...`) are adopted once (`adopt`), and the old mixed `Items/` / `Worlds/` folders are
+  cleaned up.
+- **Shipped documents** (`codex/` in the repository, `contributes.codex`): the FAQ, the settlements guide (English and
+  German), the resources and crafting reference and the two update histories, plus **new: Companions and Creature
+  Battles** (English and a German summary) - behaviour, the three battle stats, the nine affinities (the matchups are
+  not in the game files: two internally consistent cycles from two guides, the disputed cross-cycle claims marked), the
+  ability types, strategy and what is not known, each fact labelled official / game files / save / two sources / single
+  source / unconfirmed / disputed. A copy you already have is yours and is never overwritten.
+- **Categories** `game`, `persona`, `knowledge-base` (app 3.13.0).
+- Persona fixes of 2026-10-09 (below) are part of this release.
+
+## Persona fixes of 2026-10-09
 
 Found by a battery of ~65 questions (recipes, own data, mechanics, off-topic, greetings, prompt
 extraction, follow-ups, typos, German/French/Spanish) against the live persona, 2026-10-09.

@@ -484,7 +484,8 @@ def test_tables_show_the_current_system_and_every_visited_system(tmp_path):
     planets = tabs["tabs"][2]["sections"][-1]          # after the search form
     assert planets["title"] == "Visited planets with resources (1)" and planets["rows"][0][1] == "Delta Sol"
     assert planets["columns"][:2] == ["Planet", "System"]   # the planet titles the row's card on a phone
-    assert len(planets["columns"]) == 12 and planets["rows"][0][8] == "Nitrogen (Stickstoff)"
+    assert len(planets["columns"]) == 13 and planets["columns"][-1] == "Subtype"   # 0.15.0: + Subtype, last
+    assert planets["rows"][0][8] == "Nitrogen (Stickstoff)"
 
 
 def test_system_map_shows_the_star_and_every_known_planet(tmp_path):

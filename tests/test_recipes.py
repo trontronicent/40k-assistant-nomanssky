@@ -319,17 +319,34 @@ def test_the_codex_library_folder_is_found_as_the_app_finds_it(tmp_path):
     assert recipes.codex_library_folder(plugin_root, {"CODEX_FOLDER": f"  {tmp_path / 'kb'} "}) == tmp_path / "kb" / "No Man's Sky"
 
 
-def test_the_write_codex_action_writes_both_languages(tmp_path, monkeypatch):
-    """The page's 'Write Codex documents' writes the item and world documents of both languages into the Codex
-    library folder and tells to press Sync now; before the game files are read it says so instead."""
+class RecordingChannel:
+    """Stands in for the app's ctx.codex: records what the plugin hands over."""
+
+    def __init__(self):
+        self.calls = []
+
+    async def write(self, docs, owner="default", adopt=None, adopt_dirs=()):
+        self.calls.append({"docs": dict(docs), "owner": owner, "adopt": adopt, "adopt_dirs": tuple(adopt_dirs)})
+        return {"library": "No Man's Sky", "written": len(docs), "unchanged": 0, "kept_edited": 0, "removed": 0,
+                "hidden": 0}
+
+
+def test_the_write_codex_action_hands_both_languages_to_the_apps_channel(tmp_path, monkeypatch):
+    """The page's 'Write Codex documents' gives the item and world documents of both languages to ctx.codex as ONE
+    owner (items and worlds share the language folders, so two owners would delete each other's files), claims the
+    legacy-marked files from before the channel existed, and names the old mixed folders to clean up. Before the game
+    files are read it says so, and without a channel (an older app) it explains what is needed."""
     import asyncio
     from test_connector import FakeCtx, create_plugin
     from nms_connector import game_terms, worlds
     monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
-    monkeypatch.setenv("CODEX_FOLDER", str(tmp_path / "kb"))
-    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    ctx = FakeCtx(tmp_path / "data")
+    plugin = create_plugin(ctx)
+    older = asyncio.run(plugin.action("write_codex", {}))
+    assert older["ok"] is False and "app 3.15.0" in older["message"]
+    ctx.codex = RecordingChannel()
     early = asyncio.run(plugin.action("write_codex", {}))
-    assert early["ok"] is False and "not written" in early["message"]
+    assert early["ok"] is False and "not written" in early["message"] and ctx.codex.calls == []
     plugin.tables.loaded = True
     plugin.tables.recipes = book()
     plugin.tables.terms = game_terms.GameTerms(language="german")
@@ -337,11 +354,12 @@ def test_the_write_codex_action_writes_both_languages(tmp_path, monkeypatch):
                                                       {"DEAD9": "Stickiger %PLANETCLASS%", "WEATHER_DEAD7": "Stickig"}, "german")
     plugin.gamedata.items = dict(ITEMS)
     done = asyncio.run(plugin.action("write_codex", {}))
-    assert done["ok"] and "Sync now" in done["message"]
-    library = tmp_path / "kb" / "No Man's Sky"
-    assert (library / "Deutsch" / "Rohstoffe" / "Ammoniak.md").is_file()
-    assert (library / "English" / "Raw Materials" / "Ammonia.md").is_file()
-    assert (library / "Deutsch" / "Welten" / "Stickige Welten (tot, ohne Atmosphäre).md").is_file()
+    assert done["ok"] and "Codex documents in the library 'No Man's Sky'" in done["message"]
+    (call,) = ctx.codex.calls
+    assert call["owner"] == "generated" and call["adopt"] == "generated: nomanssky-plugin"
+    assert {"English", "Deutsch", "Items", "Worlds"} <= set(call["adopt_dirs"])
+    assert {"Deutsch/Rohstoffe/Ammoniak.md", "English/Raw Materials/Ammonia.md",
+            "Deutsch/Welten/Stickige Welten (tot, ohne Atmosphäre).md"} <= set(call["docs"])
 
 
 def test_an_ordinal_follow_up_gets_only_the_recipe_it_means(tmp_path, monkeypatch):

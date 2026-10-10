@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from . import discoveries, pets
+
 # The first galaxies by RealityIndex; later ones are shown as "Galaxy #n".
 GALAXIES = ["Euclid", "Hilbert Dimension", "Calypso", "Hesperius Dimension", "Hyades",
             "Ickjamatew", "Budullangr", "Kikolgallr", "Eltiensleen", "Eissentam"]
@@ -217,6 +219,10 @@ def summarize(save: dict) -> dict:
         "frigates": len(ps.get("FleetFrigates") or []),
         "expeditions": len(ps.get("FleetExpeditions") or []),
         "pets": len(ps.get("Pets") or []),
+        # 0.15.0: companions, eggs and slots, and the discovery store (both bounded; see pets.py / discoveries.py)
+        "companions": pets.compact_all(ps),
+        "discoveries": discoveries.parse(_get(save, "DiscoveryManagerData", "DiscoveryData-v1", "Store", "Record",
+                                              default=[])),
         "current_mission": item_name(ps.get("CurrentMissionID")) if ps.get("CurrentMissionID") else None,
         "season": season_of(common, ps),
     }

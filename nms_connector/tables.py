@@ -10,7 +10,8 @@ Blocking (file reads); the connector calls ``load`` through ``ctx.run_blocking``
 
 from __future__ import annotations
 
-from . import frigates, game_terms, hgpak, logs, recipes, seasons, settlements, ships, store, techstats, timers, worlds
+from . import (frigates, game_terms, hgpak, logs, pets, recipes, seasons, settlements, ships, store, techstats, timers,
+               worlds)
 
 
 class GameTables:
@@ -30,6 +31,7 @@ class GameTables:
         self.worlds = worlds.WorldBook()            # world types in the game's words (English + game language)
         self.terms = game_terms.GameTerms()         # the game's words for refiners, crafting, ... (both languages)
         self.seasons = seasons.SeasonBook()         # the expeditions (names, descriptions, reward names)
+        self.pets = pets.PetBook()                  # companions: harvest words, affinities and the battle move table
 
     def needs_load(self, install) -> bool:
         """True before the first load and after a game update (another build id)."""
@@ -66,6 +68,7 @@ class GameTables:
             logs.warn_once(f"tables:texts:{reason}", "The game texts (world types, terms, expeditions) could not "
                            "be built: %s", reason)
             self._build_texts({}, None, None, reason)
+        self._load_moves(install)
         self.loaded = True
         warnings = []
         for label, table in (("Timer durations: built-in values", self.timers),
@@ -75,7 +78,8 @@ class GameTables:
                              ("Technology stats unavailable", self.tech),
                              ("Recipes unavailable", self.recipes),
                              ("World type names unavailable", self.worlds),
-                             ("Expeditions unavailable", self.seasons)):
+                             ("Expeditions unavailable", self.seasons),
+                             ("Creature battle abilities unavailable", self.pets)):
             error = (getattr(table, "error", None) if not isinstance(table, dict) else table.get("error"))
             if error:
                 warnings.append(f"{label} ({error})")
@@ -103,7 +107,8 @@ class GameTables:
 
     @staticmethod
     def _wanted_text_key(key: str) -> bool:
-        return worlds.wanted_key(key) or game_terms.term_keys_wanted(key) or seasons.wanted_key(key)
+        return (worlds.wanted_key(key) or game_terms.term_keys_wanted(key) or seasons.wanted_key(key)
+                or pets.wanted_key(key))
 
     @classmethod
     def _read_texts(cls, install):
@@ -117,15 +122,27 @@ class GameTables:
         except (OSError, KeyError, ValueError, RuntimeError) as exc:
             return {}, None, None, f"{type(exc).__name__}: {exc}"
 
+    def _load_moves(self, install) -> None:
+        """The creature-battle move table, onto the pet book built from the texts. Its own guard: a table that
+        moved in a game update costs the abilities' descriptions only, never the rest of the tables."""
+        try:
+            self.pets.moves = pets.load_moves(install)
+        except Exception as exc:
+            reason = f"{type(exc).__name__}: {exc}"
+            logs.warn_once(f"tables:pet moves:{reason}", "The creature battle moves could not be read: %s", reason)
+            self.pets.error = reason
+
     def _build_texts(self, english, local, language, reason) -> None:
-        """Worlds, terms and expeditions from the language texts (empty with the reason when there are none)."""
+        """Worlds, terms, expeditions and companions from the language texts (empty with the reason when none)."""
         if reason:
             self.worlds, self.terms = worlds.WorldBook(error=reason), game_terms.GameTerms(error=reason)
             self.seasons = seasons.SeasonBook(error=reason)
+            self.pets = pets.PetBook(error=reason)
             return
         self.worlds = worlds.WorldBook.from_texts(english, local, language)
         self.terms = game_terms.GameTerms.from_texts(english, local, language)
         self.seasons = seasons.SeasonBook.from_texts(english, local, language)
+        self.pets = pets.PetBook.from_texts(english, local, language)
 
     def _store(self, install, english, local, language) -> None:
         """Keep the recipes and texts of this build so the persona can answer without the game files."""

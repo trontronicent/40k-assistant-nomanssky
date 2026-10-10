@@ -18,7 +18,7 @@ import re
 import time
 from datetime import date
 
-from . import (assistant, conversation, cooking, craftable, logs, galaxy, merging, page as page_module, planet_search, planets_view, recipes, seasons,
+from . import (assistant, conversation, cooking, craftable, creature_lines, discoveries_view, logs, galaxy, merging, page as page_module, planet_search, planets_view, recipes, seasons,
                settlements, timers, trade)
 
 PERSONA_PROMPT = (
@@ -256,6 +256,8 @@ class PluginCompanion:
         extra += self._block("cooking", self.cooking_lines, question, snap)
         extra += self._block("inventory worth", self.worth_lines, question, words, snap, name_of)
         extra += self._block("expeditions", self.expedition_lines, question, snap)
+        extra += self._block("companions", self.pet_lines, question, snap, now)
+        extra += self._block("discoveries", self.discovery_lines, question, ctx)
         extra += self._block("game terms", self.world_lines, question)
         # The overview (timers, settlements, frigates) comes last: when a block is over the app's 8,000-character cut it
         # is the tail that goes, and that should be the lines every question gets, not the ones this question asked for.
@@ -495,6 +497,16 @@ class PluginCompanion:
                          + (nearest or "none of your known systems yet"))
             out.append(line)
         return out
+
+    def pet_lines(self, question: str, snap: dict | None, now: float) -> list[str]:
+        """Companions, eggs and (when asked) their battle abilities - for a question about them (creature_lines)."""
+        return creature_lines.pet_lines(question, snap, self.connector.tables.pets, now)
+
+    def discovery_lines(self, question: str, ctx) -> list[str]:
+        """Your discoveries - counts, named records, what a question's words find - for a question about them."""
+        def label_of(row: dict) -> str:
+            return discoveries_view.place(row, ctx)
+        return creature_lines.discovery_lines(question, self.connector.discovery_book, label_of)
 
     def world_lines(self, question: str) -> list[str]:
         """What the game terms of a question mean, in the game's own words: "stickige" is the German game's

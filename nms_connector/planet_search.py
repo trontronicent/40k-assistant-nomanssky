@@ -36,6 +36,7 @@ QUESTION_WORDS = {
     "einer", "der", "die", "das", "den", "dem", "und", "fuer", "sind", "ist", "kann", "ich", "mir", "mich", "meine",
     "mein", "you", "your", "ein", "auf", "von", "bei", "nach", "how", "wie", "viele", "many", "all", "alle",
     # "Habe ich bereits eine stickige Welt entdeckt?" - asking whether, not what the planet is like (2026-10-06)
+    "did", "name", "named", "names", "benannt", "nannte",
     "bereits", "schon", "entdeckt", "entdecken", "besucht", "gefunden", "jemals", "irgendeine", "irgendwo", "hab",
     "discovered", "visited", "already", "ever", "found", "been", "seen", "gesehen", "kennst", "hast",
 }
@@ -75,6 +76,20 @@ def _cell_text(cell) -> str:
     return "" if cell is None else str(cell)
 
 
+OCEAN_WORDS = ("ocean", "oceans", "ozean", "ozeane", "ozeanwelt", "water", "wasser", "sea", "meer")
+
+
+def is_ocean(planet: dict) -> bool:
+    """Whether the planet is an ocean world (planets_view owns the rule; imported late: it imports this module)."""
+    from . import planets_view     # a module-level import would be circular
+    return planets_view.is_ocean(planet)
+
+
+def ocean_words() -> set[str]:
+    """The words an ocean planet is found by (English and German), as a set."""
+    return set(OCEAN_WORDS)
+
+
 class PlanetIndex:
     """The recorded planets with their searchable words (built per view or question from a planets_view.Context)."""
 
@@ -91,6 +106,8 @@ class PlanetIndex:
                 text = " ".join([label, planet.get("biome") or "", planet.get("size") or ""]
                                 + [_cell_text(c) for c in row])
                 world = set((getattr(ctx, "world_words", None) or {}).get(planet.get("biome") or "", ()))
+                if is_ocean(planet):
+                    world |= ocean_words()
                 self.entries.append({"planet": planet, "system": key, "system_label": label, "row": row,
                                      "words": set(words(text)) | world})
 

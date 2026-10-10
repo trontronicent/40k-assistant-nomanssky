@@ -35,7 +35,29 @@ ATLAS_SYSTEM = 0x7A
 PURPLE_SYSTEMS = range(0x3E8, 0x42A)
 
 PLANET_COLUMNS = ["Planet", "Type", "Weather", "Resource 1", "Resource 2", "Resource 3", "Plants", "Gas", "Flora",
-                  "Fauna", "Sentinels"]
+                  "Fauna", "Sentinels", "Subtype"]
+# The sub-biome number the game records for every planet (a global 1-27 enum shared across biomes). The game files
+# have ocean variants of other biomes (barrenoceanbiome, scorchoceanbiome, toxicoceanbiome), so ocean worlds are stored
+# here - but which numbers they are is NOT known (it could not be derived from the stored text of 192 planets, and none
+# of them is a Waterworld). Fill this in from an in-game observation: every planet already recorded is then classified
+# at once, because the number is in the history. Until then it stays empty rather than guessed.
+OCEAN_SUBTYPES: frozenset = frozenset()
+SUBTYPE_HINT = ("The sub-biome number recorded for this planet (1-27, shared by all biomes). The game stores ocean "
+                "variants of the normal biomes here, but which numbers mean ocean is not confirmed yet.")
+
+
+def is_ocean(planet: dict) -> bool:
+    """A Waterworld, or a planet whose recorded subtype is a confirmed ocean subtype (OCEAN_SUBTYPES)."""
+    subtype = planet.get("biome_subtype")
+    return planet.get("biome") == "Waterworld" or (isinstance(subtype, int) and subtype in OCEAN_SUBTYPES)
+
+
+def subtype_cell(planet: dict):
+    """The Subtype cell: the recorded number (sortable) with its explanation, or a dash without one."""
+    subtype = planet.get("biome_subtype")
+    if not isinstance(subtype, int) or isinstance(subtype, bool):
+        return "–"
+    return {"text": str(subtype), "sort": subtype, "hint": SUBTYPE_HINT}
 OPEN_SYSTEM = "open_system"
 GALAXY_MAP_ID = "galaxy-map"
 GALAXY_COLORS = "galaxy_colors"          # action: how the galaxy map colours its systems
@@ -257,7 +279,8 @@ def _planet_row(texts: Texts, planet: dict, visit: dict | None, sentinel_index: 
     row += [texts.description(info) or planet.get("biome"), texts.key(info.get("weather")),
             texts.item(planet.get("common")), texts.item(planet.get("uncommon")), texts.item(planet.get("rare")),
             texts.items(planet.get("extra")), texts.item(planet_gas(planet)), texts.key(info.get("flora"), info.get("fauna")),
-            texts.key(info.get("fauna"), info.get("flora")), texts.key(_sentinel(planet, sentinel_index))]
+            texts.key(info.get("fauna"), info.get("flora")), texts.key(_sentinel(planet, sentinel_index)),
+            subtype_cell(planet)]
     return row
 
 

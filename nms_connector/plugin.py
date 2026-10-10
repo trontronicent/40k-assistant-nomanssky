@@ -26,7 +26,7 @@ from datetime import datetime
 from functools import cached_property
 from pathlib import Path
 
-from . import equipment, frigates, galaxy, hgpak, logs, memory, planet_search, planets_view, positions, route, saves, settlements, ships, starmap, timers, trade
+from . import codex_sync, discoveries, equipment, frigates, galaxy, hgpak, logs, memory, planet_search, planets_view, positions, route, saves, settlements, ships, starmap, timers, trade
 from .companion import PluginCompanion
 from .describe import StateText
 from .game_install import GameInstall, find_game
@@ -118,6 +118,7 @@ class NmsConnector:
         self.error: str | None = None
         self.gamedata = GameData(self.data_dir, getattr(ctx, "assets_dir", None))
         self.install: GameInstall | None = None
+        self.codex_publisher = codex_sync.CodexPublisher(self.data_dir)   # the generated Codex documents (app 3.15.0)
         self._game_checked = 0.0
         self._game_failed = 0.0
         self.history = PlanetHistory(self.data_dir / "planet_history.json")
@@ -157,8 +158,17 @@ class NmsConnector:
         self.decode_seconds: float | None = None
         self.unknown_keys = 0
         self.degraded: dict[str, str] = {}        # parts of the newest save that could not be read: name -> reason
+        self._book: tuple = (None, discoveries.DiscoveryBook(None))   # (the snapshot it was built for, its book)
 
     # ------------------------------------------------------------------ shared views of the state
+
+    @property
+    def discovery_book(self) -> discoveries.DiscoveryBook:
+        """The newest snapshot's discoveries as a book; built once per snapshot (the page and the persona both ask)."""
+        snap = self.snapshot
+        if self._book[0] is not snap:
+            self._book = (snap, discoveries.DiscoveryBook((snap or {}).get("discoveries")))
+        return self._book[1]
 
     @property
     def game_checked(self) -> bool:
@@ -186,32 +196,38 @@ class NmsConnector:
     # ------------------------------------------------------------------ lifecycle
 
     async def _write_codex(self) -> dict:
-        """Action 'write_codex': the item and world-type documents (both languages) into the Codex library folder
-        (recipes.codex_library_folder) - what tools/codex_recipes.py does, from the tables already loaded."""
-        from . import recipes, worlds
-        if not (self.tables.loaded and self.gamedata.ready and self.tables.recipes.recipes and self.tables.worlds.worlds):
-            reason = self.tables.recipes.error or self.tables.worlds.error or "the game files are not read yet"
+        """Action 'write_codex' (and the automatic write): the item and world-type documents, both languages, through
+        the app's Codex channel (codex_sync). The app marks the files, keeps what you edited, keeps what you deleted
+        deleted, and indexes everything in one pass - nothing to sync by hand."""
+        channel = getattr(self.ctx, "codex", None)         # None: an app before 3.15.0, or the permission is missing
+        if channel is None:
+            return {"ok": False, "message": "This app cannot keep Codex documents for the plugin (it needs app 3.15.0 "
+                                            "and the permission 'keeps its own documents in your Codex')."}
+        reason = self.codex_publisher.ready(self.tables, self.gamedata)
+        if reason:
             return {"ok": False, "message": f"Codex documents not written: {reason}."}
-        # The plugin's folder (<app>/plugins/<id>); the context's root, or this package's parent.
-        folder = recipes.codex_library_folder(getattr(self.ctx, "root", None) or Path(__file__).resolve().parents[1])
-
-        def write():
-            terms = self.tables.terms
-            roots = tuple(recipes._label(lang) for lang in recipes.languages_of(terms))
-            items = recipes.write_documents(folder, recipes.documents(self.tables.recipes, self.gamedata.lookup, terms),
-                                            recipes.GENERATED_MARK, roots + recipes.LEGACY_DIRS)
-            world = recipes.write_documents(folder, self.tables.worlds.documents(self.gamedata.lookup, terms),
-                                            worlds.GENERATED_MARK, roots + recipes.LEGACY_DIRS)
-            return {k: items[k] + world[k] for k in items}
+        docs = await self.ctx.run_blocking(codex_sync.generated_documents, self.tables, self.gamedata.lookup)
         try:
-            counts = await self.ctx.run_blocking(write)
-        except OSError as exc:
-            self.ctx.logger.warning("[NMS] Codex documents not written to %s: %s", folder, exc)
-            return {"ok": False, "message": f"Writing to {folder} failed: {exc}"}
-        self.ctx.logger.info("[NMS] Codex documents in %s: %s", folder, counts)
-        return {"ok": True, "message": f"Codex documents in {folder}: {counts['written']:,} written, "
-                                       f"{counts['unchanged']:,} unchanged, {counts['removed']:,} removed. Press "
-                                       "Sync now in the Codex panel so the Codex reads them."}
+            counts = await channel.write(docs, owner=codex_sync.OWNER, adopt=codex_sync.ADOPT,
+                                         adopt_dirs=codex_sync.legacy_folders(self.tables.terms))
+        except Exception as exc:        # a refused request (CodexError) or a folder that cannot be written
+            self.codex_publisher.failed(time.time())
+            self.ctx.logger.warning("[NMS] Codex documents not written: %s: %s", type(exc).__name__, exc)
+            return {"ok": False, "message": f"Codex documents not written: {exc}"}
+        await self.ctx.run_blocking(self.codex_publisher.remember, codex_sync.stamp_of(self.install, self.ctx.version))
+        self.ctx.logger.info("[NMS] Codex documents: %s", counts)
+        return {"ok": True, "message": codex_sync.describe(counts)}
+
+    async def _publish_codex(self) -> None:
+        """Work-loop stage: write the generated documents when they are due (a new game build or plugin version)."""
+        if getattr(self.ctx, "codex", None) is None or self.install is None:
+            return
+        stamp = codex_sync.stamp_of(self.install, self.ctx.version)
+        if not self.codex_publisher.due(stamp, time.time()) or self.codex_publisher.ready(self.tables, self.gamedata):
+            return
+        result = await self._write_codex()
+        if not result["ok"]:
+            raise RuntimeError(result["message"])
 
     async def start(self) -> None:
         self.ctx.spawn(self._run(), "save-watch")
@@ -532,6 +548,7 @@ class NmsConnector:
         failures: list[str] = []
         await self._stage("key mapping", self._ensure_mapping, failures)
         await self._stage("game files", self._ensure_gamedata, failures)
+        await self._stage("codex documents", self._publish_codex, failures)
         await self._stage("save", self._tick_saves, failures)
         # After the save: the memory reader needs the save's anchor to find the player state.
         await self._stage("game memory", self._read_memory, failures)

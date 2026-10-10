@@ -30,6 +30,33 @@ The tabs:
 - **Saves & source** - how often the game saves, the recent save writes, where the data comes from and the last memory scans.
 - **Settings** - the plugin persona's **codeword** and **Single Context Per Question**: see *Settings and the overlay* below.
 
+## Discoveries
+
+The **Discoveries** tab shows what the game recorded in your save: how many creatures, plants, minerals, planets and
+systems you scanned or named, **per system** (click a system to open its map) and every **name** somebody gave, with
+where and when. The record store also contains other players' discoveries that you came across, so the counts are
+split. Two honest limits: the records carry flags whose meaning is not known (they are not shown as "uploaded"), and
+there are no totals to compare against, so there is **no completion percentage**. Creatures are never named in a
+save.
+
+## Companions
+
+The **Companions** tab lists your pets and eggs: name, creature, type, biome, trust, age, arena wins, **abilities** (five
+per pet; hover for the game's description of each), the **harvest** (what the creature gives and the product), the raw
+**personality** values (three numbers; hover for the game's six personality words and what is unconfirmed), the **type** (hover: what Passive / Prey / Predator mean), **where its kind was first scanned** and its origin. What the plugin cannot know is not invented: the
+meaning of the trait numbers, how long an egg needs, and the species name the game shows. Ask the persona about your
+pets, eggs, the arena or a pet by name; ask for abilities to get them spelled out.
+
+## The knowledge base
+
+The plugin keeps a library called **No Man's Sky** in your Codex up to date by itself: one document per item and per
+world type (English and the game's language), and its own guides - FAQ, settlements, resources and crafting, the update
+histories and **Companions and Creature Battles**. It needs the permission *keeps its own documents in one of your
+Codex libraries*, which the install dialog shows. Rules: **a document you edit is never overwritten** (remove the
+`stc_owner:` line from its header to make it fully yours), **a document you delete stays deleted** (the plugin's page
+has **Restore hidden documents**), and new game builds update the generated ones automatically. **Write Codex
+documents** on the page forces a run.
+
 ## The plugin persona
 
 With the 40k Assistant 3.9.0 the plugin brings a persona, the **No Man's Sky
@@ -433,6 +460,9 @@ each game update, when the game is found again.
 
 ## Good to know
 
+- The **Subtype** column at the end of the planet tables is the sub-biome number the game records (1-27). Ocean worlds
+  are stored as such a subtype, but which numbers mean "ocean" is not confirmed yet, so ocean worlds are not searchable
+  by it; a Waterworld biome is.
 - Items whose name the game makes up from a seed (salvaged and biological finds such as `PROC_LOOT`) keep their id.
 - The current mission (Overview) is shown with the game's own description of it.
 - The gas per biome is community knowledge, not read from the game.

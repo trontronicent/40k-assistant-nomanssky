@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import time
 
-from . import equipment, frigates, planets_view, settlements, ships, timers
+from . import companions_view, discoveries_view, equipment, frigates, planets_view, settlements, ships, timers
 
 
 def fmt_int(value) -> str:
@@ -388,6 +388,11 @@ class ConnectorPage:
                                                     c.galaxy_colors, c.planet_query)]},
             {"id": "inventory", "label": "Inventory", "sections": self.inventories(snap, ctx)},
             {"id": "fleet", "label": "Ships & bases", "sections": self.fleet(snap, ctx)},
+            {"id": "discoveries", "label": "Discoveries", "badge": len(c.discovery_book.mine) or None,
+             "sections": discoveries_view.sections(snap, ctx, c.discovery_book)},
+            {"id": "companions", "label": "Companions",
+             "badge": len((snap or {}).get("companions", {}).get("pets", [])) or None,
+             "sections": companions_view.sections(snap, ctx, c.tables.pets, c.discovery_book, time.time())},
             {"id": "settlements", "label": "Settlements", "badge": len(c.settlements) or None,
              "sections": settlements.settlement_sections(c.settlements, c.tables.settlement_rules,
                                                          ctx.texts, time.time(), c.settlement_live.values)},
