@@ -160,6 +160,15 @@ CORRECTION_RE = re.compile(r"there (?:is|are|'s) (?:a |an |also |another |still 
                            r"that(?:'s| is) (?:wrong|incorrect|not true)|das stimmt nicht|stimmt so nicht", re.I)
 ORDINAL_NOTE = ("  (The player means one of the numbered recipes above by its position - first = 1, second = 2 ..., last = the highest number - "
                 "answered earlier in the same order: give that recipe in full, without stock totals or locations.)")
+# Chat test 2026-10-10: without this, the model paraphrased "2 Paraffinium + 1 Ferrite Dust -> 1 Ammonia" into a
+# bullet "- 1 Nitrogen + 1 Di-hydrogen [K2]" (arrow and result dropped) - the app's chat renderer looks for that
+# exact "N item + N item -> N item" line to draw it as a small picture diagram, so losing the arrow or the result
+# loses the diagram too.
+RECIPE_DIAGRAM_RULE = ("For every refiner or Nutrient Processor recipe line above (the ones with \"→\"), "
+                       "include that exact line character for character somewhere in your answer - same "
+                       "ingredients, same → arrow, same result, same amounts - even inside a longer sentence "
+                       "or a list. Do not drop the arrow or the result, replace it with a dash or a citation "
+                       "marker, or leave out an ingredient.")
 MAX_RECIPES_PER_ITEM = 6
 
 PLANET_WORDS = {"planet", "planets", "planeten", "welt", "welten", "world", "worlds", "mond", "monde", "moon", "moons"}
@@ -249,7 +258,10 @@ class PluginCompanion:
         extra += self._block("economy details", self.economy_lines, question, ctx, here)
         extra += self._block("equipment", self.equipment_lines, words, ctx.texts)
         extra += self._block("planet search", self.planet_lines, question, words, ctx)
-        extra += self._block("recipes", self.recipe_lines, question, words)
+        recipe_block = self._block("recipes", self.recipe_lines, question, words)
+        extra += recipe_block
+        if any("→" in line for line in recipe_block):
+            answer_rules.append(RECIPE_DIAGRAM_RULE)
         extra += self._block("craft counts", self.craft_lines, question, words, snap)
         extra += self._block("glyphs", self.glyph_lines, words, snap)
         extra += self._block("currencies", self.currency_answer_lines, words, snap)
