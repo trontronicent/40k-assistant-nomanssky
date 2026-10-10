@@ -21,8 +21,10 @@ rules are assumed to still hold **(presumed)**.
 
 - **Three trait pairs, each a percentage** **(two sources)**: industriousness (helpful or playful), aggressiveness
   (gentle or aggressive), independence (devoted or independent). A companion has only one side of each pair. A save
-  stores exactly three signed numbers per companion **(save)**, which fits; which number is which pair, and what the
-  sign means, is **(unconfirmed)**. Independence is said to decide how far and how often a companion wanders
+  stores exactly three signed numbers per companion **(save)**, one per pair; the sign is the side, the size is the
+  percentage the game shows **(save, read against in-game values of three companions)**: value 1 is Helpfulness (+) or
+  Playfulness (-), value 2 is Aggression (+) or Gentleness (-), value 3 is Independence (+) or Devotion (-). Five of the
+  six words were confirmed; Aggression as the positive side of value 2 is **(inferred)** - only Predators lean that way. Independence is said to decide how far and how often a companion wanders
   **(single source)**.
 - **What they do** **(two sources)**: scout and point you to unscanned wildlife and distress signals, mark points of
   interest, dig up and fetch resources, scan, leave harvestable droppings, warn of hazards, hunt on command and ward
@@ -125,7 +127,7 @@ The game's table of 61 ability templates **(game files)** groups them like this:
 ## What is not known
 
 - The exact effectiveness numbers and the cross-cycle matchups (see above).
-- What the three trait numbers mean, and which sign is which side of a pair.
+- Whether Aggression really is the positive side of the second trait value (inferred, never seen in a named companion).
 - How long a companion's egg takes to be ready again (the game files hold no constant).
 - The species name the game shows for a creature: it is generated from the creature's seeds and is not in any text
   table, so the plugin shows none rather than guessing.

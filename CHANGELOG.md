@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.15.0 - "Discovery" (needs app 3.15.0)
+## 0.15.0-beta.1 - "Discovery" (beta; needs app 3.15.0)
 
 - **Discoveries tab.** What the save's discovery store holds (1,409 records in the measured save): your scans per
   system (clickable, opens the system map), the records somebody named, and counts split into yours and other players'
@@ -13,9 +13,8 @@
   entries, the rest are empty and skipped): name, creature,
   type, biome, trust, age, arena wins, **abilities** (the five template ids with the game's own description from
   `petbattlermovestable.mbin`, 61 templates, tooltip), the **harvest** read from the game's text ("Collect Milk ->
-  Fresh Milk / Raw Steak"), the three personality values (header and tooltip name the game's six personality words; the order and sign are flagged unconfirmed), a **Type tooltip** (Passive / Prey / Predator, game wording), **where the kind was first scanned** (the creature seed equals the
-  animal record's `VP[0]`: all 11 pets matched) and the origin system. **Not claimed:** what the three trait numbers
-  mean, how long an egg takes (no constant in the game files) and the species name (generated from the seeds; none of
+  Fresh Milk / Raw Steak"), the **personality** as the game shows it (three percentages: value 1 Helpfulness+/Playfulness-, value 2 Aggression+/Gentleness-, value 3 Independence+/Devotion-, read against in-game values of three companions; Aggression as the positive side is inferred), a **Type tooltip** (Passive / Prey / Predator, game wording), **where the kind was first scanned** (the creature seed equals the
+  animal record's `VP[0]`: all 11 pets matched) and the origin system. **Not claimed:** how long an egg takes (no constant in the game files) and the species name (generated from the seeds; none of
   the known genus names occurs in the 84,330 English strings), so none is shown. The move table sits in
   `NMSARC.Precache.pak` (a pak hint avoids opening 17 paks).
 - **Ask the persona.** Questions about companions (pet / egg / Begleiter / arena, or a pet's own name) get one line per

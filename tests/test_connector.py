@@ -291,7 +291,7 @@ def test_manifest_fits_the_registry_rules():
     import re
     manifest = json.loads((Path(__file__).resolve().parent.parent / "strategicum-plugin.json").read_text(encoding="utf-8"))
     assert 0 < len(manifest["description"]) <= 300
-    assert re.fullmatch(r"\d+\.\d+\.\d+", manifest["version"])
+    assert re.fullmatch(r"\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?", manifest["version"])
 
 
 def test_icons_are_prepared_for_the_storage_containers_too():

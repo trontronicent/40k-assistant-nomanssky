@@ -184,6 +184,26 @@ def test_type_and_personality_tooltips_use_the_games_words_and_admit_what_is_unk
     assert "no description" in pets.type_note("Grunt", book) and pets.type_note("Predator", pets.PetBook()).startswith("Predator:")
     names = pets.trait_names(book)
     assert names[0] == "Helpfulness (Hilfsbereitschaft)" and names[5] == "Devotion" and len(names) == 6
-    hint = companions_view.traits_hint(book)
-    assert "Not confirmed" in hint and "Hilfsbereitschaft" in hint
+    hint = companions_view.traits_hint(book, pets.compact({"Traits": [0.25, -0.73, -0.16]}))
+    assert "inferred" in hint and "Hilfsbereitschaft (+)" in hint and "+0.25 / -0.73 / -0.16" in hint
     assert pets.wanted_key("UI_PET_GENTLENESS_RATING") and not pets.wanted_key("UI_PET_GENTLENESS_RATING_COLOUR")
+
+
+def test_personality_reads_the_three_values_as_the_games_percentages():
+    """The player's in-game readings fix the axes: Unzy Bunzy Bowa 25 % Helpfulness / 73 % Gentleness / 16 % Devotion,
+    Little Cute Monster 23 % Playfulness / 77 % Gentleness / 16 % Devotion, Mantissa 79 % Playfulness / 38 %
+    Gentleness / 20 % Independence (the German names are used when the game files were read in German)."""
+    german = pets.PetBook.from_texts(
+        {"UI_PET_HELPFUL_RATING": "Helpfulness", "UI_PET_PLAYFUL_RATING": "Playfulness", "UI_PET_GENTLENESS_RATING": "Gentleness",
+         "UI_PET_ATTACHMENT_RATING": "Devotion", "UI_PET_INDEPENDENCE_RATING": "Independence", "UI_PET_AGGRESSION_RATING": "Aggression"},
+        {"UI_PET_HELPFUL_RATING": "Hilfsbereitschaft", "UI_PET_PLAYFUL_RATING": "Verspieltheit", "UI_PET_GENTLENESS_RATING": "Sanftmut",
+         "UI_PET_ATTACHMENT_RATING": "Hingabe", "UI_PET_INDEPENDENCE_RATING": "Selbstständigkeit", "UI_PET_AGGRESSION_RATING": "Aggression"},
+        "german")
+    unzy = pets.compact({"Traits": [0.2489, -0.7319, -0.1603]})
+    little = pets.compact({"Traits": [-0.23, -0.77, -0.16]})
+    mantissa = pets.compact({"Traits": [-0.79, -0.38, 0.20]})
+    assert pets.personality_text(unzy, german) == "Hilfsbereitschaft 25% / Sanftmut 73% / Hingabe 16%"
+    assert pets.personality_text(little, german) == "Verspieltheit 23% / Sanftmut 77% / Hingabe 16%"
+    assert pets.personality_text(mantissa, german) == "Verspieltheit 79% / Sanftmut 38% / Selbstständigkeit 20%"
+    assert pets.personality_text(pets.compact({"Traits": [0.1, 0.77, 0.3]}), pets.PetBook()) == "Helpfulness 10% / Aggression 77% / Independence 30%"
+    assert pets.personality_text(pets.compact({}), pets.PetBook()) == "–"

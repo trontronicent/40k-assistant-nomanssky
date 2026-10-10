@@ -61,19 +61,22 @@ def type_cell(pet: dict, book: pets.PetBook) -> dict:
     return {"text": pet["type"] or "?", "hint": pets.type_note(pet["type"], book)}
 
 
-def traits_hint(book: pets.PetBook) -> str:
-    """What the three personality numbers are: three signed values, and which words the game uses."""
-    names = ", ".join(pets.trait_names(book))
+def traits_hint(book: pets.PetBook, pet: dict) -> str:
+    """What the three personality values are: one axis each, with the two words the game uses for its ends."""
+    axes = [f"{book.trait_short.get(p) or pets.TRAIT_FALLBACK[p]} (+) / {book.trait_short.get(n) or pets.TRAIT_FALLBACK[n]} (-)"
+            for p, n in pets.TRAIT_AXES]
     return chr(10).join([
-        "Three personality values the save stores for this companion, signed (observed values lie between -1 and +1).",
+        "Three personality values, one axis each. The sign says which end of the axis the companion leans to, the "
+        "number is the percentage the game shows.",
         "",
-        f"The game's personality words: {names}.",
+        "Value 1: " + axes[0],
+        "Value 2: " + axes[1],
+        "Value 3: " + axes[2],
         "",
-        "Not confirmed: which value belongs to which word, and what a negative sign means. The save keeps three "
-        "numbers and the game shows six words, so each value is most likely one axis between two opposite words. "
-        "The plugin therefore shows the numbers as stored and does not name them.",
+        "Read against companions whose values you gave from the game. Aggression as the positive end of value 2 is "
+        "inferred (the only companions that lean that way are Predators); the other five words were confirmed.",
         "",
-        "In the game a personality word is shown with a class from S (strongest) to C (weakest).",
+        "Stored values: " + pets.traits_text(pet),
     ])
 
 
@@ -87,11 +90,11 @@ def roster_table(companions: dict, book: pets.PetBook, animals: dict, ctx, now: 
             {"text": pets.trust_text(pet), "sort": pet["trust"]},
             {"text": "–" if age is None else f"{age:,}", "sort": age if age is not None else -1},
             {"text": f"{pet['wins']:,}", "sort": pet["wins"]}, abilities_cell(pet, book),
-            harvest_text(pet, book), {"text": pets.traits_text(pet), "hint": traits_hint(book)},
+            harvest_text(pet, book), {"text": pets.personality_text(pet, book), "hint": traits_hint(book, pet)},
             first_scan_text(pet, animals, ctx), origin_text(pet, ctx)])
     return {"type": "table", "id": "companions-roster", "title": "Companions",
             "columns": ["Name", "Creature", "Type", "Biome", "Trust", "Age (days)", "Arena wins", "Abilities",
-                        "Harvest", "Personality (3 raw values)", "First scanned", "Origin"], "rows": rows}
+                        "Harvest", "Personality", "First scanned", "Origin"], "rows": rows}
 
 
 def eggs_table(companions: dict, ctx, now: float) -> dict:

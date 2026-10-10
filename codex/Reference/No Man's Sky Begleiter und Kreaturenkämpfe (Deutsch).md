@@ -15,7 +15,10 @@ und ein echter Spielstand, geprüft am 2026-10-10. Kennzeichnung: **(offiziell)*
 
 - **Drei Eigenschaftspaare**, jeweils in Prozent **(zwei Quellen)**: hilfsbereit oder verspielt, sanft oder
   aggressiv, treu oder eigenständig. Ein Spielstand speichert pro Begleiter genau drei Zahlen mit Vorzeichen
-  **(Spielstand)**; welche Zahl welches Paar ist, ist **(unbestätigt)**.
+  **(Spielstand)**, eine pro Paar; das Vorzeichen ist die Seite, der Betrag die vom Spiel gezeigte Prozentzahl: Wert 1 =
+  Hilfsbereitschaft (+) oder Verspieltheit (-), Wert 2 = Aggression (+) oder Sanftmut (-), Wert 3 =
+  Selbstständigkeit (+) oder Hingabe (-). Fünf der sechs Wörter sind bestätigt; Aggression als positive Seite von
+  Wert 2 ist **(abgeleitet)** - nur Räuber neigen dorthin.
 - **Was sie tun** **(zwei Quellen)**: Wildtiere und Notsignale anzeigen, Punkte markieren, Rohstoffe ausgraben und
   bringen, scannen, Ernte hinterlassen, vor Gefahr warnen, auf Befehl jagen.
 - **Nützlich?** **(strittig)**: Ein langer Steam-Thread sagt, Haustiere seien nutzlos; andere berichten, manche Tiere
@@ -59,6 +62,6 @@ das sind Übergänge zwischen den Zyklen und **unbestätigt**.
 
 ## Was nicht bekannt ist
 
-Genaue Wirkungswerte, die Bedeutung der drei Eigenschaftszahlen, die Wartezeit bis ein Begleiter wieder ein Ei
+Genaue Wirkungswerte, die Wartezeit bis ein Begleiter wieder ein Ei
 legen kann (keine Konstante in den Spieldateien) und der Artname, den das Spiel anzeigt (er wird aus Startwerten
 erzeugt und steht in keiner Texttabelle - das Plugin zeigt deshalb keinen).

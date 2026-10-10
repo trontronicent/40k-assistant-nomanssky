@@ -9,7 +9,7 @@ default and grow only for a question that asks for the detail:
 * a question about **discoveries** (discovered / entdeckt / named / scanned) gets the counts, and the named
   records or the ones whose name contains the words of the question.
 
-Both end with what is *not* known, so the model does not fill the gap: trait meanings, the egg cooldown and
+Both end with what is *not* known, so the model does not fill the gap: the egg cooldown and
 species names are not in the game data, and record flags are not interpreted.
 """
 
@@ -42,8 +42,8 @@ GENERIC = {"the", "and", "did", "have", "has", "what", "which", "how", "many", "
 MAX_PET_LINES = 30
 MAX_PET_CHARS = 3600
 MAX_NAMED_LINES = 12
-UNKNOWN_PETS = ("Not in the game data, so do not interpret or invent them: what the three raw trait values mean, how "
-                "long an egg takes to be ready, the species name the game shows for a creature.")
+UNKNOWN_PETS = ("Not in the game data, so do not invent them: how long an egg takes to be ready, the species name the "
+                "game shows for a creature.")
 UNKNOWN_DISCOVERIES = ("Record flags are not interpreted (one of them marks records that came from other players). "
                        "There are no totals per planet, so there is no completion percentage.")
 
@@ -71,6 +71,8 @@ def _pet_line(pet: dict, book: pets.PetBook, now: float, with_moves: bool) -> st
     if age is not None:
         parts.append(f"{age} days old")
     parts.append(f"{pet['wins']} arena wins")
+    if pet["traits"]:
+        parts.append("personality: " + pets.personality_text(pet, book).replace(" / ", ", "))
     harvest = book.harvest(pet["id"])
     if harvest:
         products = " / ".join(harvest[k] for k in ("veg", "meat") if harvest.get(k))

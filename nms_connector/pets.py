@@ -17,10 +17,14 @@ What is *measured* (the real save and the installed game, build 25732212, 2026-1
   creature's affinity, which the save does not hold, so abilities are shown by template and description.
 * **Harvest**: ``UI_LABEL_HARVEST_<CreatureID>`` ("Collect Milk") and ``FOOD_<CreatureID>_VEG|MEAT_NAME_L``
   ("Fresh Milk", "Raw Steak") are language keys, so every companion's harvest is read, not guessed.
-* **Not claimed**: what the three ``Traits`` floats mean (the community describes three helpful/playful,
-  gentle/aggressive, devoted/independent pairs; the float count agrees, the order is unconfirmed), the egg cooldown
-  (no constant in the game files), and the species name the game shows (generated from the seeds; no name table
-  exists in the 84,330 English strings). They are shown raw and labelled as such.
+* **Traits** are three signed floats, one axis each, read against the player's own in-game values (3 pets, 8
+  readings): [0] ``+`` Helpfulness / ``-`` Playfulness, [1] ``+`` Aggression / ``-`` Gentleness, [2] ``+`` Independence
+  / ``-`` Devotion; the percentage the game shows is ``abs(value)``. Confirmed by the player: Playfulness (-0.23,
+  -0.80), Helpfulness (+0.25), Gentleness (-0.73, -0.77, -0.38), Devotion (-0.16), Independence (+0.20).
+  **Inferred only**: Aggression as the positive side of [1] (both Predators carry +0.77 / +0.79, every other pet is
+  negative).
+* **Not claimed**: the egg cooldown (no constant in the game files) and the species name the game shows (generated
+  from the seeds; no name table exists in the 84,330 English strings).
 """
 
 from __future__ import annotations
@@ -115,6 +119,7 @@ class PetBook:
         self._food: dict[str, dict[str, str]] = {}
         self.affinities: dict[str, str] = {}
         self.trait_names: dict[str, str] = {}
+        self.trait_short: dict[str, str] = {}
         self.type_names: dict[str, str] = {}
 
     @classmethod
@@ -131,6 +136,7 @@ class PetBook:
                 book.affinities[m.group(1)] = _both(text, local.get(key)) or ""
             elif m := _TRAIT_RE.match(key):
                 book.trait_names[m.group(1)] = _both(text, local.get(key)) or ""
+                book.trait_short[m.group(1)] = " ".join((mbin.clean_text(local.get(key) or text) or "").split())
             elif m := _TYPE_RE.match(key):
                 book.type_names[m.group(1)] = _both(text, local.get(key)) or ""
         return book
@@ -245,6 +251,8 @@ def traits_text(pet: dict) -> str:
 # The six personality words the game shows in a companion's Personality panel (UI_PET_*_RATING), in the order the
 # game's own egg text lists them. The save holds only THREE floats; which words they stand for, in which order and with
 # which sign is NOT confirmed, so the tooltip names the six and says so.
+# (positive side, negative side) of the three stored values - see the module docstring for how this was read.
+TRAIT_AXES = (("HELPFUL", "PLAYFUL"), ("AGGRESSION", "GENTLENESS"), ("INDEPENDENCE", "ATTACHMENT"))
 TRAIT_ORDER = ("HELPFUL", "PLAYFUL", "GENTLENESS", "AGGRESSION", "INDEPENDENCE", "ATTACHMENT")
 TRAIT_FALLBACK = {"HELPFUL": "Helpfulness", "PLAYFUL": "Playfulness", "GENTLENESS": "Gentleness",
                   "AGGRESSION": "Aggression", "INDEPENDENCE": "Independence", "ATTACHMENT": "Devotion"}
@@ -257,6 +265,18 @@ TYPE_NOTES = {
     "PREY": "Prey: skittish; flees when approached. Feed it to gain its trust.",
     "PREDATOR": "Predator: hunts and attacks. Bait calms it, after which it can be fed and adopted.",
 }
+
+
+def personality(pet: dict) -> list[tuple[str, int]]:
+    """[(trait key, percent)] for the three axes: the side the sign points to, and abs(value) as a percentage."""
+    return [(axis[0] if v >= 0 else axis[1], round(abs(v) * 100)) for axis, v in zip(TRAIT_AXES, pet["traits"], strict=False)]
+
+
+def personality_text(pet: dict, book: "PetBook") -> str:
+    """'Playfulness 23% / Gentleness 77% / Devotion 16%' in the game's language (English when it was not read)."""
+    if not pet["traits"]:
+        return "–"
+    return " / ".join(f"{book.trait_short.get(k) or TRAIT_FALLBACK[k]} {p}%" for k, p in personality(pet))
 
 
 def trait_names(book: "PetBook") -> list[str]:

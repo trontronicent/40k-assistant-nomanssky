@@ -127,11 +127,12 @@ def test_the_companions_tab_shows_roster_abilities_harvest_and_first_scan():
     cow = dict(zip(roster["columns"], roster["rows"][0], strict=True))
     assert cow["Name"]["text"] == "Unzy Bunzy Bowa" and "Creature seed: 0x320E447D6296A867" in cow["Name"]["hint"]
     assert (cow["Creature"], cow["Type"]["text"], cow["Biome"]) == ("Cow", "Prey", "Lush")
-    assert cow["Type"]["hint"].startswith("Prey:") and "Not confirmed" in cow["Personality (3 raw values)"]["hint"]
+    assert cow["Type"]["hint"].startswith("Prey:") and "inferred" in cow["Personality"]["hint"]
     assert cow["Trust"] == {"text": "75 %", "sort": 0.75} and cow["Arena wins"]["sort"] == 22
     assert cow["Abilities"]["text"] == "4" and "ATTACK_DUST (ATTACK): Direct damage of one affinity" in cow["Abilities"]["hint"]
     assert cow["Harvest"] == "Collect Milk -> Fresh Milk / Raw Steak"
-    assert cow["Personality (3 raw values)"]["text"] == "+0.25 / -0.73 / -0.16"
+    assert cow["Personality"]["text"] == "Helpfulness 25% / Gentleness 73% / Devotion 16%"
+    assert "+0.25 / -0.73 / -0.16" in cow["Personality"]["hint"]
     assert cow["First scanned"].endswith("Aldrin Reach, planet 1"), cow["First scanned"]
     assert cow["Origin"] != "–"
     roller = dict(zip(roster["columns"], roster["rows"][1], strict=True))

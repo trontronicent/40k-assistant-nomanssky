@@ -3,7 +3,7 @@
   "manifest_version": 1,
   "id": "nomanssky",
   "name": "No Man's Sky",
-  "version": "0.15.0",
+  "version": "0.15.0-beta.1",
   "data_version": 1,
   "description": "Connector to No Man's Sky: inventories, equipment, galaxy and system maps, trade routes, settlements, frigates, timers, your discoveries, companions and creature-battle abilities, and a persona that answers from your game data. Keeps a Codex knowledge library up to date.",
   "author": {
