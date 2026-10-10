@@ -193,6 +193,23 @@ class NmsConnector:
         """The primary ship's warp-range estimate (route planner default, galaxy map reach)."""
         return ships.primary_range(self.ships, self.tables.ship_ranges)
 
+    def item_icons(self) -> dict[str, str]:
+        """{name: icon file name} for the app's chat-diagram feature (app 3.17.0): every item this build has a
+        converted PNG for, under its English name, its local-language name (when different from English), and
+        the combined "English (Local)" label used by recipes.item_label()/recipe_line()."""
+        out: dict[str, str] = {}
+        for item_id, entry in self.gamedata.items.items():
+            icon = self.gamedata.icon_name(item_id)
+            en = entry.get("en")
+            if not icon or not en:
+                continue
+            local = entry.get("local")
+            out[en] = icon
+            if local and local != en:
+                out[local] = icon
+                out[f"{en} ({local})"] = icon
+        return out
+
     # ------------------------------------------------------------------ lifecycle
 
     async def _write_codex(self) -> dict:
