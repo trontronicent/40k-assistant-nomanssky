@@ -18,7 +18,7 @@ import re
 import time
 from datetime import date
 
-from . import (assistant, conversation, cooking, craftable, creature_lines, discoveries_view, logs, galaxy, merging, page as page_module, planet_search, planets_view, recipes, seasons,
+from . import (assistant, conversation, cooking, craftable, creature_lines, diagrams, discoveries_view, logs, galaxy, merging, page as page_module, planet_search, planets_view, recipes, seasons,
                settlements, timers, trade)
 
 PERSONA_PROMPT = (
@@ -283,7 +283,30 @@ class PluginCompanion:
                 "instructions": CONVERSATION_RULES + answer_rules
                                 + ([merging.RULE] if merging.is_merge_question(question) else []),
                 # The Settings tab's "Single Context Per Question": this plugin's persona gets no earlier turns (3.11.0).
-                "single_context": bool(c.settings.single_context)}
+                "single_context": bool(c.settings.single_context),
+                # The recipes found for the question, as data the app draws under the reply (app 3.17.0).
+                "recipes": self._diagrams(question, words)}
+
+    def _diagrams(self, question: str, words: set[str]) -> list[dict]:
+        """`recipe_diagrams`, never raising: a failure costs the diagrams only (logged once per few minutes)."""
+        try:
+            return self.recipe_diagrams(question, words)
+        except Exception as exc:
+            logs.warn_once(f"diagrams:{type(exc).__name__}", "The recipe diagrams failed: %s: %s",
+                           type(exc).__name__, exc)
+            return []
+
+    def recipe_diagrams(self, question: str, words: set[str]) -> list[dict]:
+        """For a question about getting, making or cooking an item: every recipe that makes the items it names
+        (diagrams.item_diagrams), named in the question's language, with the converted icons."""
+        c = self.connector
+        book = c.tables.recipes
+        if not (words & (RECIPE_WORDS | cooking.COOKING_WORDS)) or book is None or not book.recipes:
+            return []
+        items = self._recipe_items(question)[:MAX_RECIPE_ITEMS]
+        lookup, terms = c.gamedata.lookup, c.tables.terms
+        language = diagrams.answer_language(question, items, lookup, terms.language)
+        return diagrams.item_diagrams(book, lookup, c.gamedata.icon_name, items, language, terms)
 
     def _status_lines(self, snap: dict | None, ctx, here) -> tuple[list[str], list[str]]:
         """(the status lines that open every data block, the rules for answering this turn - sent apart from the data)."""

@@ -246,6 +246,11 @@ def _station(r: Recipe, language: str, terms) -> str:
             2: terms.get("refiner_medium", language) + larger}.get(len(r.ingredients), terms.get("refiner_large", language))
 
 
+def station_name(r: Recipe, language: str, terms=None) -> str:
+    """Where a recipe is made, in one language (the public face of _station, for diagrams.py)."""
+    return _station(r, language, terms)
+
+
 def recipe_line(lookup, r: Recipe, terms=None) -> str:
     """'2 Paraffinium + 1 Ferrite Dust (Ferritstaub) → 1 Ammonia (Ammoniak) · Medium Refiner or larger (Mittlere
     Raffinerie oder größer)' - both languages, for the persona."""

@@ -506,10 +506,16 @@ class NmsConnector:
                                     + list(frigates.icon_textures()))
 
     async def _ensure_icons(self) -> None:
-        if self.snapshot and self.install and self.gamedata.ready:
-            tech = [t["id"] for s in self.ships for t in s["technology"]]
-            tech += self.equipment.item_ids() if self.equipment else []
-            await self.ctx.run_blocking(self.gamedata.ensure_icons, self.install, _snapshot_item_ids(self.snapshot) + tech)
+        if not (self.install and self.gamedata.ready):
+            return
+        # Every item a recipe makes or uses: the chat's recipe diagrams show items the player never held (an icon
+        # is otherwise converted only on first sight). Converted once; files already there are skipped.
+        ids = sorted(self.tables.recipes.items()) if self.tables.recipes else []
+        if self.snapshot:
+            ids += [t["id"] for s in self.ships for t in s["technology"]]
+            ids += self.equipment.item_ids() if self.equipment else []
+            ids += _snapshot_item_ids(self.snapshot)
+        await self.ctx.run_blocking(self.gamedata.ensure_icons, self.install, ids)
 
     def _substances(self) -> set[str] | None:
         """Substance ids (the planet scan validates resources against them), when the item database is ready."""
