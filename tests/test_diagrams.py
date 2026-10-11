@@ -44,6 +44,23 @@ def test_names_follow_the_language_of_the_question():
     assert german[0]["ingredients"][0]["name"] == "Stickstoff" and german[0]["result"]["name"] == "Ammoniak"
 
 
+CAKE_NAMES = {"CAKE": ["Cake of Eternal Sleep", "Ewiger Kuchen"], "POSTER": ["Eternal Serpents Poster", "Sternengeborenen-Poster"],
+              "BATTER": ["Wailing Batter", "Kuchenteig"], "SALT": ["Salt", "Salz"]}
+
+
+def test_diagrams_take_only_items_the_question_names_in_full():
+    """Live chat test 2026-10-11: the loose word match of the persona data drew "25 Carbon -> 1 Eternal Serpents
+    Poster" beside the cake ("Eternal" alone matched). Diagrams take an item only when its whole name is in the
+    question; a longer name wins over a shorter one inside it, and German endings do not matter ("den Ewigen
+    Kuchen" names "Ewiger Kuchen"). Only items a recipe makes are candidates."""
+    makes = set(CAKE_NAMES)
+    assert diagrams.named_items("How do I make Cake of Eternal Sleep?", CAKE_NAMES, makes) == ["CAKE"]
+    assert diagrams.named_items("Wie stelle ich den Ewigen Kuchen her?", CAKE_NAMES, makes) == ["CAKE"]
+    assert diagrams.named_items("Was brauche ich für Kuchenteig und Salz?", CAKE_NAMES, makes) == ["BATTER", "SALT"]
+    assert diagrams.named_items("something eternal", CAKE_NAMES, makes) == []
+    assert diagrams.named_items("How do I make salt?", CAKE_NAMES, {"CAKE"}) == []
+
+
 def test_chat_context_carries_the_recipes_for_a_recipe_question_only(tmp_path, monkeypatch):
     """chat_context returns the diagrams for "how do I make ammonia?" and none for an inventory question."""
     monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))

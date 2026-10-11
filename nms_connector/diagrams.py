@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 
-from . import recipes
+from . import planet_search, recipes
 
 MAX_DIAGRAMS = 12           # the app keeps at most 12 (plugins/diagrams.py)
 MAX_PER_KIND = 6            # refiner / Nutrient Processor recipes per item, best first (as in the persona's lines)
@@ -19,6 +19,35 @@ MAX_PER_KIND = 6            # refiner / Nutrient Processor recipes per item, bes
 GERMAN_HINTS = {"wie", "ich", "der", "die", "das", "den", "dem", "und", "mache", "machen", "herstellen", "stelle",
                 "bekomme", "bekommen", "kann", "brauche", "rezept", "rezepte", "ein", "eine", "einen", "was", "wo",
                 "mit", "koche", "kochen"}
+
+
+def _key(text: str) -> tuple[str, ...]:
+    """The words of a text, folded and without German endings: 'den Ewigen Kuchen' -> ('den', 'ewig', 'kuch')."""
+    return tuple(planet_search.stem(w) for w in re.findall(r"[\w'-]+", planet_search.fold(text)))
+
+
+def _matches(words: tuple[str, ...], names: dict[str, list[str]], candidates) -> list[tuple[int, int, str]]:
+    """(start, end, item) for every whole item name found in the question's words."""
+    found = []
+    for item in sorted(candidates):
+        for name in names.get(item, []):
+            key = _key(name)
+            for start in range(len(words) - len(key) + 1) if key else ():
+                if words[start:start + len(key)] == key:
+                    found.append((start, start + len(key), item))
+    return found
+
+
+def named_items(question: str, names: dict[str, list[str]], candidates) -> list[str]:
+    """The items (of `candidates`) whose whole name - in any language, German endings ignored - is in the question,
+    in the question's order. A longer name wins over a shorter one inside it ("Cake of Eternal Sleep", not a
+    "Cake"); a single word of a longer name matches nothing (live chat test 2026-10-11: "Eternal" pulled in the
+    Eternal Serpents Poster)."""
+    taken: list[tuple[int, int, str]] = []
+    for start, end, item in sorted(_matches(_key(question), names, candidates), key=lambda f: (f[0] - f[1], f[0], f[2])):
+        if not any(start < e and s < end for s, e, _ in taken):
+            taken.append((start, end, item))
+    return list(dict.fromkeys(item for _, _, item in sorted(taken)))
 
 
 def answer_language(question: str, items: list[str], lookup, game_language: str) -> str:

@@ -297,13 +297,15 @@ class PluginCompanion:
             return []
 
     def recipe_diagrams(self, question: str, words: set[str]) -> list[dict]:
-        """For a question about getting, making or cooking an item: every recipe that makes the items it names
-        (diagrams.item_diagrams), named in the question's language, with the converted icons."""
+        """For a question about getting, making or cooking an item: every recipe that makes the items it names in full
+        (diagrams.named_items - stricter than the persona data's word match, so no unrelated item is drawn), named
+        in the question's language, with the converted icons (diagrams.item_diagrams)."""
         c = self.connector
         book = c.tables.recipes
         if not (words & (RECIPE_WORDS | cooking.COOKING_WORDS)) or book is None or not book.recipes:
             return []
-        items = self._recipe_items(question)[:MAX_RECIPE_ITEMS]
+        made = {r.result for r in book.recipes} | set(book.crafting)
+        items = diagrams.named_items(question, c.gamedata.names_with_alt(), made)[:MAX_RECIPE_ITEMS]
         lookup, terms = c.gamedata.lookup, c.tables.terms
         language = diagrams.answer_language(question, items, lookup, terms.language)
         return diagrams.item_diagrams(book, lookup, c.gamedata.icon_name, items, language, terms)
