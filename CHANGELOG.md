@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.16.0-beta.1 (beta; needs app 3.17.0)
+## 0.15.1-beta.1 (beta; needs app 3.17.0)
 
 - **`item_icons()`.** A name -> icon lookup the app's chat renderer uses to turn a recipe line ("2 Paraffinium +
   1 Ferrite Dust -> 1 Ammonia") into a small diagram with item pictures: every item with a converted icon, under
