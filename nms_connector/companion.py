@@ -135,6 +135,20 @@ ORDINAL_INDEX = {"first": 0, "1st": 0, "erste": 0, "ersten": 0, "premier": 0, "p
                  "third": 2, "3rd": 2, "dritte": 2, "dritten": 2, "tercero": 2, "terzo": 2,
                  "fourth": 3, "4th": 3, "vierte": 3, "vierten": 3, "last": -1, "letzte": -1, "letzten": -1}
 ORDINAL_WORDS = set(ORDINAL_INDEX)
+# Chat test 2026-10-10: without this, the model paraphrased "2 Paraffinium + 1 Ferrite Dust -> 1 Ammonia" into a
+# bullet "- 1 Nitrogen + 1 Di-hydrogen [K2]" (arrow and result dropped). A second chat test the same day found the
+# same loss for a cooking question answered from a Codex excerpt (not the live data block): the Codex item
+# documents carry individual cooking recipes in this same arrow format (recipes._line_in), so the rule must cover
+# a cited excerpt as well as the plugin's own data - sent unconditionally on every data reply (CONVERSATION_RULES)
+# rather than only when this plugin's own block happens to contain an arrow. The app's chat renderer looks for
+# that exact "N item + N item -> N item" line to draw it as a small picture diagram, so losing the arrow or the
+# result loses the diagram too; the rule is a no-op when no such line exists anywhere in the turn's context.
+RECIPE_DIAGRAM_RULE = ("If the data above or a cited Codex excerpt gives a refiner or Nutrient Processor recipe as "
+                       "a line with \"→\" (ingredients, an arrow, a result, an amount for each), include "
+                       "that exact line character for character somewhere in your answer - same ingredients, same "
+                       "→ arrow, same result, same amounts - even inside a longer sentence or a list. Do not "
+                       "drop the arrow or the result, replace it with a dash or a citation marker, or leave out "
+                       "an ingredient.")
 # Rules for every data reply, sent as the plugin's answer rules (outside the data block). They are here and not only
 # in PERSONA_PROMPT because the app seeds that prompt once: a persona the user has re-saved keeps its own prompt, and
 # the one on this machine (a 401-character generic text from 2026-10-06) never got the conversation rules.
@@ -148,6 +162,7 @@ CONVERSATION_RULES = [
     "A name the game has no item for is not in No Man's Sky: say so, do not substitute a similar item.",
     "Answer in the language the player writes in, in sentences rather than \"Label: value\" lists - unless the player "
     "asks for a format (\"just the number\", \"one word\", a table, a list): then give exactly that and nothing else.",
+    RECIPE_DIAGRAM_RULE,
 ]
 # The app adds Codex excerpts to every reply; for these follow-ups they listed recipes that USE the item (Herox for
 # Ammonia) and the model answered with those instead of the recipes in the block.
@@ -160,15 +175,6 @@ CORRECTION_RE = re.compile(r"there (?:is|are|'s) (?:a |an |also |another |still 
                            r"that(?:'s| is) (?:wrong|incorrect|not true)|das stimmt nicht|stimmt so nicht", re.I)
 ORDINAL_NOTE = ("  (The player means one of the numbered recipes above by its position - first = 1, second = 2 ..., last = the highest number - "
                 "answered earlier in the same order: give that recipe in full, without stock totals or locations.)")
-# Chat test 2026-10-10: without this, the model paraphrased "2 Paraffinium + 1 Ferrite Dust -> 1 Ammonia" into a
-# bullet "- 1 Nitrogen + 1 Di-hydrogen [K2]" (arrow and result dropped) - the app's chat renderer looks for that
-# exact "N item + N item -> N item" line to draw it as a small picture diagram, so losing the arrow or the result
-# loses the diagram too.
-RECIPE_DIAGRAM_RULE = ("For every refiner or Nutrient Processor recipe line above (the ones with \"→\"), "
-                       "include that exact line character for character somewhere in your answer - same "
-                       "ingredients, same → arrow, same result, same amounts - even inside a longer sentence "
-                       "or a list. Do not drop the arrow or the result, replace it with a dash or a citation "
-                       "marker, or leave out an ingredient.")
 MAX_RECIPES_PER_ITEM = 6
 
 PLANET_WORDS = {"planet", "planets", "planeten", "welt", "welten", "world", "worlds", "mond", "monde", "moon", "moons"}
@@ -258,10 +264,7 @@ class PluginCompanion:
         extra += self._block("economy details", self.economy_lines, question, ctx, here)
         extra += self._block("equipment", self.equipment_lines, words, ctx.texts)
         extra += self._block("planet search", self.planet_lines, question, words, ctx)
-        recipe_block = self._block("recipes", self.recipe_lines, question, words)
-        extra += recipe_block
-        if any("→" in line for line in recipe_block):
-            answer_rules.append(RECIPE_DIAGRAM_RULE)
+        extra += self._block("recipes", self.recipe_lines, question, words)
         extra += self._block("craft counts", self.craft_lines, question, words, snap)
         extra += self._block("glyphs", self.glyph_lines, words, snap)
         extra += self._block("currencies", self.currency_answer_lines, words, snap)

@@ -213,20 +213,22 @@ def test_the_persona_gets_recipes_when_the_question_asks_how_to_get_an_item(tmp_
     assert copper[-1] == "  no refiner or crafting recipe makes it: it is gathered only"
 
 
-def test_a_refiner_recipe_answer_gets_the_diagram_rule(tmp_path, monkeypatch):
-    """Chat test 2026-10-10: without an explicit rule, the model paraphrased the recipe line into a bullet with no
-    arrow and no result ("- 1 Nitrogen + 1 Di-hydrogen [K2]"), which the app's chat renderer cannot turn into a
-    diagram. A question that produces an arrow-formatted refiner recipe line gets companion.RECIPE_DIAGRAM_RULE in
-    its answer rules; a question with no such line (no recipe word at all) does not."""
+def test_every_data_reply_gets_the_diagram_rule(tmp_path, monkeypatch):
+    """Chat test 2026-10-10: without an explicit rule, the model paraphrased a refiner recipe line into a bullet
+    with no arrow and no result ("- 1 Nitrogen + 1 Di-hydrogen [K2]"). A second chat test the same day found the
+    identical loss for a cooking question answered from a Codex excerpt, not the plugin's own live data - so the
+    rule travels with every data reply (companion.CONVERSATION_RULES), not only when this plugin's own recipe
+    block happens to contain an arrow; it is harmless when nothing in the turn's context has one."""
     from test_connector import FakeCtx, create_plugin
     monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
     plugin = create_plugin(FakeCtx(tmp_path / "data"))
     plugin.tables.recipes = book()
     plugin.gamedata.items = dict(ITEMS)
+    assert companion.RECIPE_DIAGRAM_RULE in companion.CONVERSATION_RULES
     recipe_rules = plugin.companion.chat_context("how do I make ammonia?")["instructions"]
     assert companion.RECIPE_DIAGRAM_RULE in recipe_rules
     other_rules = plugin.companion.chat_context("how much copper do I have?")["instructions"]
-    assert companion.RECIPE_DIAGRAM_RULE not in other_rules
+    assert companion.RECIPE_DIAGRAM_RULE in other_rules
 
 
 def test_recipes_are_numbered_and_an_ordinal_follow_up_says_which_one(tmp_path, monkeypatch):

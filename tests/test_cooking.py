@@ -131,6 +131,24 @@ def test_cooking_is_added_to_the_persona_data_for_a_cooking_question(tmp_path, m
     assert "base value 100 units each, 5,000 for your 50" in plugin.companion.chat_context("How much Copper do I have?")["text"]
 
 
+def test_a_cooking_question_also_gets_the_diagram_rule(tmp_path, monkeypatch):
+    """Chat test 2026-10-10: asked how to cook a dish, the persona answered from a Codex excerpt (citation [K2])
+    that carried the correct arrow-formatted recipe lines, but paraphrased them into amount-prefixed bullets with
+    no arrow and no result ("1 Kuchenteig + 1 Anormale Marmelade + 1 Sahne [K2]"). The rule now travels with
+    every data reply (companion.CONVERSATION_RULES), so a cooking question gets it too, not only a refiner one."""
+    from nms_connector import companion
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    plugin.snapshot = {"location": {"galaxy": "Euclid", "portal": "0001"}, "bases": [], "units": 0, "nanites": 0,
+                       "quicksilver": 0, "freighter": {"name": None}, "ships": [], "storage": [], "current_mission": None,
+                       "saved_at": None, "exosuit": [], "exosuit_cargo": []}
+    plugin.gamedata.items = {"STEW": {"en": "Fibrous Stew", "value": 6400, "cat_en": "Edible Product"},
+                             "VEG": {"en": "Veg Root"}, "BEAN": {"en": "Impulse Bean"}}
+    plugin.tables.recipes = RecipeBook([_cook("1", "STEW", "VEG", "BEAN")])
+    rules = plugin.companion.chat_context("How do I cook a Fibrous Stew?")["instructions"]
+    assert companion.RECIPE_DIAGRAM_RULE in rules
+
+
 def test_value_note_tells_unsellable_from_unknown():
     """A base value of 0 says the item cannot be sold; an item in no value table says nothing (unknown); a stack
     shows the total. The persona must not answer "worth 0" for something the game has not priced."""
