@@ -116,6 +116,8 @@ RECIPE_WORDS = {"recipe", "recipes", "refine", "refiner", "refining", "craft", "
                 # 2026-10-09: "how do I create X?" and the split German verb "wie stelle ich X her?" got no recipes
                 "create", "creating", "build", "synthesize", "synthesise", "stelle", "stellen", "stellt",
                 "erstellen", "erstelle", "craften", "crafte", "baue", "mache", "kriege", "kriegen",
+                # 2026-10-11: "Wie bekomme ich Ammoniak?" got no recipes (only the infinitive was listed)
+                "bekomme", "bekommt", "bekommst", "kriegt", "kriegst",
                 # Spanish, French, Italian (2026-10-09: "¿Cómo consigo amoníaco?" got no recipes)
                 "como", "cómo", "consigo", "conseguir", "obtener", "encontrar", "fabricar", "receta", "recetas",
                 "dónde", "donde", "recette", "recettes", "comment", "obtenir", "trouver", "fabriquer", "où",

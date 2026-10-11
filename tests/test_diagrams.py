@@ -1,7 +1,7 @@
 """Recipes as structured data for the app's chat diagrams (diagrams.py, companion.recipe_diagrams): the model's own
 wording could not be relied on (chat tests 2026-10-10/11), so chat_context hands the app the recipes as data."""
 
-from nms_connector import diagrams, recipes
+from nms_connector import diagrams, game_terms, recipes
 from test_connector import FakeCtx, create_plugin
 from test_recipes import ITEMS, book
 
@@ -71,6 +71,20 @@ def test_chat_context_carries_the_recipes_for_a_recipe_question_only(tmp_path, m
     found = plugin.companion.chat_context("how do I make ammonia?")["recipes"]
     assert [d["result"]["name"] for d in found] == ["Ammonia", "Ammonia"]
     assert plugin.companion.chat_context("how much copper do I have?")["recipes"] == []
+
+
+def test_the_conjugated_german_get_verb_is_a_recipe_question(tmp_path, monkeypatch):
+    """Live chat test 2026-10-11: "Wie bekomme ich Ammoniak?" got neither recipe lines nor diagrams - only the
+    infinitive "bekommen" was a recipe word (the older test passed it by hand). The question's own words decide."""
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    plugin.tables.recipes = book()
+    plugin.gamedata.items = dict(ITEMS)
+    plugin.tables.terms = game_terms.GameTerms(language="german")      # a German game: the names follow the question
+    question = "Wie bekomme ich Ammoniak?"
+    words = {"wie", "bekomme", "ich", "ammoniak"}
+    assert plugin.companion.recipe_lines(question, words)[0].startswith("How to get Ammonia")
+    assert [d["result"]["name"] for d in plugin.companion.recipe_diagrams(question, words)] == ["Ammoniak", "Ammoniak"]
 
 
 def test_a_failing_diagram_build_costs_only_the_diagrams(tmp_path, monkeypatch):
