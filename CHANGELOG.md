@@ -10,6 +10,10 @@
   question's language and with icons; the app draws them under the reply whatever the model wrote. Asking the model
   to copy the lines did not hold (chat tests: "1 Kuchenteig + 1 Anormale Marmelade + 1 Sahne [K2]", or only "from a
   base of Wailing Batter"). Every recipe item's icon is converted once, so items you never held get pictures too.
+- **Search all inventories.** The *Inventory* tab starts with a search field: it finds items in the exosuit, every
+  starship, the freighter and the storage containers by name, category or id, in English or the game's language
+  ("Kupfer", "Handelsgüter"), lists every matching stack with its inventory and adds up each item's total. A place
+  word narrows it ("copper freighter"). Page only - the persona already answers "how much copper do I have".
 - **Fix:** "Wie bekomme ich Ammoniak?" now gets the recipes (only the infinitive "bekommen" was understood).
 
 ## 0.15.0-beta.1 - "Discovery" (beta; needs app 3.15.0)

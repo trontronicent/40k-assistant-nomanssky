@@ -70,6 +70,12 @@ def terms(query: str, drop_question_words: bool = False) -> list[str]:
     return list(dict.fromkeys(out))
 
 
+def term_matches(term: str, text_words: set[str]) -> bool:
+    """A search word matches a word that starts with it or with its stem ('heiss' -> 'heisser')."""
+    base = stem(term)
+    return any(w.startswith(term) or w.startswith(base) for w in text_words)
+
+
 def _cell_text(cell) -> str:
     if isinstance(cell, dict):
         return str(cell.get("text") or "")
@@ -113,8 +119,7 @@ class PlanetIndex:
 
     @staticmethod
     def _matches(term: str, planet_words: set[str]) -> bool:
-        base = stem(term)
-        return any(w.startswith(term) or w.startswith(base) for w in planet_words)
+        return term_matches(term, planet_words)
 
     def _distance(self, key):
         return galaxy.distance_ly(self.ctx.origin, key) if self.ctx.origin is not None else None

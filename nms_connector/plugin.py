@@ -26,7 +26,7 @@ from datetime import datetime
 from functools import cached_property
 from pathlib import Path
 
-from . import codex_sync, discoveries, equipment, frigates, galaxy, hgpak, logs, memory, planet_search, planets_view, positions, route, saves, settlements, ships, starmap, timers, trade
+from . import codex_sync, discoveries, equipment, frigates, galaxy, hgpak, inventory_search, logs, memory, planet_search, planets_view, positions, route, saves, settlements, ships, starmap, timers, trade
 from .companion import PluginCompanion
 from .describe import StateText
 from .game_install import GameInstall, find_game
@@ -113,6 +113,7 @@ class NmsConnector:
         self.settlement_live = settlements.LiveSettlements(self.data_dir / "settlement_screen.json")  # screen values
         self.galaxy_colors = "kind"               # how the galaxy map colours systems (planets_view.COLOR_MODES)
         self.planet_query = ""                    # Systems -> Planets search (planet_search)
+        self.inventory_query = ""                 # Inventory -> search across all inventories (inventory_search)
         self.settings_path = self.data_dir / "settings.json"
         self.settings = PluginSettings.load(self.settings_path)   # Settings tab: single context, codeword
         self.error: str | None = None
@@ -670,6 +671,7 @@ class NmsConnector:
             planets_view.GALAXY_COLORS: self._act_galaxy_colors,
             planets_view.SEARCH_PLANETS: self._act_search_planets,
             planets_view.NAME_FIX: self._act_name_fix,
+            inventory_search.SEARCH_INVENTORY: self._act_search_inventory,
             "rescan": self._act_rescan,
             "update_mapping": self._act_update_mapping,
             "write_codex": lambda params: self._write_codex(),
@@ -715,6 +717,15 @@ class NmsConnector:
         found = len(planets_view.planet_index(self.context()).search(self.planet_query))
         return {"ok": True, "focus": planets_view.PLANET_SEARCH_ID,
                 "message": f"{found} planet(s) match \"{self.planet_query}\"."}
+
+    async def _act_search_inventory(self, params: dict) -> dict:
+        # Untrusted form value: a string, cut to the field's length.
+        self.inventory_query = str(params.get("query") or "").strip()[:inventory_search.MAX_QUERY_CHARS]
+        if not self.inventory_query:
+            return {"ok": True, "message": "Inventory search cleared."}
+        found = len(inventory_search.search(self.snapshot, self.inventory_query, self.gamedata.lookup))
+        return {"ok": True, "focus": inventory_search.RESULTS_ID,
+                "message": f"{found} stack(s) match \"{self.inventory_query}\"."}
 
     async def _act_rescan(self, params: dict) -> dict:
         self._read_save_again()

@@ -12,7 +12,8 @@ from __future__ import annotations
 
 import time
 
-from . import companions_view, discoveries_view, equipment, frigates, planets_view, settlements, ships, timers
+from . import (companions_view, discoveries_view, equipment, frigates, inventory_search, planets_view, settlements,
+               ships, timers)
 
 
 def fmt_int(value) -> str:
@@ -137,6 +138,39 @@ class ConnectorPage:
         return {"id": "storage", "label": "Storage", "badge": sum(1 for c in snap.get("storage") or [] if c["rows"]) or None,
                 "sections": sections}
 
+    def inventory_search_sections(self, snap: dict, ctx, columns: list[str]) -> list[dict]:
+        """The Inventory tab's search form and, for a query, every matching stack across all inventories with
+        its place (the item first: on a phone the app titles each row's card by its first cell)."""
+        query = self.connector.inventory_query
+        form = {"type": "form", "id": inventory_search.FORM_ID, "title": "Search all inventories",
+                "action": inventory_search.SEARCH_INVENTORY, "submit_label": "Search",
+                "description": "Find items in the exosuit, every starship, the freighter and the storage containers "
+                               "by name, category or id - in English or the game's language, e.g. \"Kupfer\", "
+                               "\"trade goods\". Every word must match; a word also finds longer ones; a place word "
+                               "narrows it (\"copper freighter\"). An empty search clears it.",
+                "fields": [{"id": "query", "label": "Search", "type": "text", "value": query,
+                            "max_length": inventory_search.MAX_QUERY_CHARS, "placeholder": "e.g. Kupfer",
+                            "hint": "Words of the item's name, category or id, or of the inventory's name."}]}
+        if not query:
+            return [form]
+        gamedata = self.connector.gamedata
+        hits = inventory_search.search(snap, query, gamedata.lookup)
+        shown = hits[:inventory_search.MAX_ROWS]
+        names = len(columns) - 6                # the name columns before Category ... Value (each)
+        rows = [r[:names] + [h.place] + r[names:]
+                for h, r in zip(shown, self.item_rows([[h.item_id, h.amount, h.maximum] for h in shown], ctx),
+                                strict=True)]
+        out = [form]
+        if hits:
+            out.append({"type": "text", "text": inventory_search.totals_text(
+                hits, lambda i: (gamedata.lookup(i) or {}).get("en") or i)})
+        cut = f" - the first {len(shown)}" if len(shown) < len(hits) else ""
+        out.append({"type": "table", "id": inventory_search.RESULTS_ID,
+                    "title": f"Items matching \"{query}\" ({len(hits)}{cut})",
+                    "columns": columns[:names] + ["Inventory"] + columns[names:], "rows": rows,
+                    "empty": "No item in any inventory matches every word; try fewer or shorter words."})
+        return out
+
     # ------------------------------------------------------------------ tabs
 
     def overview(self, snap: dict | None, ctx) -> list[dict]:
@@ -206,7 +240,8 @@ class ConnectorPage:
         tabs.append(self.storage_tab(snap, ctx, columns))
         tabs.append({"id": "equipment", "label": "Equipment",
                      "sections": equipment.equipment_sections(self.connector.equipment, ctx.texts)})
-        return [{"type": "tabs", "id": "inventory-tabs", "tabs": tabs}]
+        return self.inventory_search_sections(snap, ctx, columns) + [
+            {"type": "tabs", "id": "inventory-tabs", "tabs": tabs}]
 
     def fleet(self, snap: dict | None, ctx) -> list[dict]:
         """The Ships & bases tab: ships with their technology, frigates and bases."""
