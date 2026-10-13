@@ -1,0 +1,48 @@
+[
+  {
+    "name": "once per end time",
+    "steps": [
+      {"now": 101, "timers": [{"key": "t1", "label": "X", "ends_at": 100}]},
+      {"now": 102, "timers": [{"key": "t1", "label": "X", "ends_at": 100}]}
+    ],
+    "expected": [["t1"], []]
+  },
+  {
+    "name": "a restarted timer fires again",
+    "steps": [
+      {"now": 101, "timers": [{"key": "t1", "label": "X", "ends_at": 100}]},
+      {"now": 901, "timers": [{"key": "t1", "label": "X", "ends_at": 900}]}
+    ],
+    "expected": [["t1"], ["t1"]]
+  },
+  {
+    "name": "a long-finished timer is not announced",
+    "steps": [
+      {"now": 100000, "timers": [{"key": "t1", "label": "X", "ends_at": 0}]}
+    ],
+    "expected": [[]]
+  },
+  {
+    "name": "a timer still running is not announced",
+    "steps": [
+      {"now": 50, "timers": [{"key": "t1", "label": "X", "ends_at": 100}]}
+    ],
+    "expected": [[]]
+  },
+  {
+    "name": "several timers ending together are all announced",
+    "steps": [
+      {"now": 101, "timers": [{"key": "t1", "label": "X", "ends_at": 100},
+                              {"key": "t2", "label": "Y", "ends_at": 99}]}
+    ],
+    "expected": [["t1", "t2"]]
+  },
+  {
+    "name": "a timer without a key or an end time is ignored",
+    "steps": [
+      {"now": 101, "timers": [{"label": "X", "ends_at": 100}, {"key": "t2", "label": "Y"},
+                              {"key": "t3", "label": "Z", "ends_at": "soon"}]}
+    ],
+    "expected": [[]]
+  }
+]
