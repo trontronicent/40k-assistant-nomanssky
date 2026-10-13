@@ -103,6 +103,19 @@ def build_codex(data: Path, settings: config.Settings):
     return StandaloneCodex(paths.codex_dir(data), index=index)
 
 
+def start_overlay(port: int) -> None:
+    """Launch the game overlay as its own process: a tkinter main loop cannot share this one, and a slow
+    redraw must never touch the connector's loop. Never waited on; it is the user's window to close."""
+    import subprocess
+    import sys
+    command = [sys.executable, "-m", "standalone.overlay", "--port", str(port)]
+    try:
+        subprocess.Popen(command, cwd=str(paths.install_root()))     # noqa: S603 - our own module
+        log.info("the overlay was started on port %s", port)
+    except OSError as err:
+        log.warning("the overlay could not be started: %s", err)
+
+
 async def serve(args) -> None:
     root = paths.install_root()
     data = paths.data_dir()
@@ -121,6 +134,8 @@ async def serve(args) -> None:
     log.info("the standalone host is serving http://127.0.0.1:%s (v%s)", port, version)
     if not args.no_browser:
         webbrowser.open(f"http://127.0.0.1:{port}")
+    if settings.overlay_enabled and not args.no_overlay:
+        start_overlay(port)
     try:
         await asyncio.Event().wait()           # until the process is asked to exit
     finally:
