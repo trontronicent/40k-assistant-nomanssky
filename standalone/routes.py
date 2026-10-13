@@ -50,7 +50,8 @@ class Deps:
     version: str
     chat: object = None            # standalone.chat.ChatService, None without AI
     codex: object = None           # standalone.codex.StandaloneCodex, None when the Codex is off
-    updater: object = None         # standalone.updater.Updater
+    updater: object = None         # standalone.updates_service.UpdatesService
+    probe: object = None           # an OllamaClient used to check before switching AI on
     tts: object = None             # standalone.tts.PiperVoice, None without voice
 
     @property
@@ -123,6 +124,69 @@ def _status(deps: Deps, _request: Request) -> Response:
         "overlay_enabled": settings.overlay_enabled,
         "update_channel": settings.update_channel,
     })
+
+
+# Changing these only takes effect on the next start; the page says so instead of looking inert.
+RESTART_KEYS = ("port", "overlay_enabled", "tray_enabled", "codex_enabled", "ai_enabled", "tts_enabled")
+MIN_PORT = 1024
+MAX_PORT = 65535
+
+
+def check_settings(changes: dict) -> dict:
+    """Validate a settings change against the dataclass. Unknown keys and wrong types are refused, so a
+    bad write cannot make the next start fall back to the defaults."""
+    if not isinstance(changes, dict) or not changes:
+        raise HttpError(422, "send at least one setting")
+    checked = {}
+    for key, value in changes.items():
+        if key not in config.FIELD_TYPES:
+            raise HttpError(422, f"unknown setting {key!r}")
+        wanted = config.FIELD_TYPES[key]
+        if wanted == "bool" and not isinstance(value, bool):
+            raise HttpError(422, f"{key} must be true or false")
+        if wanted == "int" and (isinstance(value, bool) or not isinstance(value, int)):
+            raise HttpError(422, f"{key} must be a whole number")
+        if wanted == "str" and not isinstance(value, str):
+            raise HttpError(422, f"{key} must be text")
+        checked[key] = value
+    port = checked.get("port")
+    if port is not None and not MIN_PORT <= port <= MAX_PORT:
+        raise HttpError(422, f"the port must be between {MIN_PORT} and {MAX_PORT}")
+    channel = checked.get("update_channel")
+    if channel is not None and channel not in config.CHANNELS:
+        raise HttpError(422, f"the channel must be one of {list(config.CHANNELS)}")
+    return checked
+
+
+def _settings_state(deps: Deps, _request: Request) -> Response:
+    """What the settings panel draws from."""
+    return json_response({"settings": config.as_dict(deps.settings)})
+
+
+def _settings(deps: Deps, request: Request) -> Response:
+    """Change one or more settings. Turning AI on is checked against a running Ollama first: a chat box
+    that fails on every message is worse than a refusal that says why."""
+    changes = check_settings(request.body)
+    if changes.get("ai_enabled") and not _ollama_ready(deps):
+        return error_response(409, "Ollama did not answer; install the AI assistant or start Ollama first")
+    settings = config.replace(deps.settings, changes)
+    config.save(deps.settings_path, settings)
+    return json_response({"ok": True, "settings": config.as_dict(settings),
+                          "restart_needed": any(key in RESTART_KEYS for key in changes)})
+
+
+def _ollama_ready(deps: Deps) -> bool:
+    return bool(deps.probe is not None and deps.probe.available())
+
+
+def _models(deps: Deps, _request: Request) -> Response:
+    """The models Ollama has, for the settings picker."""
+    if deps.probe is None or not deps.probe.available():
+        return json_response({"models": [], "available": False})
+    try:
+        return json_response({"models": deps.probe.tags(), "available": True})
+    except Exception as err:               # noqa: BLE001 - shown in the picker, logged by the server
+        return json_response({"models": [], "available": False, "detail": str(err)})
 
 
 def _updates(deps: Deps, _request: Request) -> Response:
@@ -274,6 +338,9 @@ def build(deps: Deps) -> list[Route]:
         Route("GET", r"/api/status$", bind(_status)),
         Route("POST", r"/api/chat$", bind(_chat)),
         Route("POST", r"/api/tts$", bind(_tts)),
+        Route("GET", r"/api/settings$", bind(_settings_state)),
+        Route("PUT", r"/api/settings$", bind(_settings)),
+        Route("GET", r"/api/models$", bind(_models)),
         Route("GET", r"/api/updates$", bind(_updates)),
         Route("POST", r"/api/updates/install$", bind(_update_install)),
         Route("GET", r"/api/codex$", bind(_codex)),

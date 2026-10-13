@@ -94,6 +94,7 @@ def build_deps(runner: Runner, data: Path, root: Path, version: str, codex) -> r
         codex=codex,
         tts=voice,
         updater=updates,
+        probe=ollama.OllamaClient(settings.ollama_url),
     )
 
 
