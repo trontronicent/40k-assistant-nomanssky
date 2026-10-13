@@ -28,6 +28,8 @@ MAX_TOTAL_BYTES = 64 * 1024 * 1024
 STATE_NAME = ".state.json"
 COUNT_KEYS = ("written", "unchanged", "removed", "kept_edited", "hidden", "library")
 MIN_SEARCH_WORD = 3
+TITLE_WEIGHT = 0.7        # a word in the title outweighs the body
+MAX_WORD_COUNT = 5        # more occurrences of one word add nothing
 MAX_ADOPT_DIRS = 8
 
 
@@ -106,9 +108,30 @@ def marker_of(text: str) -> str | None:
     return None
 
 
+def split_front_matter(text: str) -> tuple[list[str], str]:
+    """`(front matter lines, body)`. The front matter is the opening `---` block, if there is one."""
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return [], text
+    for index in range(1, len(lines)):
+        if lines[index].strip() == "---":
+            return lines[1:index], "\n".join(lines[index + 1:])
+    return [], text
+
+
 def title_of(text: str, path: str) -> str:
-    """The document's title: its first `# H1`, else the file name - the Codex's own rule."""
-    for line in text.splitlines():
+    """The document's title, by the Codex's own precedence: front matter `title:`, else the first `# H1`
+    **of the body**, else the file stem.
+
+    The body matters: the connector's documents carry a YAML **comment** in their front matter
+    (`# generated: nomanssky-plugin recipes - ...`), and reading the first `# ` line of the whole file
+    made every search hit and every listed title read as that marker (seen live 2026-10-13).
+    """
+    front, body = split_front_matter(text)
+    for line in front:
+        if line.startswith("title:"):
+            return line.split(":", 1)[1].strip().strip('"').strip("'") or Path(path).stem
+    for line in body.splitlines():
         if line.startswith("# "):
             return line[2:].strip()
     return Path(path).stem
@@ -351,14 +374,34 @@ class StandaloneCodex:
         return self._full_text(query, k)
 
     def _full_text(self, query: str, k: int) -> list[dict]:
+        """The search without AI: every query word must appear, and a hit in the **title** outweighs the
+        body. Ranking by word presence alone put short unrelated documents first ("chromatic metal" ->
+        *Dawn's End*, measured on the real 2,388 documents), because almost everything mentions a metal
+        somewhere."""
         words = [w for w in re.split(r"\W+", (query or "").casefold()) if len(w) >= MIN_SEARCH_WORD]
         if not words:
             return []
         scored = []
         for doc in self.documents():
-            folded = doc["text"].casefold()
-            hits = sum(1 for word in words if word in folded)
-            if hits:
-                scored.append((hits, -len(folded), doc))
-        scored.sort(key=lambda row: (-row[0], -row[1]))
-        return [dict(doc, score=hits / len(words)) for hits, _, doc in scored[:k]]
+            score = _text_score(words, doc)
+            if score > 0:
+                scored.append((score, doc))
+        scored.sort(key=lambda row: (-row[0], row[1]["title"]))
+        return [dict(doc, score=round(score, 3)) for score, doc in scored[:k]]
+
+
+def _text_score(words: list[str], doc: dict) -> float:
+    """How well a document answers these words without a model.
+
+    Every word must appear somewhere, or the document is out (0). A word in the title is worth
+    `TITLE_WEIGHT` of the score, the rest comes from how often the words occur in the body, which keeps
+    a short unrelated document from outranking the item's own page.
+    """
+    title = doc["title"].casefold()
+    body = doc["text"].casefold()
+    if not all(word in body or word in title for word in words):
+        return 0.0
+    in_title = sum(1 for word in words if word in title)
+    occurrences = sum(min(body.count(word), MAX_WORD_COUNT) for word in words)
+    return TITLE_WEIGHT * (in_title / len(words)) + (1 - TITLE_WEIGHT) * (
+        occurrences / (len(words) * MAX_WORD_COUNT))

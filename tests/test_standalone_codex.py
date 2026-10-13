@@ -293,3 +293,53 @@ def test_the_restore_route_clears_the_tombstones(tmp_path):
     deps = build_deps(tmp_path, codex=library)
     assert call(deps, "POST", "/api/codex/restore").status == 200
     assert library.hidden() == []
+
+
+def test_the_title_comes_from_the_front_matter(library):
+    """The connector's documents carry a YAML **comment** in their front matter
+    (`# generated: nomanssky-plugin recipes - ...`). Reading the first `# ` line of the whole file made
+    every Codex hit read as that marker (seen live 2026-10-13 on the real 2,388 documents)."""
+    text = ('---\ntitle: "Aalgelee"\ntags: ["FOOD_F_JEELS"]\n'
+            '# generated: nomanssky-plugin recipes - edits are overwritten\n---\n\n# Aalgelee\n')
+    assert codex.title_of(text, "Deutsch/Nahrung/Aalgelee.md") == "Aalgelee"
+
+
+def test_the_title_falls_back_to_the_bodys_heading(library):
+    """A document without a front-matter title (the shipped guides) keeps its H1."""
+    assert codex.title_of("# Companions and Creature Battles\n\ntext\n", "Guides/x.md") \
+        == "Companions and Creature Battles"
+
+
+def test_the_title_falls_back_to_the_file_name(library):
+    """Neither a title nor a heading: the file name is still better than a marker line."""
+    assert codex.title_of("just text\n", "Items/Copper.md") == "Copper"
+
+
+def test_a_marker_comment_is_never_a_title(library):
+    """The specific regression: a `#` line inside the front matter must never win."""
+    text = "---\n# generated: nomanssky-plugin recipes\nstc_owner: nomanssky/generated\n---\n\n# Copper\n"
+    assert codex.title_of(text, "Items/Copper.md") == "Copper"
+
+
+def test_a_title_match_outranks_a_passing_mention(library):
+    """Measured on the real 2,388 documents: ranking by word presence put *Dawn's End* above *Chromatic
+    Metal* for "chromatic metal", because almost every document mentions a metal somewhere."""
+    write(library, {
+        "Items/Chromatic Metal.md": "---\ntitle: \"Chromatic Metal\"\n---\n\n# Chromatic Metal\n"
+                                    "Refined from Copper.\n",
+        "Items/Dawns End.md": "---\ntitle: \"Dawn's End\"\n---\n\n# Dawn's End\n"
+                              "A chromatic sword of metal.\n"})
+    assert [hit["title"] for hit in library.search("chromatic metal", k=2)][0] == "Chromatic Metal"
+
+
+def test_a_document_missing_one_word_is_not_a_hit(library):
+    """All the query's words have to be there; otherwise a question returns whatever shares one word."""
+    write(library, {"A.md": "# Copper\nA metal.\n", "B.md": "# Cadmium\nAnother metal.\n"})
+    assert [hit["title"] for hit in library.search("copper metal", k=5)] == ["Copper"]
+
+
+def test_the_score_is_bounded_and_comparable(library):
+    """The page prints it; a score outside 0..1 would be meaningless next to the embedded search's."""
+    write(library, {"A.md": "---\ntitle: \"Copper\"\n---\n\n# Copper\nCopper copper copper.\n"})
+    score = library.search("copper", k=1)[0]["score"]
+    assert 0 < score <= 1

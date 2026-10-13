@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from pathlib import Path
 
 import numpy as np
@@ -179,7 +178,6 @@ def _normalise(vector: np.ndarray) -> np.ndarray:
 
 
 def _title(text: str, path: str) -> str:
-    for line in text.splitlines():
-        if line.startswith("# "):
-            return line[2:].strip()
-    return re.sub(r"\.md$", "", Path(path).name)
+    """One title rule for the whole host; `codex.title_of` owns it (front matter, then the body's H1)."""
+    from standalone.codex import title_of
+    return title_of(text, path)
