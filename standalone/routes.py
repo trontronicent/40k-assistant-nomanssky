@@ -7,6 +7,7 @@ it runs on the host's loop and never races the 5 s tick.
 from __future__ import annotations
 
 import dataclasses
+import json
 import re
 from pathlib import Path
 from urllib.parse import unquote
@@ -22,6 +23,9 @@ MAX_PARAMS = 50
 MAX_PARAM_TEXT = 2000
 VIEW_TIMEOUT_S = 15.0
 ACTION_TIMEOUT_S = 120.0
+CHAT_PREPARE_TIMEOUT_S = 30.0
+CHAT_MAX_CHARS = 4000
+MAX_HISTORY_ENTRIES = 40
 
 WEB_TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
              ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml",
@@ -115,6 +119,53 @@ def _status(deps: Deps, _request: Request) -> Response:
     })
 
 
+def _sse(payload: dict) -> bytes:
+    """One server-sent event: `data: <json>` and a blank line, the convention the app's chat uses."""
+    return ("data: " + json.dumps(payload) + "\n\n").encode("utf-8")
+
+
+def _history(raw) -> list[dict]:
+    """The page sends the conversation back on every turn; keep only well-formed, bounded entries."""
+    if not isinstance(raw, list):
+        return []
+    out = []
+    for entry in raw[-MAX_HISTORY_ENTRIES:]:
+        if not isinstance(entry, dict):
+            continue
+        role = entry.get("role")
+        content = entry.get("content")
+        if role in ("user", "assistant") and isinstance(content, str) and content.strip():
+            out.append({"role": role, "content": content[:CHAT_MAX_CHARS]})
+    return out
+
+
+def _chat(deps: Deps, request: Request) -> Response:
+    """Stream a reply: `{"token": ...}` events, then one `{"done": true, "recipes": [...]}`.
+
+    The recipes are data for the page's diagrams and are never prompted - a model asked to repeat
+    "A + B -> C" verbatim still mangled it (the app's chat tests, 2026-10-10/11).
+    """
+    if deps.chat is None:
+        return error_response(503, "the AI assistant is not installed")
+    message = request.body.get("message")
+    if not isinstance(message, str) or not message.strip():
+        return error_response(422, "message must be a non-empty string")
+    plan = deps.bridge.call(deps.chat.prepare(message.strip()[:CHAT_MAX_CHARS],
+                                              _history(request.body.get("history"))),
+                            CHAT_PREPARE_TIMEOUT_S)
+
+    def stream(write):
+        try:
+            for token in deps.chat.tokens(plan):
+                write(_sse({"token": token}))
+        except Exception as err:               # noqa: BLE001 - shown to the page, logged by the server
+            write(_sse({"error": str(err)}))
+            raise
+        write(_sse({"done": True, "recipes": plan.recipes}))
+
+    return Response(stream=stream)
+
+
 def _web(deps: Deps, request: Request) -> Response:
     """The page itself. Only files directly inside `web/`, and only known extensions."""
     name = unquote(request.path_args[0] or "") or "index.html"
@@ -141,5 +192,6 @@ def build(deps: Deps) -> list[Route]:
         Route("GET", r"/api/item-icons$", bind(_item_icons)),
         Route("GET", r"/api/overlay$", bind(_overlay)),
         Route("GET", r"/api/status$", bind(_status)),
+        Route("POST", r"/api/chat$", bind(_chat)),
         Route("GET", r"/(?:|([A-Za-z0-9._-]+))$", bind(_web)),
     ]
