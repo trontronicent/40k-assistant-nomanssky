@@ -19,6 +19,9 @@ from standalone.runner import LoopBridge, Runner
 
 log = logging.getLogger("nms-standalone")
 
+# Set in `serve`; the tray's Quit sets it from its own thread through `call_soon_threadsafe`.
+_shutdown: asyncio.Event | None = None
+
 PORT_PROBE_TIMEOUT_S = 0.3        # a closed localhost port costs ~2 s on Windows without this
 PORT_TRIES = 20
 LOG_BYTES = 2_000_000
@@ -145,6 +148,8 @@ def _finish_pending(root: Path, data: Path, version: str, settings: config.Setti
 
 
 async def serve(args) -> None:
+    global _shutdown
+    _shutdown = asyncio.Event()
     root = paths.install_root()
     data = paths.data_dir()
     setup_logging(paths.log_file(data))
@@ -173,8 +178,12 @@ async def serve(args) -> None:
             webbrowser.open(f"http://127.0.0.1:{port}")
         if settings.overlay_enabled and not args.no_overlay:
             start_overlay(port)
+        if settings.tray_enabled and not args.no_tray:
+            from standalone import tray
+            stop = asyncio.get_running_loop()
+            tray.start(port, data, root, on_quit=lambda: stop.call_soon_threadsafe(_shutdown.set))
         try:
-            await asyncio.Event().wait()       # until the process is asked to exit
+            await _shutdown.wait()             # until Quit in the tray, or the process is stopped
         finally:
             httpd.shutdown()
             await runner.stop()
