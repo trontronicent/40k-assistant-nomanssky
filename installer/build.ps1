@@ -5,10 +5,31 @@
 [CmdletBinding()]
 param(
     [string]$PythonVersion = "3.11.9",
-    [string]$Iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+    [string]$Iscc = "",
     [string]$BuildPython = "J:\40k-assistant\venv\Scripts\python.exe"
 )
 $ErrorActionPreference = "Stop"
+
+# Inno Setup installs either per machine or per user (winget puts it in LOCALAPPDATA), so the compiler
+# is looked for instead of assumed. Pass -Iscc to override.
+function Find-Iscc {
+    param([string]$Given)
+    if ($Given) {
+        if (Test-Path $Given) { return $Given }
+        throw "no ISCC.exe at $Given"
+    }
+    $candidates = @(
+        (Join-Path $env:LOCALAPPDATA "Programs\Inno Setup 6\ISCC.exe"),
+        "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+        "C:\Program Files\Inno Setup 6\ISCC.exe"
+    )
+    foreach ($candidate in $candidates) {
+        if (Test-Path $candidate) { return $candidate }
+    }
+    $onPath = Get-Command "ISCC.exe" -ErrorAction SilentlyContinue
+    if ($onPath) { return $onPath.Source }
+    throw "Inno Setup 6 is not installed (winget install --id JRSoftware.InnoSetup)"
+}
 $root = Split-Path -Parent $PSScriptRoot
 $vendor = Join-Path $root "vendor"
 $python = Join-Path $vendor "python"
@@ -50,7 +71,8 @@ foreach ($forbidden in @("mapping.json", "gamedata", ".data")) {
 
 $manifest = Get-Content (Join-Path $root "strategicum-plugin.json") -Raw | ConvertFrom-Json
 $version = $manifest.version
-Write-Output "compiling the installer for $version"
-& $Iscc "/DMyAppVersion=$version" (Join-Path $PSScriptRoot "nms-companion.iss")
+$compiler = Find-Iscc -Given $Iscc
+Write-Output "compiling the installer for $version with $compiler"
+& $compiler "/DMyAppVersion=$version" (Join-Path $PSScriptRoot "nms-companion.iss")
 if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
 Write-Output "built installer\Output\nms-companion-$version-setup.exe"

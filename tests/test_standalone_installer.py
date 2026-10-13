@@ -178,3 +178,13 @@ def test_the_shortcut_runs_the_vendored_interpreter():
     text = read("nms-companion.iss")
     assert "pythonw.exe" in text and "vendor" in text
     assert "-m standalone" in text
+
+
+def test_the_build_script_finds_the_compiler_where_it_is():
+    """Inno Setup installs per machine or per user - winget puts it in `%LOCALAPPDATA%\Programs`, which a
+    hard-coded `Program Files (x86)` path misses (measured 2026-10-13: the first build could not find
+    ISCC.exe). The script looks in all of them and says how to install it when there is none."""
+    text = read("build.ps1")
+    assert "Find-Iscc" in text
+    assert "LOCALAPPDATA" in text and "Program Files (x86)" in text
+    assert "winget install" in text
