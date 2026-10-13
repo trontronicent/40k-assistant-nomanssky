@@ -26,6 +26,10 @@ ACTION_TIMEOUT_S = 120.0
 CHAT_PREPARE_TIMEOUT_S = 30.0
 CHAT_MAX_CHARS = 4000
 MAX_HISTORY_ENTRIES = 40
+MAX_CODEX_TITLES = 50
+MAX_CODEX_HITS = 5
+MAX_QUERY_CHARS = 500
+MAX_HIT_CHARS = 1200
 
 WEB_TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
              ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml",
@@ -119,6 +123,39 @@ def _status(deps: Deps, _request: Request) -> Response:
     })
 
 
+def _codex(deps: Deps, _request: Request) -> Response:
+    """What the Codex holds, for the page's Codex box."""
+    if deps.codex is None:
+        return error_response(404, "this install keeps no Codex")
+    documents = deps.codex.documents()
+    return json_response({
+        "library": deps.codex.library,
+        "documents": len(documents),
+        "titles": [doc["title"] for doc in documents[:MAX_CODEX_TITLES]],
+        "hidden": deps.codex.hidden(),
+    })
+
+
+def _codex_search(deps: Deps, request: Request) -> Response:
+    if deps.codex is None:
+        return error_response(404, "this install keeps no Codex")
+    query = request.body.get("query")
+    if not isinstance(query, str) or not query.strip():
+        return error_response(422, "query must be a non-empty string")
+    hits = deps.codex.search(query.strip()[:MAX_QUERY_CHARS], k=MAX_CODEX_HITS)
+    return json_response({"hits": [{"title": hit.get("title"), "path": hit.get("path"),
+                                    "text": (hit.get("text") or "")[:MAX_HIT_CHARS],
+                                    "score": hit.get("score")} for hit in hits]})
+
+
+def _codex_restore(deps: Deps, _request: Request) -> Response:
+    """Forget the tombstones, so documents the user deleted are written again."""
+    if deps.codex is None:
+        return error_response(404, "this install keeps no Codex")
+    deps.codex.restore()
+    return json_response({"ok": True, "message": "Deleted documents will be written again."})
+
+
 def _sse(payload: dict) -> bytes:
     """One server-sent event: `data: <json>` and a blank line, the convention the app's chat uses."""
     return ("data: " + json.dumps(payload) + "\n\n").encode("utf-8")
@@ -193,5 +230,8 @@ def build(deps: Deps) -> list[Route]:
         Route("GET", r"/api/overlay$", bind(_overlay)),
         Route("GET", r"/api/status$", bind(_status)),
         Route("POST", r"/api/chat$", bind(_chat)),
+        Route("GET", r"/api/codex$", bind(_codex)),
+        Route("POST", r"/api/codex/search$", bind(_codex_search)),
+        Route("POST", r"/api/codex/restore$", bind(_codex_restore)),
         Route("GET", r"/(?:|([A-Za-z0-9._-]+))$", bind(_web)),
     ]
