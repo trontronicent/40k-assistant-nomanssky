@@ -11,7 +11,7 @@ import json
 import logging
 import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Callable
+from typing import Callable, ClassVar
 from urllib.parse import parse_qsl
 
 log = logging.getLogger("nms-standalone.server")
@@ -77,7 +77,7 @@ def build(routes: list[Route], port: int) -> ThreadingHTTPServer:
 
 
 class _Handler(BaseHTTPRequestHandler):
-    routes: list[Route] = []
+    routes: ClassVar[list[Route]] = []
     protocol_version = "HTTP/1.1"
 
     def log_message(self, fmt, *args):         # the default writes to stderr

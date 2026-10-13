@@ -18,6 +18,7 @@ from standalone.server import HttpError, Request, Response, Route, error_respons
 
 ACTION_ID_RE = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 ICON_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,119}\.png$")
+VERSION_RE = re.compile(r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]{1,40})?$")
 WEB_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
 MAX_PARAMS = 50
 MAX_PARAM_TEXT = 2000
@@ -122,6 +123,32 @@ def _status(deps: Deps, _request: Request) -> Response:
         "overlay_enabled": settings.overlay_enabled,
         "update_channel": settings.update_channel,
     })
+
+
+def _updates(deps: Deps, _request: Request) -> Response:
+    """The versions this install can move to, each labelled update / downgrade / installed."""
+    from standalone.updater import UpdateError
+    if deps.updater is None:
+        return error_response(503, "this install cannot update itself")
+    try:
+        return json_response(deps.updater.versions())
+    except UpdateError as err:
+        return error_response(502, str(err))
+
+
+def _update_install(deps: Deps, request: Request) -> Response:
+    """Install another version. The swap itself happens in a helper process after this one exits."""
+    from standalone.updater import UpdateError
+    if deps.updater is None:
+        return error_response(503, "this install cannot update itself")
+    version = request.body.get("version")
+    if not isinstance(version, str) or not VERSION_RE.match(version):
+        return error_response(422, "version must be a version string")
+    try:
+        return json_response(deps.updater.install_version(version,
+                                                          bool(request.body.get("confirm_data"))))
+    except UpdateError as err:
+        return error_response(502, str(err))
 
 
 def _tts(deps: Deps, request: Request) -> Response:
@@ -247,6 +274,8 @@ def build(deps: Deps) -> list[Route]:
         Route("GET", r"/api/status$", bind(_status)),
         Route("POST", r"/api/chat$", bind(_chat)),
         Route("POST", r"/api/tts$", bind(_tts)),
+        Route("GET", r"/api/updates$", bind(_updates)),
+        Route("POST", r"/api/updates/install$", bind(_update_install)),
         Route("GET", r"/api/codex$", bind(_codex)),
         Route("POST", r"/api/codex/search$", bind(_codex_search)),
         Route("POST", r"/api/codex/restore$", bind(_codex_restore)),

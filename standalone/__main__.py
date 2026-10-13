@@ -68,7 +68,7 @@ def setup_logging(path: Path) -> None:
     root.setLevel(logging.INFO)
 
 
-def build_deps(runner: Runner, data: Path, root: Path, version: str, codex) -> routes.Deps:
+def build_deps(runner: Runner, data: Path, root: Path, version: str, codex) -> routes.Deps:  # noqa: PLR0913
     """Everything the routes need. Each optional feature is present exactly when it is installed and
     switched on, so the page can hide what this install cannot do."""
     settings = config.load(paths.settings_file(data))
@@ -77,6 +77,8 @@ def build_deps(runner: Runner, data: Path, root: Path, version: str, codex) -> r
         from standalone.chat import ChatService
         client = ollama.OllamaClient(settings.ollama_url)
         chat_service = ChatService(runner.plugin, client, settings.chat_model, codex=codex)
+    from standalone.updates_service import UpdatesService
+    updates = UpdatesService(root, data, version, settings.update_channel)
     voice = None
     if settings.tts_enabled:
         from standalone.tts import from_settings
@@ -91,6 +93,7 @@ def build_deps(runner: Runner, data: Path, root: Path, version: str, codex) -> r
         chat=chat_service,
         codex=codex,
         tts=voice,
+        updater=updates,
     )
 
 
@@ -121,6 +124,12 @@ def start_overlay(port: int) -> None:
         log.warning("the overlay could not be started: %s", err)
 
 
+def _finish_pending(root: Path, data: Path, version: str, settings: config.Settings) -> str | None:
+    """After an update: clear the pending marker, or roll back if the new code did not come up."""
+    from standalone.updates_service import UpdatesService
+    return UpdatesService(root, data, version, settings.update_channel).finish_pending()
+
+
 async def serve(args) -> None:
     root = paths.install_root()
     data = paths.data_dir()
@@ -129,6 +138,9 @@ async def serve(args) -> None:
     version = installed_version(root)
     port = choose_port(args.port or settings.port)
 
+    rolled_back = _finish_pending(root, data, version, settings)
+    if rolled_back:
+        log.error("%s", rolled_back)
     runner = Runner(root, paths.plugin_data_dir(data), codex=build_codex(data, settings), version=version)
     await runner.start()
     deps = build_deps(runner, data, root, version, runner.ctx.codex)
