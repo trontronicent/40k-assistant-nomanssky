@@ -1,0 +1,148 @@
+/* The standalone page. Plain CSS, no framework: the install ships no build step.
+   Works down to 360 px (one media query turns wide tables into cards). */
+
+:root {
+  --bg: #0e1116;
+  --panel: #161b22;
+  --panel-2: #1c232c;
+  --line: #2a323d;
+  --text: #dfe5ec;
+  --muted: #94a3b4;
+  --accent: #d9a13b;
+  --accent-2: #6fb3d2;
+  --bad: #d4594b;
+  --ok: #4f9d69;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.45 "Segoe UI", system-ui, sans-serif;
+}
+
+.top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 10px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+
+.top h1 { font-size: 16px; margin: 0; letter-spacing: 0.3px; }
+.top-nav { display: flex; gap: 6px; flex-wrap: wrap; }
+.version { margin-left: auto; color: var(--muted); font-size: 12px; }
+
+button {
+  background: var(--panel-2);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 5px 10px;
+  font: inherit;
+  cursor: pointer;
+}
+
+button:hover { border-color: var(--accent); }
+button.on { border-color: var(--accent); color: var(--accent); }
+button[disabled] { opacity: 0.5; cursor: default; }
+
+main { padding: 16px; }
+.page { max-width: 1400px; }
+
+.banner {
+  margin: 10px 16px 0;
+  padding: 8px 12px;
+  border: 1px solid var(--bad);
+  border-radius: 4px;
+  background: rgba(212, 89, 75, 0.12);
+}
+
+.banner-ok { border-color: var(--ok); background: rgba(79, 157, 105, 0.12); }
+
+h3 { font-size: 13px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 18px 0 8px; }
+
+/* --- sections ---------------------------------------------------------- */
+
+.stc-notice { border: 1px solid var(--line); border-left: 3px solid var(--accent-2); padding: 8px 12px; margin: 10px 0; background: var(--panel); }
+.stc-notice-warning { border-left-color: var(--accent); }
+.stc-notice-error { border-left-color: var(--bad); }
+.stc-notice p { margin: 4px 0 0; }
+
+.stc-stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.stc-stat { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; }
+.stc-stat-value { display: block; font-size: 18px; color: var(--accent); }
+.stc-stat-label { color: var(--muted); font-size: 12px; }
+
+.stc-kv { display: grid; grid-template-columns: minmax(140px, max-content) 1fr; gap: 4px 14px; margin: 0; }
+.stc-kv dt { color: var(--muted); }
+.stc-kv dd { margin: 0; }
+
+.stc-table-box { overflow-x: auto; max-height: min(72vh, 760px); overflow-y: auto; border: 1px solid var(--line); border-radius: 4px; background: var(--panel); }
+.stc-table { border-collapse: collapse; width: 100%; }
+.stc-table th { position: sticky; top: 0; background: var(--panel-2); text-align: left; white-space: nowrap; }
+.stc-table th, .stc-table td { border-bottom: 1px solid var(--line); padding: 4px 8px; vertical-align: top; }
+/* Never break words: the app's tables shrank until "Copper" became "Coppe/r". */
+.stc-table td { overflow-wrap: normal; word-break: normal; }
+.stc-table td span { min-width: 14ch; display: inline-block; }
+.stc-nowrap { white-space: nowrap; min-width: 0 !important; }
+.stc-hinted { border-bottom: 1px dotted var(--muted); cursor: help; }
+.stc-icon { width: 22px; height: 22px; vertical-align: middle; margin-right: 6px; }
+.stc-sort { background: none; border: none; color: inherit; padding: 2px 0; font: inherit; }
+.stc-clickable { cursor: pointer; }
+.stc-clickable:hover td { background: var(--panel-2); }
+tr[data-selected] td { box-shadow: inset 2px 0 0 var(--accent); }
+
+.stc-list { margin: 0; padding-left: 18px; }
+.stc-text { margin: 0; white-space: pre-line; }
+
+.stc-form { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 10px; }
+.stc-field { display: flex; flex-direction: column; gap: 3px; }
+.stc-field-label { color: var(--muted); font-size: 12px; }
+.stc-field input, .stc-field select { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 3px; padding: 5px 7px; font: inherit; min-width: 160px; }
+.stc-field-hint { color: var(--muted); }
+
+.stc-timers { display: grid; gap: 8px; }
+.stc-timer { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; }
+.stc-timer-remaining { color: var(--accent); font-variant-numeric: tabular-nums; }
+.stc-timer-detail, .stc-timer-bar { grid-column: 1 / -1; }
+.stc-timer-detail { color: var(--muted); }
+.stc-timer-bar { height: 4px; background: var(--panel-2); border-radius: 2px; overflow: hidden; }
+.stc-timer-fill { height: 100%; width: 0; background: var(--accent); }
+
+.stc-tabstrip { display: flex; gap: 4px; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 6px; margin-bottom: 10px; }
+.stc-badge { margin-left: 6px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 0 5px; font-size: 11px; color: var(--muted); }
+
+.stc-orbit svg, .stc-starmap svg { width: 100%; background: #0a0d12; border: 1px solid var(--line); border-radius: 4px; }
+.stc-starmap-controls { display: flex; gap: 6px; margin: 6px 0; flex-wrap: wrap; }
+.stc-point-details { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; margin-top: 8px; }
+
+/* --- chat -------------------------------------------------------------- */
+
+.chat-log { display: grid; gap: 10px; margin-bottom: 12px; }
+.chat-turn { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 8px 10px; white-space: pre-wrap; }
+.chat-turn.user { border-left: 3px solid var(--accent-2); }
+.chat-turn.assistant { border-left: 3px solid var(--accent); }
+.chat-form { display: flex; gap: 8px; }
+.chat-form input { flex: 1; background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 3px; padding: 7px 9px; font: inherit; }
+.recipe { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; background: var(--panel-2); border: 1px solid var(--line); border-radius: 4px; padding: 6px 8px; }
+.recipe .box { width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 3px; display: grid; place-items: center; background: var(--bg); }
+.recipe .box img { width: 28px; height: 28px; }
+
+/* --- phones ------------------------------------------------------------ */
+
+@media (max-width: 560px) {
+  main { padding: 12px 16px; }
+  .stc-kv { grid-template-columns: 1fr; }
+  .stc-kv dt { margin-top: 6px; }
+  .stc-table td span { min-width: 0; }
+  .stc-form { flex-direction: column; align-items: stretch; }
+  .stc-field input, .stc-field select { min-width: 0; width: 100%; }
+}

@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>No Man's Sky Companion</title>
+  <link rel="icon" href="favicon.ico">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="top">
+    <h1>No Man's Sky Companion</h1>
+    <nav class="top-nav">
+      <button type="button" id="nav-view" class="on" title="The connector's own pages">Game data</button>
+      <button type="button" id="nav-chat" title="Ask the companion persona about your game" hidden>Chat</button>
+      <button type="button" id="nav-codex" title="Search the generated knowledge library" hidden>Codex</button>
+      <button type="button" id="nav-settings" title="Model, voice, overlay, update channel">Settings</button>
+      <button type="button" id="nav-updates" title="Install another version of the companion">Updates</button>
+      <button type="button" id="nav-alerts" title="Allow this browser to notify you when a timer ends">Alerts</button>
+    </nav>
+    <span class="version" id="version" title="The installed version"></span>
+  </header>
+
+  <div class="banner" id="error" hidden role="alert"></div>
+  <div class="banner banner-ok" id="notice" hidden role="status"></div>
+
+  <main>
+    <section id="page-view" class="page"></section>
+    <section id="page-chat" class="page" hidden></section>
+    <section id="page-codex" class="page" hidden></section>
+    <section id="page-settings" class="page" hidden></section>
+    <section id="page-updates" class="page" hidden></section>
+  </main>
+
+  <script src="sections.js"></script>
+  <script src="starmap.js"></script>
+  <script src="timers.js"></script>
+  <script src="chat.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
