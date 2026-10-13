@@ -1,0 +1,18 @@
+# A copy of the 40k Assistant's Game Companion model, shipped with the standalone installer so
+# `ollama create` can build it on the user's machine. Keep it identical to
+# the app's own 40k-12b-companion.Modelfile (tests/test_standalone_installer.py compares them).
+FROM gemma4:12b
+# Game Companion: small enough to run beside a game on the RTX 4090.
+# Measured 2026-10-02 on the RTX 4090 with No Man's Sky running (game + desktop
+# ~12.0 GB): loaded model incl. KV cache = 8.4 GB at num_ctx 8192, 9.25 GB at
+# 12288, 9.5 GB at 16384 (2.6 GB left free), fully on GPU, ~98 tokens/s, 6 s cold
+# load. Context is cheap here (gemma4 sliding-window layers); the weights and the
+# vision projector dominate. Drop to 8192 if a game needs more VRAM.
+# No TEMPLATE on purpose: Ollama's native gemma4 renderer handles thinking,
+# tools and images; a hand-written template breaks those.
+PARAMETER num_ctx 16384
+PARAMETER temperature 0.5
+PARAMETER top_p 0.9
+PARAMETER top_k 40
+PARAMETER min_p 0.05
+PARAMETER repeat_penalty 1.05

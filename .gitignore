@@ -1,3 +1,7 @@
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Standalone build artefacts: the embeddable Python and the built installer.
+vendor/
+installer/Output/
