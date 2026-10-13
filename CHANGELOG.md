@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.15.0-beta.3 (beta; needs app 3.17.0)
+
+- **Standalone mode.** The plugin now also runs **without the 40k Assistant**: one Windows installer sets up
+  its own small host (`standalone/`), which serves a local page with the same tabs, maps, tables, forms and
+  timers, a chat with the companion persona, the generated Codex, a game overlay and a tray icon. Same
+  repository, same connector code - `nms_connector` is unchanged and still runs inside the app exactly as
+  before. Details in `CLAUDE.md` (*Standalone mode*) and `installer/README.md`.
+- **The installer asks what you want.** The AI assistant (Ollama + `gemma4:12b` + the `40k-12b-companion`
+  model + `nomic-embed-text`, several GB) and spoken replies (Piper + one voice, ~70 MB) are both optional
+  wizard choices. Without AI everything else still works, and the Codex search falls back to full text.
+  Per-user install, a desktop shortcut, optional start with Windows (tray only, no window), and the
+  uninstaller asks before deleting your data.
+- **It updates and downgrades itself** from this repository's tags - the Updates page lists every version
+  with its direction, marks the betas, and refuses a version that cannot read the data it already wrote.
+  Versions before this one are listed as unavailable: they contain no standalone host at all.
+- **Alerts without a page open.** The tray icon raises a Windows balloon when a settlement or expedition
+  timer ends; the page notifies too when it is open, and the overlay beeps. All three use one rule.
+- **One program per data dir.** Starting it twice opens the page that is already running. The standalone
+  data lives in `%LOCALAPPDATA%\NMS Companion`, separate from the app's plugin data, so both can be used.
+
 ## 0.15.0-beta.2 (beta; needs app 3.17.0)
 
 - **`item_icons()`.** A name -> icon lookup the app's chat renderer uses to turn a recipe line ("2 Paraffinium +

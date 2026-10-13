@@ -7,6 +7,19 @@ know. Install it from the app's **Plugins → Manage plugins** page.
 Author: **Reto Kummer alias Reat Kay**. The plugin's help (`HELP.md`) and
 credits appear in the 40k Assistant's manual under *Plugin Help* (app 3.4.0+).
 
+## Standalone (Windows)
+
+It also runs **without the 40k Assistant**. One installer sets up a small
+program with the same pages in your browser, the game overlay, a tray icon and -
+if you want them - an AI chat about your save and spoken replies. The AI part
+(Ollama plus the `40k-12b-companion` model) and the voice are optional wizard
+choices; without them everything but the chat still works. It keeps its own data
+folder and updates itself from this repository's tags.
+
+Build it with `.\installer\build.ps1` (Inno Setup 6.3+); see
+[`installer/README.md`](installer/README.md) for what it downloads and under
+which licences, and `HELP.md` (*Standalone mode*) for how to use it.
+
 ## What it shows
 
 - **Status:** units, nanites, quicksilver, health, shield, ship health, play time

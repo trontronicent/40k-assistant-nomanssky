@@ -189,6 +189,57 @@ the game runs). **Change** on the card picks another model, library or search
 setting; the persona editor changes its prompt and voice; other personas can
 draw on the same data under *Intel → Plugin Data*.
 
+## Standalone mode
+
+The plugin can also run **on its own**, without the 40k Assistant: one installer, a small page in your
+browser, a tray icon and the same game overlay. It is the same connector - everything the plugin shows
+inside the Strategicum it also shows here.
+
+**Installing.** Run `nms-companion-<version>-setup.exe`. It installs for your user only (no administrator
+needed) and asks about two optional parts:
+
+- **AI assistant** - installs Ollama if you do not have it, then the `gemma4:12b` base and the
+  `40k-12b-companion` model, plus `nomic-embed-text` for the Codex search. Several gigabytes.
+- **Spoken replies** - downloads Piper and one English voice, about 70 MB.
+
+Both can stay off. Without the AI assistant you still get your inventories, equipment, system and galaxy
+maps, trade routes, settlements, frigates, timers, discoveries, companions and a full-text Codex search;
+only the chat needs a model. You can turn either on later under *Settings*, and pick another model there.
+
+**Using it.** The shortcut opens the page at `http://127.0.0.1:8787`. *Game data* is the plugin's own
+pages, *Chat* asks the companion persona about your save, *Codex* searches the generated documents,
+*Settings* holds the switches and *Updates* installs another version. The tray icon opens the page, turns
+the overlay on or off, reads the save again and alerts you when a timer ends - also when no page is open,
+which is what *Start with Windows* uses. The overlay is the same always-on-top window: drag it where you
+want it, right-click to choose which areas it shows.
+
+**Updating.** *Updates* lists the versions of the plugin's own repository, says whether each one is an
+update or a downgrade, and marks the beta versions (the *Updates* channel under *Settings* decides whether
+betas are offered at all). Installing one downloads it, checks it, and restarts the companion; if the new
+version cannot start, the previous one comes back by itself. Your data is never touched by an update: it
+lives in `%LOCALAPPDATA%\NMS Companion`.
+
+### Standalone troubleshooting
+
+- **The chat says the model could not be loaded.** `40k-12b-companion` needs about 9.5 GB of video memory
+  at its 16K context, and the game needs the rest. Close something, pick a smaller model under *Settings*,
+  or edit `num_ctx` down to 8192 in `40k-12b-companion.Modelfile` and run
+  `ollama create 40k-12b-companion -f 40k-12b-companion.Modelfile` again. A timeout here means video
+  memory, not a slow model - the companion does not retry on its own.
+- **The chat is missing.** The AI assistant is not installed, or Ollama is not running. *Settings* says so
+  and refuses to switch it on while nothing answers.
+- **No alerts.** With *Start with Windows* no page is open, so the alerts come from the tray icon. In the
+  page itself, notifications need the browser's permission, which the *Alerts* button asks for once.
+- **It says it is already running.** The shortcut was used twice; the page that is already serving opens
+  instead. One program per data folder, so your planet history cannot be written by two at once.
+- **The overlay is not above the game.** Click the overlay once, then switch to the game; a borderless
+  full-screen game can cover it, in which case the tray balloons still reach you.
+- **The app and the standalone program at the same time.** Both only ever read the game, and they keep
+  separate data folders, so nothing is shared or damaged - but each builds its own item database and reads
+  the game's memory on its own schedule. On a busy machine, run one of them.
+- **An update did not come up.** The previous version is restored automatically on the next start;
+  `%LOCALAPPDATA%\NMS Companion\apply_update.log` says what happened.
+
 ## Settings and the overlay
 
 The **Settings** tab - the same form is at the top of the **Overview** tab (needs the 40k Assistant 3.11.0):
