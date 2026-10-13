@@ -30,6 +30,7 @@ MAX_CODEX_TITLES = 50
 MAX_CODEX_HITS = 5
 MAX_QUERY_CHARS = 500
 MAX_HIT_CHARS = 1200
+TTS_TIMEOUT_S = 90.0
 
 WEB_TYPES = {".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
              ".css": "text/css; charset=utf-8", ".svg": "image/svg+xml",
@@ -121,6 +122,21 @@ def _status(deps: Deps, _request: Request) -> Response:
         "overlay_enabled": settings.overlay_enabled,
         "update_channel": settings.update_channel,
     })
+
+
+def _tts(deps: Deps, request: Request) -> Response:
+    """Speak one reply. The page plays the answer as a blob; a failure carries Piper's own message."""
+    from standalone.tts import TtsError, spoken_text
+    if deps.tts is None or not deps.tts.is_installed():
+        return error_response(503, "spoken replies are not installed")
+    text = spoken_text(request.body.get("text") if isinstance(request.body.get("text"), str) else "")
+    if not text:
+        return error_response(422, "text must be a non-empty string")
+    try:
+        audio = deps.bridge.call(deps.tts.speak(text), TTS_TIMEOUT_S)
+    except TtsError as err:
+        return error_response(502, str(err))
+    return Response(body=audio, content_type="audio/wav")
 
 
 def _codex(deps: Deps, _request: Request) -> Response:
@@ -230,6 +246,7 @@ def build(deps: Deps) -> list[Route]:
         Route("GET", r"/api/overlay$", bind(_overlay)),
         Route("GET", r"/api/status$", bind(_status)),
         Route("POST", r"/api/chat$", bind(_chat)),
+        Route("POST", r"/api/tts$", bind(_tts)),
         Route("GET", r"/api/codex$", bind(_codex)),
         Route("POST", r"/api/codex/search$", bind(_codex_search)),
         Route("POST", r"/api/codex/restore$", bind(_codex_restore)),

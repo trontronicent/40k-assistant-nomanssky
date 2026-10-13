@@ -50,6 +50,30 @@
 
   // --- the turn -----------------------------------------------------------
 
+  function speakButton(turn) {
+    const button = el("button", "chat-speak", "Speak");
+    button.type = "button";
+    button.title = "Read this answer aloud";
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      try {
+        const res = await fetch("/api/tts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: turn.textContent }),
+        });
+        if (!res.ok) throw new Error("the voice failed (" + res.status + ")");
+        const audio = new Audio(URL.createObjectURL(await res.blob()));
+        await audio.play();
+      } catch (err) {
+        if (state.showError) state.showError("Speaking failed: " + err.message);
+      } finally {
+        button.disabled = false;
+      }
+    });
+    return button;
+  }
+
   function drawTurn(role, text) {
     const turn = el("div", "chat-turn " + role, text);
     document.getElementById("chat-log").appendChild(turn);
@@ -113,6 +137,7 @@
         if (event.error) throw new Error(event.error);
         if (event.done) {
           for (const recipe of event.recipes || []) turn.appendChild(recipeRow(recipe));
+          if (state.status && state.status.tts_enabled) turn.appendChild(speakButton(turn));
         }
       }
     }

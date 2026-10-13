@@ -77,6 +77,10 @@ def build_deps(runner: Runner, data: Path, root: Path, version: str, codex) -> r
         from standalone.chat import ChatService
         client = ollama.OllamaClient(settings.ollama_url)
         chat_service = ChatService(runner.plugin, client, settings.chat_model, codex=codex)
+    voice = None
+    if settings.tts_enabled:
+        from standalone.tts import from_settings
+        voice = from_settings(data, settings.voice)
     return routes.Deps(
         plugin=runner.plugin,
         bridge=None,                      # set by `serve` once the loop is known
@@ -86,6 +90,7 @@ def build_deps(runner: Runner, data: Path, root: Path, version: str, codex) -> r
         version=version,
         chat=chat_service,
         codex=codex,
+        tts=voice,
     )
 
 
