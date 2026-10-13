@@ -14,7 +14,7 @@ import threading
 import webbrowser
 from pathlib import Path
 
-from standalone import config, ollama, paths, routes, server
+from standalone import config, instance, ollama, paths, routes, server
 from standalone.runner import LoopBridge, Runner
 
 log = logging.getLogger("nms-standalone")
@@ -53,6 +53,19 @@ def choose_port(preferred: int) -> int:
         if port_is_free(port):
             return port
     raise RuntimeError(f"no free port in {preferred}..{preferred + PORT_TRIES}")
+
+
+def bind_server(route_table, preferred: int):
+    """Bind the server, falling forward over taken ports. The probe in `choose_port` is an optimisation;
+    the bind is the decision, because a port can be taken between the two."""
+    last = None
+    for port in range(preferred, preferred + PORT_TRIES):
+        try:
+            return server.build(route_table, port), port
+        except OSError as err:
+            last = err
+            log.info("port %s is taken, trying the next one", port)
+    raise RuntimeError(f"no free port in {preferred}..{preferred + PORT_TRIES}: {last}")
 
 
 def setup_logging(path: Path) -> None:
@@ -137,7 +150,12 @@ async def serve(args) -> None:
     setup_logging(paths.log_file(data))
     settings = config.load(paths.settings_file(data))
     version = installed_version(root)
-    port = choose_port(args.port or settings.port)
+    already = instance.running_port(data)
+    if already is not None:
+        log.info("the companion is already running on port %s; opening its page", already)
+        if not args.no_browser:
+            webbrowser.open(f"http://127.0.0.1:{already}")
+        return
 
     rolled_back = _finish_pending(root, data, version, settings)
     if rolled_back:
@@ -147,18 +165,19 @@ async def serve(args) -> None:
     deps = build_deps(runner, data, root, version, runner.ctx.codex)
     deps.bridge = LoopBridge(asyncio.get_running_loop())
 
-    httpd = server.build(routes.build(deps), port)
+    httpd, port = bind_server(routes.build(deps), args.port or settings.port)
     threading.Thread(target=httpd.serve_forever, name="http", daemon=True).start()
     log.info("the standalone host is serving http://127.0.0.1:%s (v%s)", port, version)
-    if not args.no_browser:
-        webbrowser.open(f"http://127.0.0.1:{port}")
-    if settings.overlay_enabled and not args.no_overlay:
-        start_overlay(port)
-    try:
-        await asyncio.Event().wait()           # until the process is asked to exit
-    finally:
-        httpd.shutdown()
-        await runner.stop()
+    with instance.hold(data, port):
+        if not args.no_browser:
+            webbrowser.open(f"http://127.0.0.1:{port}")
+        if settings.overlay_enabled and not args.no_overlay:
+            start_overlay(port)
+        try:
+            await asyncio.Event().wait()       # until the process is asked to exit
+        finally:
+            httpd.shutdown()
+            await runner.stop()
 
 
 def main() -> None:
