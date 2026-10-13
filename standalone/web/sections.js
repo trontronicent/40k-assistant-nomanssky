@@ -310,12 +310,13 @@ function buildField(doc, formId, field, values) {
   input.setAttribute("name", field.id);
   input.setAttribute("title", field.hint || field.label || field.id);
   if (field.type === "select") {
+    const current = String(values[field.id] === undefined ? "" : values[field.id]);
     for (const option of field.options || []) {
-      const node = el(doc, "option", null, String(option));
-      node.setAttribute("value", String(option));
+      const node = el(doc, "option", null, option.label);
+      node.setAttribute("value", String(option.value));
+      if (String(option.value) === current) node.setAttribute("selected", "selected");
       input.appendChild(node);
     }
-    input.setAttribute("value", String(values[field.id] === undefined ? "" : values[field.id]));
   } else {
     input.setAttribute("type", field.type === "number" ? "number" : (field.type === "checkbox" ? "checkbox" : "text"));
     if (field.placeholder) input.setAttribute("placeholder", field.placeholder);
@@ -434,12 +435,18 @@ function renderSections(view, options) {
     if (section.id) node.setAttribute("data-section-id", section.id);
     root.appendChild(node);
   }
-  return { node: root, children: root.children || [], types: types, html: toHtml(root) };
+  // `html` is only read by the Node-side tests (via the fake nodeFactory stand-in); a real
+  // browser `document` has no `.attrs`, so toHtml(root) throws there - compute it lazily so
+  // the live page, which only ever reads `.node`, never pays for it.
+  return {
+    node: root, children: root.children || [], types: types,
+    get html() { return toHtml(root); },
+  };
 }
 
-const exported = {
+const sectionsExported = {
   renderSections, cellText, cellIcon, cellHint, sortKey, sortRows, nextSort, tabPath,
   formValues, setFormValue, resetForms, escapeHtml, toHtml, nodeFactory, el, appendCell, BUILDERS,
 };
-if (typeof module !== "undefined" && module.exports) module.exports = exported;
-if (typeof window !== "undefined") window.Sections = exported;
+if (typeof module !== "undefined" && module.exports) module.exports = sectionsExported;
+if (typeof window !== "undefined") window.Sections = sectionsExported;

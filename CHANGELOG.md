@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.15.0-beta.4 (beta; needs app 3.17.0)
+
+- **Fix: the standalone page never actually rendered in a real browser.** `sections.js` and `starmap.js`
+  both declared a top-level `const exported`, which collided once both were loaded as plain `<script>` tags
+  (a `SyntaxError` that killed `starmap.js` entirely, so the galaxy/system maps never drew) - and every poll
+  of `/api/view` then threw `Cannot convert undefined or null to object`, because `renderSections` always
+  built an HTML string via `toHtml(root)` even when `root` was a real DOM element (which has no `.attrs`,
+  unlike the Node-side test stand-in). `.html` is now computed lazily, and the two files no longer share a
+  global name. Found by driving the running host with a headless browser instead of only the Node unit
+  tests, which never pass a real `document` and so never exercised either path.
+- **Fix: `select` form fields showed `[object Object]`.** `buildField` was stringifying the whole
+  `{value, label}` option instead of reading its fields, so every dropdown (e.g. *Galaxy -> Colour systems
+  by*) showed `[object Object]` for each choice and always submitted that same string. Brought the
+  standalone page's select rendering in line with the app's own `PluginView.jsx`.
+
 ## 0.15.0-beta.3 (beta; needs app 3.17.0)
 
 - **Standalone mode.** The plugin now also runs **without the 40k Assistant**: one Windows installer sets up

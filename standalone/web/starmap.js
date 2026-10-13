@@ -354,10 +354,10 @@ function wireStarmap(canvas, state, points, redraw) {
   }, { passive: false });
 }
 
-const exported = {
+const starmapExported = {
   orbit, starmap, orbitLayout, bodyColor, clampSize, axes, starmapProject, starmapFit, starmapZoom,
   starmapGridStep, starmapFind, centerOn,
   DEFAULT_BODY_COLOR, ORBIT_WIDTH, ORBIT_HEIGHT, MAX_BODIES, MAX_LABELLED,
 };
-if (typeof module !== "undefined" && module.exports) module.exports = exported;
-if (typeof window !== "undefined") window.Starmap = exported;
+if (typeof module !== "undefined" && module.exports) module.exports = starmapExported;
+if (typeof window !== "undefined") window.Starmap = starmapExported;
