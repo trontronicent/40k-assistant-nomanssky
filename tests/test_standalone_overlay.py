@@ -123,3 +123,33 @@ def test_the_geometry_offset_is_read_from_a_tkinter_string():
     assert overlay.geometry_offset("+1200+40") == "+1200+40"
     assert overlay.geometry_offset("240x120") == ""
     assert overlay.geometry_offset("") == ""
+
+
+def test_the_plugins_own_switches_become_menu_rows():
+    """`toggles` are the plugin's settings (`single_context` today). The app's overlay draws them as rows
+    that run the plugin's action; the standalone overlay puts them in its right-click menu, and the
+    plugin - not the overlay - owns the value."""
+    payload = {"toggles": [{"id": "single_context", "label": "Single context per question",
+                            "value": False, "action": "set_setting", "hint": "Helps saving VRAM"}]}
+    rows = overlay.toggle_rows(payload)
+    assert rows == [{"id": "single_context", "label": "Single context per question", "value": False,
+                     "hint": "Helps saving VRAM", "action": "set_setting"}]
+
+
+def test_a_toggle_without_an_action_is_dropped():
+    """Without an action there is nothing a click could do; a dead row is worse than no row."""
+    assert overlay.toggle_rows({"toggles": [{"id": "x", "label": "X"}, "nonsense"]}) == []
+
+
+def test_toggles_are_bounded():
+    """The app allows at most four; more would push the areas off a small overlay."""
+    many = [{"id": f"t{i}", "label": "T", "action": "set_setting"} for i in range(10)]
+    assert len(overlay.toggle_rows({"toggles": many})) == overlay.MAX_TOGGLES
+
+
+def test_the_codex_search_opt_in_is_noticed():
+    """The connector sets `codex_search: true` to ask for a search in its persona's library. The overlay
+    offers the page's Codex tab, which is where that search lives in the standalone host."""
+    assert overlay.wants_codex_search({"codex_search": True}) is True
+    assert overlay.wants_codex_search({"codex_search": "yes"}) is False
+    assert overlay.wants_codex_search({}) is False

@@ -6,10 +6,35 @@ JavaScript). The app side (loader, view schema, permissions, trust) is documente
 `J:\40k-assistant\docs\architecture\plugins.md`; read it only when you change what a view may contain or need an
 app feature (then the app version and `app.min_version` here go up together).
 
+## CRITICAL: two hosts, one codebase
+
+`nms_connector` runs under **two** hosts: the 40k Assistant's plugin system, and the standalone host in
+`standalone/` (its own installer, its own page, its own tray - see *Standalone mode* below). Every change must
+keep **both** working, in the same commit:
+
+- `nms_connector/` never imports `standalone/` and never assumes it exists. The host adapts to the connector,
+  never the other way round. The standalone host reaches the connector **only** through the methods the app
+  calls: `start`, `stop`, `view`, `action`, `personas`, `chat_context`, `overlay`, `item_icons` - never a
+  `_private` field.
+- A new **view section type** goes into `standalone/context.SECTION_TYPES` *and* `standalone/web/sections.js`
+  in the same change (a type advertised but not drawn is a blank gap on the page).
+- A new key in `chat_context()`, `overlay()`, `personas()` or `item_icons()` is handled by the standalone host
+  (`standalone/chat.py`, `standalone/overlay.py`, `standalone/alerts.py`, the page) in the same change - or, if
+  it deliberately cannot apply there, named in a comment saying why (as `persona_id`/`codeword` are).
+- Raising `app.min_version` means the standalone host implements that feature and
+  `standalone/context.APP_VERSION` goes up with it.
+- Anything written under `ctx.data_dir` must work in both data dirs (the app's `plugins/.data/nomanssky` and
+  `%LOCALAPPDATA%\NMS Companion\plugin`); raising `data_version` also affects the standalone updater's
+  downgrade check.
+- **`tests/test_host_contract.py` enforces all of this** (it builds the connector twice, on both contexts, and
+  compares the shapes). Plugin work still runs only this repo's tests - which now include the contract test and
+  `tests/test_standalone_*.py`. A change that cannot be tested in both hosts is not done.
+
 ## Commands
 
 ```bash
-J:/40k-assistant/venv/Scripts/python.exe -m pytest tests -q     # ~200 tests, ~1 s, no game needed
+J:/40k-assistant/venv/Scripts/python.exe -m pytest tests -q     # ~720 tests, ~10 s, no game needed
+J:/40k-assistant/venv/Scripts/python.exe -m standalone --no-browser    # the standalone host, port 8787
 ```
 
 Plugin work runs **only these tests**; the app's suite only when the app changed. Tests never touch a running game
@@ -66,6 +91,32 @@ into `J:\40k-assistant\plugins\.data\nomanssky`, the installed plugin's data, un
   +0x0D after short names), packed address at **+0x20C after the name** (the address 0xC *before* a name belongs to
   the previous record). Walk the array by the stride from each marker.
 - Packed address: X bits 0-11, Z 12-23, Y 24-31, galaxy 32-39, system 40-51, planet 52-55.
+
+## Standalone mode (`standalone/`, `installer/`)
+
+The same connector without the 40k Assistant: a Windows program with its own installer, a small local
+page, a tray icon and a game overlay. `standalone/` is a **second host**, not a second product - see
+*CRITICAL: two hosts, one codebase* above. Data lives in `%LOCALAPPDATA%\NMS Companion` (never the app's
+`plugins\.data\nomanssky`: two hosts over one data dir would fight over `planet_history.json`).
+
+| Module | Role |
+|---|---|
+| `paths.py`, `config.py` | Where everything lives (install root vs. `%LOCALAPPDATA%\NMS Companion`), and `standalone.json`: port, AI on/off + model, voice, overlay, tray, Codex, update channel (default **pre-release**). A missing or damaged file reads as the defaults. |
+| `context.py` | `StandaloneContext` = the app's `PluginContext` by attribute (`plugin_id`, `version`, `root`, `data_dir`, `assets_dir`, `logger`, `app_version`, `section_types`, `codex`, `spawn`, `run_blocking`). `SECTION_TYPES` must equal what `web/sections.js` draws; `APP_VERSION` is the app version whose features this host implements. |
+| `runner.py` | Owns the loop: builds the context, `create_plugin(ctx)`, `start()`/`stop()` (a failing `stop()` is logged, never raised - the process must exit). `LoopBridge.call` runs **every** call into the connector on the loop, synchronous ones included: the 5 s tick mutates the same state. |
+| `server.py` | `ThreadingHTTPServer` on 127.0.0.1 only, a route table, gzip over 1 KiB, bodies bounded at 256 KB (a refused body is **drained** first: answering mid-send makes Windows reset the connection and the client never sees the 413), and SSE with `Connection: close` (no length, no chunking - a kept-alive stream hangs the browser). |
+| `routes.py` | The handlers: view, actions (params bounded like the app's `check_params`), assets, item icons, overlay, status, chat (SSE), TTS, Codex, settings, models, updates. One `Deps` object, one small function per route. |
+| `chat.py` | **Pure** prompt assembly in the app's exact framing: `[GAME DATA: ...]` + `CONTEXT_RULES`, the answer rules **outside** the block, `single_context`, the follow-up chain (short messages carry up to 4 earlier questions), `[CODEX EXCERPTS]`. Recipes are never prompted. `ChatService` asks the connector, searches the Codex and streams Ollama. |
+| `ollama.py` | stdlib client: `tags`, `has_model` (ignores `:latest`), `available()` (2 s probe - a closed localhost port costs ~2 s here), `chat_stream` (skips an unparsable line), `embed` (one request per batch). `keep_alive` is always sent explicitly. |
+| `codex.py`, `codex_index.py` | The Codex channel the connector writes through (`write(docs, owner=, adopt=, adopt_dirs=)` -> the counts `codex_sync.describe` reads). The policy is the app's, as a pure `decide()`: unchanged, a user's edit kept, a deletion tombstoned, stale files of that owner removed, legacy files adopted once. Search is embedded (nomic-embed-text, threshold 0.6) when AI is installed, full text otherwise. |
+| `alerts.py` + `web/timers.js` | One rule in two languages: when a finished timer is news (`GRACE_S` 1 h, once per end time). `tests/alert_cases.json` runs both, so they cannot drift. |
+| `overlay.py` | The tkinter always-on-top window (own process): the connector's `areas` with the **user's** on/off choice (`overlay.json`), its `toggles` as menu rows that run the plugin's action, and `codex_search` as a link to the page's Codex tab. `persona_id`/`codeword` are deliberately unused (no Live Comms here). |
+| `tray.py`, `tray_menu.py` | The tray icon: a pure menu model (like the app's `src/tray/menu_model.py`) plus pystray glue. **pystray inspects a callback's arity**, so every handler is built by `make_handler` with exactly `(icon, item)`. The icon also raises the balloons - the only alert path when the autostart entry opened no page. |
+| `updater.py`, `updates_service.py`, `apply_update.py` | Versions from the repo's GitHub tags (SemVer order, `beta.10` > `beta.2`), the code from a codeload tarball (members checked before extracting), the manifest verified, a downgrade below the written `data_version` confirmed. **The swap runs in a detached helper after the host exits**: Windows refuses to rename a directory holding a loaded DLL or a process's working directory, and `vendor\python` holds both. Only `CODE_PARTS` move, never `vendor/`, never the data dir; the next start rolls back if the new code did not come up. Versions before `FIRST_STANDALONE_VERSION` are listed as **blocked** - they contain no host at all. |
+| `instance.py` | One host per data dir (`host.lock` with pid and port). A second start opens the running page and exits; a stale lock (after a crash) is ignored because the port is probed. |
+| `tts.py` | Piper, spawned with a bounded wait, text as **UTF-8** (`text=True` would use cp1252 here), temp WAV removed in `finally`. |
+| `web/` | The page: `sections.js` (every section type, sortable tables, icon cells, hints, forms that survive the 5 s poll), `starmap.js` (orbit + galaxy SVG, non-passive wheel zoom), `timers.js`, `chat.js` (buffers across chunk boundaries; recipe diagrams), `panels.js` (settings, updates, Codex), `app.js`. No framework, no build step, and plugin text is never HTML. |
+| `installer/` | `build.ps1` (embeddable Python + numpy/zstandard/pillow/pystray/six, a smoke test, and a refusal to package `mapping.json`/`gamedata`/`.data`), `nms-companion.iss` (per-user install, the AI/voice wizard page, autostart via the tray, the uninstaller asks before deleting data), `postinstall.ps1` (Ollama + `gemma4:12b` + `ollama create 40k-12b-companion` + `nomic-embed-text`, or Piper + one voice; judged by `$LASTEXITCODE` only - the console here is German), `40k-12b-companion.Modelfile` (a copy of the app's). **The embeddable interpreter's `._pth` fixes `sys.path` to its own folder, so `..\..` must be in it or `-m standalone` cannot find the package.** |
 
 ## Rules
 

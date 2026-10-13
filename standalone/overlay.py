@@ -6,6 +6,10 @@ draws the connector's areas. **The user owns which areas are shown**; the plugin
 `default_on`, and the choice lives in `<data>/overlay.json`.
 
     python -m standalone.overlay --port 8787
+
+Two keys of the payload are deliberately unused here: `persona_id` and `codeword` exist so the app's
+overlay can switch Live Comms to the plugin's persona and set its wake word. The standalone host has no
+Live Comms and only one persona - the chat page always talks to it - so there is nothing to switch.
 """
 from __future__ import annotations
 
@@ -25,6 +29,7 @@ POLL_TIMEOUT_S = 3.0
 MAX_AREA_LINES = 12          # the app's MAX_AREA_LINES
 MAX_LINE_CHARS = 160
 FALLBACK_AREA_ID = "plugin"  # where a pre-3.12.0 payload's timers and lines go
+MAX_TOGGLES = 4              # the app's MAX_TOGGLES
 ALPHA = 0.85
 CHOICES_NAME = "overlay.json"
 
@@ -50,6 +55,26 @@ def visible_areas(payload: dict, choices: dict) -> list[dict]:
                   "default_on": True}]
     return [area for area in areas
             if choices.get(area["id"], bool(area.get("default_on", True)))]
+
+
+def toggle_rows(payload: dict) -> list[dict]:
+    """The plugin's own switches (`toggles`), as the app's overlay draws them: a row the user clicks,
+    which runs the plugin's action with `{id, value}` - the plugin owns the setting, not the overlay."""
+    out = []
+    for toggle in (payload.get("toggles") or [])[:MAX_TOGGLES]:
+        if not (isinstance(toggle, dict) and toggle.get("id") and toggle.get("action")):
+            continue
+        out.append({"id": toggle["id"], "label": str(toggle.get("label") or toggle["id"])[:60],
+                    "value": bool(toggle.get("value")), "hint": str(toggle.get("hint") or "")[:160],
+                    "action": toggle["action"]})
+    return out
+
+
+def wants_codex_search(payload: dict) -> bool:
+    """`codex_search: true` is the plugin asking for a Codex search over its own persona's library. The
+    app draws its own search area; the standalone overlay offers the page's Codex tab instead, which is
+    where that search lives here (HELP.md says so)."""
+    return payload.get("codex_search") is True
 
 
 def area_rows(area: dict, now: float) -> list[str]:
@@ -168,6 +193,14 @@ class OverlayWindow:
     def _open_menu(self, event) -> None:
         """Built on every click: the areas come from the plugin and can change between polls."""
         self.menu.delete(0, "end")
+        for toggle in toggle_rows(self.state.payload):
+            self.menu.add_command(label=("* " if toggle["value"] else "   ") + toggle["label"],
+                                  command=lambda t=toggle: self._run_toggle(t))
+        if toggle_rows(self.state.payload):
+            self.menu.add_separator()
+        if wants_codex_search(self.state.payload):
+            self.menu.add_command(label="Search the Codex...", command=self._open_codex)
+            self.menu.add_separator()
         for area in self.state.payload.get("areas") or []:
             if not (isinstance(area, dict) and area.get("id")):
                 continue
@@ -178,6 +211,24 @@ class OverlayWindow:
         self.menu.add_separator()
         self.menu.add_command(label="Close the overlay", command=self.root.destroy)
         self.menu.tk_popup(event.x_root, event.y_root)
+
+    def _run_toggle(self, toggle: dict) -> None:
+        """Ask the host to run the plugin's action; the plugin owns the setting, so we only report."""
+        import urllib.error
+        body = json.dumps({"params": {"id": toggle["id"], "value": not toggle["value"]}}).encode("utf-8")
+        request = urllib.request.Request(
+            f"http://127.0.0.1:{self.port}/api/actions/{toggle['action']}", data=body,
+            headers={"Content-Type": "application/json"}, method="POST")
+        try:
+            with urllib.request.urlopen(request, timeout=30):
+                pass
+        except (OSError, urllib.error.URLError) as err:
+            log.warning("the switch %s could not be set: %s", toggle["id"], err)
+
+    def _open_codex(self) -> None:
+        """The Codex search lives on the page here, not in the overlay window."""
+        import webbrowser
+        webbrowser.open(f"http://127.0.0.1:{self.port}#codex")
 
     def _toggle(self, area_id: str, value: bool) -> None:
         self.choices[area_id] = value
