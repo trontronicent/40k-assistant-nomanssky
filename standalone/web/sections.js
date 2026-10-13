@@ -412,6 +412,10 @@ function defaultApi(options) {
     sortFor: () => null,
     selectedTab: (section, tabs) => (tabs[0] ? tabs[0].id : null),
     formatRemaining: (item) => String(item.ends_at || ""),
+    // The orbit/starmap drawers build their panels with these, so the render api always carries them:
+    // a page that only overrides `orbit`/`starmap` must not have to remember them.
+    el: el,
+    appendCell: appendCell,
   }, options || {});
   return api;
 }
