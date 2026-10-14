@@ -51,6 +51,23 @@ def wealth_level(wealth: str | None) -> tuple[int, int] | None:
     return None
 
 
+#: The game draws an economy's strength as stars, so the page does too (filled, then empty).
+STAR_FILLED = "★"
+STAR_EMPTY = "☆"
+
+
+def wealth_stars(wealth: str | None) -> str | None:
+    """Filled and empty stars for an economy's strength on WEALTH_ORDER - the game's own form.
+
+    None for an unknown value and for the lawless "Pirate", which is a state rather than a step on
+    the scale (as in wealth_level), so it keeps its word alone."""
+    level = wealth_level(wealth)
+    if not level:
+        return None
+    rank, highest = level
+    return STAR_FILLED * rank + STAR_EMPTY * (highest - rank)
+
+
 def conflict_level(conflict: str | None) -> tuple[int, int] | None:
     """(rank, highest) of a system's conflict level, 1 = Low, highest = pirate-controlled; None if unknown."""
     if conflict in CONFLICT_ORDER:

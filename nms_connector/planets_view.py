@@ -377,11 +377,21 @@ class Context:
         level = trade.wealth_level(wealth)
         return f"{wealth} - {level[0]} of {level[1]}" if level else wealth
 
+    def wealth_display(self, wealth: str | None) -> str | None:
+        """'★★☆ Average' - the stars the game itself draws, plus the word.
+
+        The page uses this; `wealth_text` stays the words alone for the persona and the overlay,
+        where a model would have to read the glyphs out loud."""
+        if not wealth:
+            return None
+        stars = trade.wealth_stars(wealth)
+        return f"{stars} {wealth}" if stars else wealth
+
     def wealth_cell(self, wealth: str | None) -> object:
         """The wealth as a table cell that sorts by its rank - the text alone would sort alphabetically
         (Average, Poor, Wealthy), which is not the order of the scale."""
         level = trade.wealth_level(wealth)
-        text = self.wealth_text(wealth)
+        text = self.wealth_display(wealth)
         return {"text": text, "sort": level[0]} if level and text else text
 
     def conflict_text(self, conflict: str | None) -> str | None:
@@ -407,11 +417,20 @@ class Context:
         return self.texts.both(entry["en"], entry["local"]) if entry else conflict
 
     def economy_summary(self, key: int) -> str | None:
-        """'Trading (Average)' for a system with a recorded economy, else None."""
+        """'Trading (Average)' for a system with a recorded economy, else None.
+
+        Words only: the persona's economy lines read this out loud (`economy_display` is the page's)."""
+        return self._economy_summary(key, self.wealth_text)
+
+    def economy_display(self, key: int) -> str | None:
+        """'Trading (★★☆ Average)' - `economy_summary` with the stars the game draws, for the page."""
+        return self._economy_summary(key, self.wealth_display)
+
+    def _economy_summary(self, key: int, wealth_of) -> str | None:
         e = self.economies.get(key)
         if not e:
             return None
-        return f"{self.economy_name(e.get('economy'))} ({self.wealth_text(e.get('wealth'))})" \
+        return f"{self.economy_name(e.get('economy'))} ({wealth_of(e.get('wealth'))})" \
                + (" - predicted" if e.get("predicted") else "")
 
     def goods_text(self, category: str | None) -> str | None:
@@ -433,7 +452,7 @@ class Context:
         return [
             {"label": "Economy", "value": self.economy_name(e.get("economy"))},
             {"label": "Source", "value": source},
-            {"label": "Wealth", "value": self.wealth_text(e.get("wealth"))},
+            {"label": "Wealth", "value": self.wealth_display(e.get("wealth"))},
             {"label": "Conflict", "value": self.conflict_text(e.get("conflict"))},
             {"label": "Dominant race", "value": e.get("race")},
             {"label": f"Cheap to buy here (x{lo}-{hi})" if lo else "Cheap to buy here", "value": self.goods_text(t.get("sells"))},
@@ -685,7 +704,7 @@ def visited_systems_sections(ctx: Context, selected: int | None) -> list[dict]:
         row = [_system_label(key, visit), address_portal(addr), galaxy_name(addr.get("RealityIndex")),
                len(planets) or None, named or None, visit.get("named_by"), _last_seen(key, ctx) or None,
                "yes" if key == ctx.live.current_system else "",
-               ctx.economy_summary(key), ctx.conflict_cell((ctx.economies.get(key) or {}).get("conflict"))]
+               ctx.economy_display(key), ctx.conflict_cell((ctx.economies.get(key) or {}).get("conflict"))]
         entries.append((row, key))
     # Current system first, then systems with recorded resources, each newest first (sorts are stable).
     entries.sort(key=lambda e: e[0][6] or "", reverse=True)
@@ -769,7 +788,7 @@ def _galaxy_point(key: int, ctx: Context, color_by: str = "kind") -> dict:
                  {"label": "Distance from you", "value": galaxy.distance_text(dist, key == ctx.origin) if ctx.origin is not None else "unknown"},
                  {"label": "Position", "value": ("exact (star fix, prototype): " + ", ".join(f"{v:.4f}" for v in galaxy.exact(key)))
                   if galaxy.exact(key) else "region only (exact once you name a star fix for it - Star positions)"},
-                 {"label": "Economy", "value": ctx.economy_summary(key) or "not read yet"},
+                 {"label": "Economy", "value": ctx.economy_display(key) or "not read yet"},
                  {"label": "Planets with resources", "value": len(planets) or None},
                  {"label": "Named by", "value": visit.get("named_by")},
                  {"label": "Your bases here", "value": ", ".join(bases) or None},
@@ -1013,7 +1032,7 @@ def _route_summary(ctx: Context, result: dict, label) -> dict:
         {"label": "Distance", "value": galaxy.distance_text(result["distance"])},
         {"label": "Straight line", "value": f"{galaxy.distance_text(result['direct_distance'])}, {result['direct_jumps']} jump(s)"},
         {"label": "Jump range used", "value": f"{result['range']:,.0f} ly"},
-        {"label": "Economy at the target", "value": ctx.economy_summary(target) or "not read yet"},
+        {"label": "Economy at the target", "value": ctx.economy_display(target) or "not read yet"},
     ]}
 
 

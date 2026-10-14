@@ -204,12 +204,15 @@ def test_wealth_and_conflict_carry_their_rank_on_the_scale(tmp_path):
 
     star = planets_view._star(SYSTEM_98, {}, [], ctx)
     items = {i["label"]: i["value"] for i in star["items"]}
-    assert items["Wealth"] == "Poor - 1 of 3" and items["Conflict"] == "Low - 1 of 4"
+    # The page draws the economy's rank as stars (test_the_page_shows_the_economy_tier_as_stars); the conflict
+    # level, which the game has no star scale for, keeps its written rank.
+    assert items["Wealth"] == "★☆☆ Poor" and items["Conflict"] == "Low - 1 of 4"
 
     economies = planets_view.trade_sections(ctx)[0]
     rich = next(r for r in economies["rows"] if r[1].startswith("Manufacturing"))
     poor = next(r for r in economies["rows"] if r[1].startswith("Mining"))
-    assert rich[2] == {"text": "Wealthy - 3 of 3", "sort": 3} and poor[2] == {"text": "Poor - 1 of 3", "sort": 1}
+    assert rich[2] == {"text": "★★★ Wealthy", "sort": 3} \
+        and poor[2] == {"text": "★☆☆ Poor", "sort": 1}
     assert rich[3] == {"text": "Pirate - 4 of 4", "sort": 4} and poor[3] == {"text": "Low - 1 of 4", "sort": 1}
 
     # The visited-systems table (rows need a visit, not only a recorded economy) uses the same ranked cell.
@@ -217,6 +220,34 @@ def test_wealth_and_conflict_carry_their_rank_on_the_scale(tmp_path):
     visited = planets_view.visited_systems_sections(visited_ctx, None)[-1]
     assert visited["columns"][-1] == "Conflict"
     assert [r[-1] for r in visited["rows"]] == [{"text": "Low - 1 of 4", "sort": 1}]
+
+
+def test_the_page_shows_the_economy_tier_as_stars(tmp_path):
+    """Asked for on 2026-10-14: the game itself draws an economy's strength as stars, so the page does too
+    ("★★☆ Average" instead of "Average - 2 of 3"). The cell still sorts by the rank, and the persona keeps the
+    written words - a model reading glyphs out loud is a regression.
+    """
+    assert trade.wealth_stars("Poor") == "★☆☆"
+    assert trade.wealth_stars("Average") == "★★☆"
+    assert trade.wealth_stars("Wealthy") == "★★★"
+    # A lawless economy is no step on the scale, and neither is a value the game never writes.
+    assert trade.wealth_stars("Pirate") is None and trade.wealth_stars("nonsense") is None
+    assert trade.wealth_stars(None) is None
+
+    history = PlanetHistory(tmp_path / "h.json")
+    history.record_economies({SYSTEM_98: {"economy": "Mining", "wealth": "Average", "conflict": "Low"}}, "t")
+    ctx = planets_view.Context(Live(), history, {SYSTEM_98: {"planets": {}}}, FakeTexts(), None)
+    assert ctx.wealth_display("Average") == "★★☆ Average"
+    assert ctx.wealth_display("Pirate") == "Pirate" and ctx.wealth_display(None) is None
+    assert ctx.wealth_cell("Average") == {"text": "★★☆ Average", "sort": 2}
+    # The page's economy line carries the stars, the persona's the words.
+    assert ctx.economy_display(SYSTEM_98) == "Mining (Bergbau) (★★☆ Average)"
+    assert ctx.economy_summary(SYSTEM_98) == "Mining (Bergbau) (Average - 2 of 3)"
+    assert ctx.economy_display(SYSTEM_115) is None and ctx.economy_summary(SYSTEM_115) is None
+
+    visited = planets_view.visited_systems_sections(ctx, None)[-1]
+    economy = visited["rows"][0][visited["columns"].index("Economy")]
+    assert economy == "Mining (Bergbau) (★★☆ Average)"
 
 
 def test_the_persona_is_told_the_rank_so_it_can_compare_systems(tmp_path):
