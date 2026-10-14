@@ -29,6 +29,10 @@ class StandaloneContext:
                  logger: logging.Logger | None = None):
         self.plugin_id = plugin_id
         self.version = version
+        # Which host this is, for anything the connector writes that names where it came from (the data
+        # archives of transfer.py). The app's context has no such attribute; the connector defaults to
+        # "plugin" without it, so this stays additive.
+        self.host = "standalone"
         self.root = Path(root)
         self.data_dir = Path(data_dir)
         self.assets_dir = self.data_dir / "assets"

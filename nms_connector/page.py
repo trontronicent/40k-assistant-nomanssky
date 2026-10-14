@@ -13,11 +13,57 @@ from __future__ import annotations
 import time
 
 from . import (companions_view, discoveries_view, equipment, frigates, inventory_search, planets_view, settlements,
-               ships, timers)
+               ships, timers, transfer)
+
+EXPORT_DATA = "export_data"              # action: write the plugin's data as one zip
+IMPORT_DATA = "import_data"              # action: look into a zip, or merge/replace from it
+TRANSFER_EXPORT_ID = "transfer-export"
+TRANSFER_IMPORT_ID = "transfer-import"
+TRANSFER_RESULT_ID = "transfer-result"
 
 
 def fmt_int(value) -> str:
     return f"{value:,}" if isinstance(value, int) else "–"
+
+
+def transfer_result_sections(state: dict | None) -> list[dict]:
+    """What the last export, look or import did (`NmsConnector.transfer_state`), or nothing yet.
+
+    Pure, so the whole report is testable without touching a zip: the connector only stores what
+    `transfer.DataTransfer` returned."""
+    if not state:
+        return []
+    if state.get("kind") == "export":
+        return [{"type": "kv", "id": TRANSFER_RESULT_ID, "title": "Last export", "items": [
+            {"label": "Written to", "value": state["path"]},
+            {"label": "Files", "value": fmt_int(state["files"])},
+            {"label": "Size", "value": f"{state['bytes'] / 2**20:.1f} MB"},
+            {"label": "At", "value": state.get("at")},
+        ]}]
+    manifest = state.get("manifest") or {}
+    title = {"inspect": "What that archive holds", "merge": "Last import (merged)",
+             "replace": "Last import (replaced)"}.get(state.get("kind"), "Last import")
+    items = [
+        {"label": "Archive", "value": state.get("path")},
+        {"label": "Written by", "value": f"the {manifest.get('host')} host, plugin {manifest.get('plugin_version')}"},
+        {"label": "Created", "value": manifest.get("created_at")},
+        {"label": "From game build", "value": manifest.get("game_build") or "unknown"},
+        {"label": "Files in it", "value": fmt_int(len(manifest.get("files") or {}))},
+    ]
+    if state.get("backup"):
+        items.append({"label": "Your data backed up to", "value": state["backup"]})
+    looked = state.get("kind") == "inspect"
+    sections = [{"type": "kv", "id": TRANSFER_RESULT_ID, "title": title, "items": items},
+                {"type": "table", "title": "What would happen to each file" if looked else "What happened",
+                 "columns": ["File", "Mode " + (state.get("mode") or "") if looked else "Done"],
+                 "rows": [[name, what] for name, what in (state.get("plan") or {}).items()],
+                 "empty": "The archive holds none of the plugin's files."}]
+    counts, mine = state.get("counts") or {}, state.get("mine") or {}
+    if counts:
+        sections.append({"type": "table", "title": "Records",
+                         "columns": ["Record", "In the archive", "Here now" if looked else "Here after the import"],
+                         "rows": [[label, fmt_int(number), fmt_int(mine.get(label))] for label, number in counts.items()]})
+    return sections
 
 
 def fmt_duration(seconds) -> str:
@@ -304,6 +350,49 @@ class ConnectorPage:
         return [f"{count}x {ctx.texts.name(part_id) or part_id}"
                 for part_id, count in sorted(parts.items(), key=lambda kv: (-kv[1], kv[0]))]
 
+    def saves_tabs(self, snap: dict | None, ctx) -> list[dict]:
+        """The Saves & source tab: where the data comes from, and the transfer of it between the two hosts."""
+        return [{"type": "tabs", "id": "saves-tabs", "tabs": [
+            {"id": "source", "label": "Save files & source", "sections": self.saves(snap, ctx)},
+            {"id": "transfer", "label": "Transfer", "sections": self.transfer_sections()},
+        ]}]
+
+    def transfer_sections(self) -> list[dict]:
+        """Export and import of the plugin's own data (transfer.py): what moves, the two forms, the last result.
+
+        The plugin's data dir in the app and the standalone host's are two separate places, and nothing here
+        can be read back out of the game, so this is the only way across."""
+        c = self.connector
+        folder = str(c.transfer.default_folder())
+        sections = [
+            {"type": "notice", "level": "info", "text":
+             "Moves this plugin's own data between the 40k Assistant and the standalone No Man's Sky companion: "
+             "recorded planets, systems and their economies, generated system names, star fixes, guild records, "
+             "the measured save intervals, your settings and the item/icon caches. Your save games are never "
+             "touched. Export writes one zip, import reads one - copy the file across yourself."},
+            {"type": "form", "id": TRANSFER_EXPORT_ID, "title": "Export the plugin's data", "action": EXPORT_DATA,
+             "submit_label": "Export", "description": f"Writes nms-data-<date>.zip. Default folder: {folder}",
+             "fields": [{"id": "folder", "label": "Into the folder", "type": "text", "max_length": 400,
+                         "value": "", "placeholder": folder,
+                         "hint": "Leave empty for the folder above. The folder is created if it does not exist."}]},
+            {"type": "form", "id": TRANSFER_IMPORT_ID, "title": "Import a data archive", "action": IMPORT_DATA,
+             "submit_label": "Run", "description":
+                 "Reads a zip written by Export, here or in the other host. Look first - it says what it holds "
+                 "and what each mode would do - and the import keeps a backup of the current data either way.",
+             "fields": [
+                 {"id": "path", "label": "Archive file", "type": "text", "max_length": 400, "value": "",
+                  "placeholder": f"{folder}\\nms-data-2026-10-14.zip",
+                  "hint": "The full path of the .zip file."},
+                 {"id": "mode", "label": "What to do", "type": "select", "value": transfer.INSPECT,
+                  "options": [{"value": transfer.INSPECT, "label": "Only look into it (writes nothing)"},
+                              {"value": transfer.MERGE, "label": "Merge into what is here (keeps both)"},
+                              {"value": transfer.REPLACE, "label": "Replace what is here (archive wins)"}],
+                  "hint": "Merge keeps every local record and adds the archive's; where both know the same "
+                          "planet or system, the newer reading wins and the local one wins a tie. Replace "
+                          "overwrites every file the archive holds, including your settings."}]},
+        ]
+        return sections + transfer_result_sections(c.transfer_state)
+
     def saves(self, snap: dict | None, ctx) -> list[dict]:
         """The Saves & source tab: how often the game saves, recent writes, where the data comes from, scans."""
         c = self.connector
@@ -431,7 +520,7 @@ class ConnectorPage:
             {"id": "settlements", "label": "Settlements", "badge": len(c.settlements) or None,
              "sections": settlements.settlement_sections(c.settlements, c.tables.settlement_rules,
                                                          ctx.texts, time.time(), c.settlement_live.values)},
-            {"id": "saves", "label": "Saves & source", "sections": self.saves(snap, ctx)},
+            {"id": "saves", "label": "Saves & source", "sections": self.saves_tabs(snap, ctx)},
             {"id": "settings", "label": "Settings", "sections": self.settings_sections()},
         ]})
         return {

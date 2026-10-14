@@ -26,13 +26,14 @@ from datetime import datetime
 from functools import cached_property
 from pathlib import Path
 
-from . import codex_sync, discoveries, equipment, frigates, galaxy, guilds, hgpak, inventory_search, logs, memory, planet_search, planets_view, positions, route, saves, settlements, ships, starmap, timers, trade
+from . import codex_sync, discoveries, equipment, frigates, galaxy, guilds, hgpak, inventory_search, logs, memory, planet_search, planets_view, positions, route, saves, settlements, ships, starmap, timers, trade, transfer
 from .companion import PluginCompanion
 from .describe import StateText
 from .game_install import GameInstall, find_game
 from .gamedata import GameData
 from .history import PlanetHistory, visits_from_save
 from .live import LiveMemory
+from . import page
 from .page import ConnectorPage
 from .settings import PluginSettings
 from .summary import mission_text_keys, summarize
@@ -124,6 +125,11 @@ class NmsConnector:
         self._game_failed = 0.0
         self.history = PlanetHistory(self.data_dir / "planet_history.json")
         galaxy.set_positions(self.history.positions)
+        # transfer.py: export/import of this plugin's data between the app and the standalone host.
+        # `ctx.host` names which host this is; the app's context has none, so it is the app ("plugin").
+        self.transfer = transfer.DataTransfer(self.data_dir, host=getattr(ctx, "host", None) or "plugin",
+                                              plugin_version=getattr(ctx, "version", "") or "")
+        self.transfer_state: dict | None = None   # what the last export/look/import did (page: transfer_sections)
         # PROTOTYPE: star positions from the galaxy map camera (positions.py), named by the user on the page.
         self.camera = positions.CameraReader()
         self.star_fixer = positions.StarFixer(self.history.star_fixes)
@@ -307,6 +313,71 @@ class NmsConnector:
                 logs.warn_once(f"camera:{type(exc).__name__}", "Map camera sample failed (logged again in a few "
                                "minutes if it keeps failing): %s: %s", type(exc).__name__, exc)
             await asyncio.sleep(CAMERA_EVERY_S)
+
+    def _game_build(self) -> str | None:
+        """The game build the local caches were read from (the installed game, else the stored copy)."""
+        return (self.install.build_id if self.install else None) or self.tables.stored_build
+
+    def _export_data(self, params: dict) -> dict:
+        """Write this plugin's data as one zip. The folder is an untrusted form value: a path string."""
+        self.transfer.game_build = self._game_build()
+        folder = str(params.get("folder") or "")[:400]
+        try:
+            done = self.transfer.export(folder, datetime.now().isoformat(timespec="seconds"))
+        except OSError as exc:
+            logs.log().warning("export failed: %s", exc)
+            return {"ok": False, "message": f"Could not write the archive: {exc}"}
+        self.transfer_state = {"kind": "export", "at": datetime.now().isoformat(timespec="seconds"), **done}
+        return {"ok": True, "focus": page.TRANSFER_RESULT_ID,
+                "message": f"{done['files']} files written to {done['path']} ({done['bytes'] / 2**20:.1f} MB)."}
+
+    def _import_data(self, params: dict) -> dict:
+        """Look into a data archive, or merge/replace from it. Params are untrusted form values.
+
+        A refusal (unknown mode, missing or damaged archive, a member that is not one of ours) changes
+        nothing on disk: `transfer.read_archive` reads the whole archive before the first write."""
+        self.transfer.game_build = self._game_build()
+        mode = str(params.get("mode") or transfer.INSPECT)
+        if mode not in transfer.MODES:
+            return {"ok": False, "message": "Choose what to do with the archive."}
+        path = str(params.get("path") or "")[:400].strip()
+        if not path:
+            return {"ok": False, "message": "Give the full path of the .zip file."}
+        now = datetime.now().isoformat(timespec="seconds")
+        try:
+            done = self.transfer.inspect(path, mode) if mode == transfer.INSPECT \
+                else self.transfer.apply(path, mode, now)
+        except (ValueError, OSError) as exc:
+            logs.log().warning("import (%s) of %s failed: %s", mode, path, exc)
+            return {"ok": False, "message": f"{exc}"}
+        self.transfer_state = {"kind": mode, "mode": mode, "path": path, **done}
+        if mode == transfer.INSPECT:
+            return {"ok": True, "focus": page.TRANSFER_RESULT_ID,
+                    "message": f"Archive read: {len(done['manifest'].get('files') or {})} files, "
+                               f"written by the {done['manifest'].get('host')} host. Nothing was changed."}
+        self._reload_data_dir()
+        return {"ok": True, "focus": page.TRANSFER_RESULT_ID,
+                "message": f"{done['written']} files imported ({mode}). Your previous data is in {done['backup']}."}
+
+    def _reload_data_dir(self) -> None:
+        """Re-read everything the data dir holds, after an import replaced those files.
+
+        Everything built from a file in __init__ is built again, so no restart is needed; the lazily
+        loaded parts (the key mapping, the item cache) are cleared and read on the next tick."""
+        self.watcher = SaveWatcher(events=self._load_events())
+        self.tables = GameTables(TableStore(self.data_dir))
+        self.settlement_live = settlements.LiveSettlements(self.data_dir / "settlement_screen.json")
+        self.settings = PluginSettings.load(self.settings_path)
+        self.gamedata = GameData(self.data_dir, getattr(self.ctx, "assets_dir", None))
+        self.mapping = None                      # _ensure_mapping re-reads mapping.json
+        self.history = PlanetHistory(self.data_dir / "planet_history.json")
+        galaxy.set_positions(self.history.positions)
+        self.star_fixer = positions.StarFixer(self.history.star_fixes)
+        self.live = LiveMemory(self.history)
+        self.route_state = self._load_route()
+        self._planet_icons_ready = False
+        logs.log().info("data dir re-read after an import: %d planets, %d economies",
+                      len(self.history.planets), len(self.history.economies))
 
     def _set_guild(self, params: dict) -> dict:
         """Record which guild's envoy a station holds, for the whole voxel region of that system.
@@ -691,6 +762,8 @@ class NmsConnector:
             planets_view.SEARCH_PLANETS: self._act_search_planets,
             planets_view.NAME_FIX: self._act_name_fix,
             planets_view.SET_GUILD: self._act_set_guild,
+            page.EXPORT_DATA: self._act_export_data,
+            page.IMPORT_DATA: self._act_import_data,
             inventory_search.SEARCH_INVENTORY: self._act_search_inventory,
             "rescan": self._act_rescan,
             "update_mapping": self._act_update_mapping,
@@ -717,6 +790,12 @@ class NmsConnector:
 
     async def _act_set_guild(self, params: dict) -> dict:
         return await self.ctx.run_blocking(self._set_guild, params)
+
+    async def _act_export_data(self, params: dict) -> dict:
+        return await self.ctx.run_blocking(self._export_data, params)
+
+    async def _act_import_data(self, params: dict) -> dict:
+        return await self.ctx.run_blocking(self._import_data, params)
 
     async def _act_open_system(self, params: dict) -> dict:
         key = planets_view.parse_system_key(params.get("key"))
