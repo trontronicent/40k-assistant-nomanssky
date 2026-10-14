@@ -158,8 +158,8 @@ def test_trade_tab_lists_economies_and_routes(tmp_path):
     star = planets_view._star(SYSTEM_98, {}, [], ctx)
     items = {i["label"]: i["value"] for i in star["items"]}
     assert items["Economy"] == "Mining (Bergbau)" and items["Cheap to buy here (x0.7-0.9)"].startswith("Minerals: TRA_MINERALS1")
-    visited = planets_view.visited_systems_sections(ctx, None)[-1]
-    assert visited["columns"][-2:] == ["Economy", "Conflict"]
+    visited = next(s for s in planets_view.visited_systems_sections(ctx, None) if s['type'] == 'table')
+    assert visited["columns"][-3:] == ["Economy", "Conflict", "Guild envoy"]
 
 
 def test_a_cached_item_database_gets_the_trading_table(tmp_path):
@@ -217,9 +217,9 @@ def test_wealth_and_conflict_carry_their_rank_on_the_scale(tmp_path):
 
     # The visited-systems table (rows need a visit, not only a recorded economy) uses the same ranked cell.
     visited_ctx = planets_view.Context(Live(), history, {SYSTEM_98: {"planets": {}}}, FakeTexts(), None)
-    visited = planets_view.visited_systems_sections(visited_ctx, None)[-1]
-    assert visited["columns"][-1] == "Conflict"
-    assert [r[-1] for r in visited["rows"]] == [{"text": "Low - 1 of 4", "sort": 1}]
+    visited = next(s for s in planets_view.visited_systems_sections(visited_ctx, None) if s['type'] == 'table')
+    conflict = visited["columns"].index("Conflict")
+    assert [r[conflict] for r in visited["rows"]] == [{"text": "Low - 1 of 4", "sort": 1}]
 
 
 def test_the_page_shows_the_economy_tier_as_stars(tmp_path):
@@ -245,7 +245,7 @@ def test_the_page_shows_the_economy_tier_as_stars(tmp_path):
     assert ctx.economy_summary(SYSTEM_98) == "Mining (Bergbau) (Average - 2 of 3)"
     assert ctx.economy_display(SYSTEM_115) is None and ctx.economy_summary(SYSTEM_115) is None
 
-    visited = planets_view.visited_systems_sections(ctx, None)[-1]
+    visited = next(s for s in planets_view.visited_systems_sections(ctx, None) if s['type'] == 'table')
     economy = visited["rows"][0][visited["columns"].index("Economy")]
     assert economy == "Mining (Bergbau) (★★☆ Average)"
 

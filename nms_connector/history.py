@@ -136,6 +136,9 @@ class PlanetHistory:
         self.system_names: dict[int, str] = {}     # system key -> generated name from the galaxy map's cache
         # PROTOTYPE (positions.py): star fixes from the galaxy map's camera, named by the user -> exact positions.
         self.star_fixes: list[dict] = []
+        # guilds.py: voxel region -> the guild envoy the user saw in a station there (the guild is the region's).
+        # An additive key: the file version stays 2, and a file written before it loads unchanged.
+        self.guilds: dict[str, dict] = {}
         # Positions recorded before 0.10.0 from the map camera's eye - wrong (they were never star positions); kept
         # in the file for research, never used.
         self.positions_discarded: dict[str, list] = {}
@@ -164,6 +167,8 @@ class PlanetHistory:
                                             {**(raw.get("positions_discarded") or {}), **(raw.get("positions") or {})}.items()
                                             if isinstance(v, list) and len(v) == 3}
                 self.star_fixes = [f for f in raw.get("star_fixes") or [] if _valid_fix(f)]
+                self.guilds = {str(k): v for k, v in (raw.get("guilds") or {}).items()
+                               if isinstance(v, dict) and isinstance(v.get("guild"), str)}
             else:
                 continue
             return
@@ -181,7 +186,8 @@ class PlanetHistory:
         tmp.write_text(json.dumps({"version": HISTORY_VERSION, "planets": self.planets, "scans": self.scans,
                                    "economies": {f"{k:x}": v for k, v in self.economies.items()},
                                    "system_names": {f"{k:x}": v for k, v in self.system_names.items()},
-                                   "star_fixes": self.star_fixes, "positions_discarded": self.positions_discarded},
+                                   "star_fixes": self.star_fixes, "guilds": self.guilds,
+                                   "positions_discarded": self.positions_discarded},
                                   ensure_ascii=False), encoding="utf-8")
         if self.path.exists():
             self.path.replace(self.path.with_suffix(".json.bak"))

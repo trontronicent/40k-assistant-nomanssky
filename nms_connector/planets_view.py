@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from . import galaxy, planet_search, positions, starmap, trade
+from . import galaxy, guilds, planet_search, positions, starmap, trade
 from .summary import address_portal, galaxy_name, unpack_address
 
 # GcPlanetInfo.SentinelsPerDifficulty is indexed by the ground combat timer setting.
@@ -84,6 +84,8 @@ SEARCH_PLANETS = "search_planets"         # action: search the recorded planets 
 PLANET_SEARCH_ID = "planet-search"
 NAME_FIX = "name_star_fix"               # PROTOTYPE action: name (or forget) a star fix
 STAR_FIX_ID = "star-fixes"
+SET_GUILD = "set_region_guild"            # action: record the guild envoy a station of this region holds
+GUILD_FORM_ID = "region-guild"
 CURRENT_MAP_ID = "current-map"
 
 
@@ -298,6 +300,8 @@ class Context:
         # Where distances are measured from: the system you are in, else where you were at the last save.
         self.origin = live.current_system if getattr(live, "current_system", None) is not None else origin
         self.system_names = getattr(history, "system_names", {}) or {}
+        # guilds.py: voxel region -> the guild envoy recorded there (one record answers its whole region).
+        self.guilds = getattr(history, "guilds", {}) or {}
         # Economies read in the game (visits, the galaxy map's star records), else the game's own generation's
         # prediction for every system you know (starmap.predicted, marked "predicted").
         self.recorded_economies = getattr(history, "economies", {}) or {}
@@ -438,6 +442,17 @@ class Context:
             return None
         names = [self.texts.name(g) for g in trade.goods(category)]
         return f"{trade.CATEGORY_NAMES.get(category, category)}: " + ", ".join(n for n in names if n)
+
+    def guild(self, key: int) -> dict | None:
+        """The guild envoy of this system's region, or None when none was recorded there yet."""
+        return guilds.for_system(self.guilds, key)
+
+    def guild_item(self, key: int) -> dict:
+        """The 'Guild envoy' row of a system's details panel - what to do when nothing is recorded."""
+        entry = self.guild(key)
+        value = guilds.text(entry, lambda k: _system_label(k, self.visit(k)))
+        return {"label": "Guild envoy", "value": value
+                or "not recorded yet - the guild is the same in the whole region (record it below)"}
 
     def economy_items(self, key: int) -> list[dict]:
         """Economy, wealth, conflict, race and the trade goods to buy and sell there (for a details panel)."""
@@ -589,7 +604,7 @@ def _star(key: int, visit: dict, planets: list[dict], ctx: Context) -> dict:
         {"label": "Discovered", "value": visit.get("discovered_at")},
         {"label": "Resources last read", "value": last},
         {"label": "Your bases here", "value": ", ".join(bases) or "none"},
-    ] + ctx.economy_items(key)
+    ] + ctx.economy_items(key) + [ctx.guild_item(key)]
     if special:
         items.insert(4, {"label": "Special", "value": special})
     if key == ctx.live.current_system:
@@ -704,7 +719,8 @@ def visited_systems_sections(ctx: Context, selected: int | None) -> list[dict]:
         row = [_system_label(key, visit), address_portal(addr), galaxy_name(addr.get("RealityIndex")),
                len(planets) or None, named or None, visit.get("named_by"), _last_seen(key, ctx) or None,
                "yes" if key == ctx.live.current_system else "",
-               ctx.economy_display(key), ctx.conflict_cell((ctx.economies.get(key) or {}).get("conflict"))]
+               ctx.economy_display(key), ctx.conflict_cell((ctx.economies.get(key) or {}).get("conflict")),
+               guilds.cell(ctx.guild(key))]
         entries.append((row, key))
     # Current system first, then systems with recorded resources, each newest first (sorts are stable).
     entries.sort(key=lambda e: e[0][6] or "", reverse=True)
@@ -715,13 +731,40 @@ def visited_systems_sections(ctx: Context, selected: int | None) -> list[dict]:
         out.append(system_map(shown, ctx, SYSTEM_MAP_ID, "System map"))
     out.append({"type": "table", "title": f"Visited systems ({len(entries)})",
                 "columns": ["System", "Portal address", "Galaxy", "Planets with resources", "Named planets",
-                            "Named by", "Last seen / discovered", "Here", "Economy", "Conflict"],
+                            "Named by", "Last seen / discovered", "Here", "Economy", "Conflict", "Guild envoy"],
                 "rows": [row for row, _ in entries], "row_action": OPEN_SYSTEM,
                 "row_keys": [system_key_text(key) for _, key in entries],
                 "selected_key": system_key_text(shown) if shown is not None else None,
                 "row_hint": "Click a system to show its star and planets in the map above.",
                 "empty": "No visited systems in the save yet."})
+    out += guild_sections(ctx, shown)
     return out
+
+
+def guild_sections(ctx: Context, shown: int | None) -> list[dict]:
+    """The form that records which guild's envoy a station holds - and what is known already.
+
+    One record answers its whole voxel region, so the form says which region the chosen system is in:
+    the saving is not about that one station."""
+    options = [{"value": system_key_text(k), "label": f"{label} ({address_portal(unpack_address(k) or {})})"
+                + (" - you are here" if k == ctx.origin else "")} for label, k in _system_options(ctx)]
+    if not options:
+        return []
+    value = system_key_text(shown) if shown is not None and any(o["value"] == system_key_text(shown) for o in options) \
+        else options[0]["value"]
+    known = sum(1 for entry in ctx.guilds.values() if isinstance(entry, dict))
+    return [{"type": "form", "id": GUILD_FORM_ID, "title": "Guild envoy of a region", "action": SET_GUILD,
+             "submit_label": "Save",
+             "description": "Which guild's envoy stands in the station there? The guild is the same in every "
+                            f"system of that voxel region, so one answer covers them all ({known} recorded so far). "
+                            "The envoy is on the station's upper level, far right.",
+             "fields": [
+                 {"id": "system", "label": "In the system", "type": "select", "value": value, "options": options,
+                  "hint": "Your current system first, then the systems of its region."},
+                 {"id": "guild", "label": "the envoy is", "type": "select", "value": guilds.options()[0]["value"],
+                  "options": guilds.options(),
+                  "hint": "Saving again replaces the region's record - pick \"No envoy here\" for a region "
+                          "whose stations have none."}]}]
 
 
 def planet_index(ctx: Context) -> planet_search.PlanetIndex:
@@ -1121,8 +1164,8 @@ STAR_FIX_HOWTO = (
     "cut off; checked on 4 stars on 2026-10-05). Fixes that no two locks confirm do not appear.")
 
 
-def _fix_options(ctx: Context) -> list[tuple[str, int]]:
-    """Systems a fix can be named as: the current one first, then those in its region, then the rest (<= 480)."""
+def _system_options(ctx: Context) -> list[tuple[str, int]]:
+    """Systems a form can offer: the current one first, then those in its region, then the rest (<= 480)."""
     here = ctx.origin
     keys = set(ctx.keys()) | set(ctx.system_names)
     if here is not None:
@@ -1161,7 +1204,7 @@ def star_fix_sections(ctx: Context) -> list[dict]:
             "empty": "No star fix yet: lock a star on the galaxy map twice, from two different directions."}]
     if fixes:
         options = [{"value": system_key_text(k), "label": f"{label} ({address_portal(unpack_address(k) or {})})"
-                    + (" - you are here" if k == here else "")} for label, k in _fix_options(ctx)]
+                    + (" - you are here" if k == here else "")} for label, k in _system_options(ctx)]
         options.append({"value": positions.FORGET, "label": "Forget this fix (it was the wrong star)"})
         out.append({"type": "form", "id": "name-star-fix", "title": "Name a star fix (prototype)", "action": NAME_FIX,
                     "submit_label": "Save",

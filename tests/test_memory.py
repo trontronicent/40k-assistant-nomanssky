@@ -475,7 +475,8 @@ def test_tables_show_the_current_system_and_every_visited_system(tmp_path):
     where = {i["label"]: i["value"] for i in planets_view.where_you_are(ctx)["items"]}
     assert where == {"System": "Delta Sol", "Portal address": "006202925E80", "Galaxy": "Euclid",
                      "Planet": "Corrodia (Yaksh Primus)", "Found by": "your position in the game's memory"}
-    system_map, systems = tabs["tabs"][1]["sections"]
+    system_map, systems, guild_form = tabs["tabs"][1]["sections"]     # the guild form sits under the table
+    assert guild_form["id"] == "region-guild"
     assert tabs["tabs"][1]["badge"] == 2
     assert systems["title"] == "Visited systems (2)" and systems["rows"][0][0] == "Delta Sol" and systems["rows"][0][7] == "yes"
     assert systems["rows"][1][0] == "System 007302925E80" and systems["rows"][1][3] is None

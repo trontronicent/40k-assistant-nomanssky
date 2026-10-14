@@ -1,0 +1,22 @@
+{
+  "researched": "2026-10-14",
+  "note": "Which guild's envoy stands in a space station. The plugin cannot read it: the user records it once per voxel region (guilds.py), because the guild is the region's. Kept here so a later attempt to read it from the game starts from what is already known.",
+  "sources": [
+    "https://www.nomansskyresources.com/guilds",
+    "https://nomanssky.fandom.com/wiki/Space_Station",
+    "https://www.nomanssky.com/orbital-update/",
+    "https://steamcommunity.com/app/275850/discussions/0/4362372646222314069/"
+  ],
+  "guilds": [
+    {"id": "merchants", "name": "Merchants Guild", "game_files": "tradeguild (UI icons, banner, mission faction)"},
+    {"id": "explorers", "name": "Explorers Guild", "game_files": "explorerguild"},
+    {"id": "mercenaries", "name": "Mercenaries Guild", "game_files": "warriorguild"}
+  ],
+  "facts": [
+    "A station's envoy is region-specific: nearby systems share the same guild, and finding another one means travelling to another region. The region is shown on the galaxy map ('Expand' on a system's details).",
+    "The system's race, economy type, economy level (wealth) and conflict level have no bearing on the envoy or on what it offers - so the economy the plugin already reads cannot predict the guild.",
+    "The envoy stands on the station's upper level, far right corner (also in Colossal Archives), gives free rewards by standing and accepts gifts to raise it (Orbital 4.6)."
+  ],
+  "not_in_the_game_files": "Checked on 2026-10-14 against build 25732212: every pak was searched for 'guild'. Found: models/space/spacestation/.../guildshop*, the outlaw-station shopguild, planetary building guildshop modules, ui/components/guildstandingbar.mbin, and textures for the three guilds (rank, banner, station and mission-faction icons). The globals that would hold a generation rule (gcsolargenerationglobals, gcgalaxyglobals, gcgameplayglobals) contain no guild, faction or economy string at all. No table maps a system, region, economy or race to a guild.",
+  "not_tried_yet": "Reading it from the running game's memory. The station's guild would have to be found next to a station or mission-board record; no such record is read today (memory.py reads planets, the player state, generated system names and star attributes). GcGalaxyStarAttributesData has no guild field."
+}

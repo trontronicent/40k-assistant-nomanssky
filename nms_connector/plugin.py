@@ -26,7 +26,7 @@ from datetime import datetime
 from functools import cached_property
 from pathlib import Path
 
-from . import codex_sync, discoveries, equipment, frigates, galaxy, hgpak, inventory_search, logs, memory, planet_search, planets_view, positions, route, saves, settlements, ships, starmap, timers, trade
+from . import codex_sync, discoveries, equipment, frigates, galaxy, guilds, hgpak, inventory_search, logs, memory, planet_search, planets_view, positions, route, saves, settlements, ships, starmap, timers, trade
 from .companion import PluginCompanion
 from .describe import StateText
 from .game_install import GameInstall, find_game
@@ -307,6 +307,25 @@ class NmsConnector:
                 logs.warn_once(f"camera:{type(exc).__name__}", "Map camera sample failed (logged again in a few "
                                "minutes if it keeps failing): %s: %s", type(exc).__name__, exc)
             await asyncio.sleep(CAMERA_EVERY_S)
+
+    def _set_guild(self, params: dict) -> dict:
+        """Record which guild's envoy a station holds, for the whole voxel region of that system.
+
+        Params are untrusted input: the system must be one we know, the guild one of guilds.GUILD_NAMES."""
+        key = planets_view.parse_system_key(params.get("system"))
+        if key is None:
+            return {"ok": False, "message": "Choose the system you saw the envoy in."}
+        key = memory.system_key(key)
+        guild = str(params.get("guild") or "")
+        if guild not in guilds.GUILD_NAMES:
+            return {"ok": False, "message": "Choose one of the guilds."}
+        now = datetime.now().isoformat(timespec="seconds")
+        self.history.guilds = guilds.with_record(self.history.guilds, key, guild, now)
+        self.history.save()
+        where = planets_view._system_label(key, self.context().visit(key))
+        return {"ok": True, "focus": planets_view.GUILD_FORM_ID,
+                "message": f"{guilds.GUILD_NAMES[guild]} recorded for the region of {where} "
+                           f"(voxel {guilds.region_id(key)})."}
 
     def _name_fix(self, params: dict) -> dict:
         """PROTOTYPE action: name a star fix as a system (or forget it). Params are untrusted input."""
@@ -671,6 +690,7 @@ class NmsConnector:
             planets_view.GALAXY_COLORS: self._act_galaxy_colors,
             planets_view.SEARCH_PLANETS: self._act_search_planets,
             planets_view.NAME_FIX: self._act_name_fix,
+            planets_view.SET_GUILD: self._act_set_guild,
             inventory_search.SEARCH_INVENTORY: self._act_search_inventory,
             "rescan": self._act_rescan,
             "update_mapping": self._act_update_mapping,
@@ -694,6 +714,9 @@ class NmsConnector:
 
     async def _act_name_fix(self, params: dict) -> dict:
         return await self.ctx.run_blocking(self._name_fix, params)
+
+    async def _act_set_guild(self, params: dict) -> dict:
+        return await self.ctx.run_blocking(self._set_guild, params)
 
     async def _act_open_system(self, params: dict) -> dict:
         key = planets_view.parse_system_key(params.get("key"))
