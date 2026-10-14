@@ -22,12 +22,12 @@ On a phone every table of three or more columns is shown as a list of cards (the
 
 The tabs:
 
-- **Overview** - **timers** (when your settlement buildings are finished and your frigate expeditions return), units, nanites, quicksilver, health, where you were at the last save, where you are now, your fleet and companions: the **primary ship** with its estimated warp range and the star colours it reaches, your **settlements** at a glance (construction, a decision waiting), the **freighter** with its warp range, and the current mission in the game's words.
-- **Systems** - *Current system* (live from the game, with a map), *Visited systems* (every system from your save; click one to see its map), *Planets* (every planet whose resources were read, with a **search**: type what a planet is like - *sengend heiß*, *toxic*, *Ammoniak* - in English or the game's language), *Galaxy* (the galaxy map and the nearest planet with each resource) and *Trade* (economies and trade routes), *Route* (the route planner) and *Star positions (prototype)* (exact positions of stars you lock on the galaxy map).
-- **Inventory** - exosuit, starship, freighter, **storage containers** (0-9, numbered as in the game) and **Equipment**. **Search all inventories** at the top finds an item in every inventory at once by its name, category or id, in English or the game's language (*Kupfer*, *trade goods*): every matching stack with the inventory it is in, and above them each item's total. Every word must match, a word also finds longer ones, and a place word narrows it (*copper freighter*, *Kobalt Lager*). Each item with its icon, its name in English and in the game's language, its **category** and what it is worth: **Value (stack)** is the whole stack at the base value, **Value (each)** one unit - the two numbers the game's own tooltip shows ("Insgesamt 6.426 Units", "Je 6 Units"). Sort by *Value (stack)* to see what is worth most. Technology and upgrade modules have no base value, so their cells stay empty. Hover an item's name for its description (in English and in the game's language) and its **base value** (what the game says one unit is worth); **trade goods** also tell which economies pay well for them, the nearest such system you know (or that you have not found one yet) and where they are cheap to buy. Planet resources have the same tooltip. See *Equipment* below.
+- **Overview** - **Search your save** (one box over *everything* read from your save: systems, planets, items in every inventory, ships, bases, settlements, discoveries, companions and more - results come back grouped by kind and stay clickable as in their own tab), **timers** (when your settlement buildings are finished and your frigate expeditions return), units, nanites, quicksilver, health, where you were at the last save, where you are now, your fleet and companions: the **primary ship** with its estimated warp range and the star colours it reaches, your **settlements** at a glance (construction, a decision waiting), the **freighter** with its warp range, and the current mission in the game's words.
+- **Systems** - *Current system* (live from the game, with a map), *Visited systems* (every system from your save; click one to see its map), *Planets* (every planet whose resources were read, with a **search**: type what a planet is like - *sengend heiß*, *toxic*, *Ammoniak* - in English or the game's language, and narrow it by **Has the resource** and by the planet's **type**), *Galaxy* (the galaxy map and the nearest planet with each resource) and *Trade* (economies and trade routes), *Route* (the route planner) and *Star positions (prototype)* (exact positions of stars you lock on the galaxy map).
+- **Inventory** - exosuit, starship, freighter, **storage containers** (0-9, numbered as in the game) and **Equipment**. **Search all inventories** at the top finds an item in every inventory at once by its name, category or id, in English or the game's language (*Kupfer*, *trade goods*): every matching stack with the inventory it is in, biggest stack first, and above them each item's total and what everything found is worth in units. Every word must match, a word also finds longer ones, and a place word narrows it (*copper freighter*, *Kobalt Lager*). Each item with its icon, its name in English and in the game's language, its **category** and what it is worth: **Value (stack)** is the whole stack at the base value, **Value (each)** one unit - the two numbers the game's own tooltip shows ("Insgesamt 6.426 Units", "Je 6 Units"). Sort by *Value (stack)* to see what is worth most. Technology and upgrade modules have no base value, so their cells stay empty. Hover an item's name for its description (in English and in the game's language) and its **base value** (what the game says one unit is worth); **trade goods** also tell which economies pay well for them, the nearest such system you know (or that you have not found one yet) and where they are cheap to buy. Planet resources have the same tooltip. See *Equipment* below.
 - **Ships & bases** - your ships (type, class, estimated **warp range**, the star colours they can reach, base stats, slots), **every ship's technology** (one tab per ship) and your **bases**: where each one stands (the planet for a planet base, the system for a freighter base or a ship interior), how many parts it has, what it is built from (hover for every part, named in English and in the game's language) and when you last built on it, newest first. See *Ships* below.
 - **Settlements** - the economy of each settlement you run: see *Settlements* below.
-- **Saves & source** - how often the game saves, the recent save writes, where the data comes from and the last memory scans.
+- **Saves & source** - *Save files & source* (how often the game saves, the recent save writes, where the data comes from and the last memory scans) and *Transfer* (export your recorded data as one zip and import it again - see *Moving your data* below).
 - **Settings** - the plugin persona's **codeword** and **Single Context Per Question**: see *Settings and the overlay* below.
 
 ## Discoveries
@@ -452,9 +452,9 @@ conflict level and a dominant race. The plugin knows them in three ways:
   systems read so far right). Predicted values are marked *predicted*.
 
 **Wealth and conflict carry their rank**, because the game's word alone does not
-say how good or bad it is: the wealth reads *Poor - 1 of 3*, *Average - 2 of 3*
-or *Wealthy - 3 of 3*, and the conflict level *Low - 1 of 4*, *Medium - 2 of 4*,
-*High - 3 of 4* or *Pirate - 4 of 4*. Sorting the **Wealth** or **Conflict**
+say how good or bad it is. The economy's strength is drawn as the stars the game
+itself uses - ★☆☆ *Poor*, ★★☆ *Average*, ★★★ *Wealthy* - and the conflict level
+reads *Low - 1 of 4*, *Medium - 2 of 4*, *High - 3 of 4* or *Pirate - 4 of 4*. Sorting the **Wealth** or **Conflict**
 column of *Systems -> Trade* orders by that rank, so the richest or the most
 dangerous systems come together. A rare *Pirate* economy keeps its name without
 a rank: it marks a lawless system rather than a step on the wealth scale. The
@@ -469,6 +469,23 @@ the plugin reads this from the game's trading table. You see it:
 
 Prices also move with what you buy and sell, and wealthier systems trade the
 higher tiers.
+
+### The guild envoy of a region
+
+Each inhabited space station has an envoy of one guild - **Merchants**,
+**Explorers** or **Mercenaries** - on its upper level, far right, who hands out
+free rewards as your standing with that guild grows. Which guild it is belongs
+to the **galactic region**, not to the single station: every system of the same
+voxel region has the same one, and finding another guild means travelling to
+another region.
+
+The game keeps this nowhere the plugin can read it, so you tell it once: under
+*Systems → Visited systems*, **Guild envoy of a region** asks which guild you saw
+in which system. From then on the system details show a **Guild envoy** row and
+the **Guild envoy** column of *Visited systems* names it for every system of that
+region - marked *(region)* where it was recorded in a neighbouring system rather
+than in that one. Pick *No envoy here* for a region whose stations have none, and
+simply save again to correct a mistake.
 
 ## Route planner
 
@@ -499,6 +516,41 @@ again from where you are, and in the target system it says you have arrived.
 Distances are measured between regions and are approximate, so leave some
 margin on the range.
 
+## Moving your data
+
+What the plugin has recorded cannot be read back out of the game: the planets
+and their resources, the systems with their economies, the generated system
+names, the star positions you fixed, the guild records, the measured save
+intervals. If you use the plugin **inside the 40k Assistant and as the
+standalone companion**, each keeps its own copy, and *Saves & source →
+Transfer* moves it from one to the other.
+
+**Export** writes one zip (`nms-data-<date>.zip`) into the folder you name -
+empty means the `exports` folder beside the plugin's data. It holds the
+recorded data, your settings and the item/icon caches read from the game files.
+Your save games are never touched, and nothing of the host it came from travels
+with it. Copy that file to the other machine or host yourself.
+
+**Import** reads such a zip. Choose what should happen:
+
+- **Only look into it** - the default: it says who wrote it, when, from which
+  game build, what it holds and what each mode would do. Nothing is written.
+- **Merge into what is here** - keeps everything you have and adds the
+  archive's. Where both know the same planet or system, the newer reading wins
+  and yours wins a tie; your settings, your planned route and the generated
+  system names you already have stay as they are. This is the safe choice.
+- **Replace what is here** - every file the archive holds overwrites yours,
+  including the settings and the codeword.
+
+Either way the data that was there is zipped aside first, into the `backups`
+folder beside the plugin's data, and the page says where. The item and icon
+caches only travel when the archive was built from a **newer game build** than
+yours (on *Replace* always) - they are rebuilt from the game files anyway,
+unless the game is not installed on that machine.
+
+A damaged archive, one written by a newer plugin or one that is not the
+plugin's own changes nothing at all: everything is read and checked before the
+first file is written, and the page says what was wrong.
 ## Without the game
 
 The plugin keeps what it read from the game's files: the item database

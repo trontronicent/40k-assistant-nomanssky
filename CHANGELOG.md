@@ -1,5 +1,36 @@
 # Changelog
 
+## 0.15.0-beta.5 (beta; needs app 3.17.0)
+
+- **One search box over your whole save.** *Overview → Search your save* searches everything the page
+  shows at once - systems, planets, items in every inventory, ships, bases, settlements, discoveries,
+  companions, frigates, eggs - and returns the hits grouped by kind, each row as clickable as in its own
+  tab. It searches the tables the page has already built, so every kind is covered the moment it appears
+  and nothing is indexed twice. On the real save: *Delta* finds 58 matches in 8 kinds, *Kupfer* 1,527 in 4.
+- **The planet search gained two filters and stopped giving up.** *Has the resource* matches the planet's
+  resources and gas only (the free text also finds a planet whose *name* reads like the resource), and *Of
+  the type* lists the types among your recorded planets in the game's own words. When no planet matches
+  every word, the planets matching the most of them are shown instead, with a *Matched* column saying
+  which - "no planet matches every word" was rarely the answer anyone wanted.
+- **The inventory search ranks by stack size** and says what everything found is worth in units. The
+  results table is cut at 500 rows, so "copper" now shows the 581 in storage container 0 first instead of
+  whichever stack happened to sit in the first inventory.
+- **An economy's strength is drawn as stars**, the way the game itself draws it: ★☆☆ *Poor*, ★★☆
+  *Average*, ★★★ *Wealthy* in the system details and the systems table (the column still sorts by rank).
+  The plugin persona keeps the written words - a model reading star glyphs aloud is no improvement.
+- **The guild envoy of a region.** Which guild stands in a station - Merchants, Explorers or Mercenaries -
+  belongs to the galactic region, and the game keeps it nowhere readable (every archive was searched:
+  only models, icons and textures). So *Systems → Visited systems → Guild envoy of a region* lets you
+  record what you saw, once per region, and every known system of that region then names it, marked
+  *(region)* where it was recorded in a neighbour. Sources and the state of the research are in
+  `research/guilds.json`.
+- **Export and import of the plugin's data** (*Saves & source → Transfer*), so the recorded planets,
+  economies, system names, star fixes and guild records can move between the 40k Assistant and the
+  standalone companion - none of it can be read back out of the game. Export writes one zip; import can
+  look into it first, **merge** it into what you have (your records win every tie) or **replace** them,
+  and either way zips your current data aside first. A damaged, foreign or newer archive changes nothing:
+  everything is read and checked before the first write. Measured on the real 18 MB data dir: a 7.8 MB
+  archive in 0.5 s, a merge of 898 into 1,796 planets in 0.6 s.
 ## 0.15.0-beta.4 (beta; needs app 3.17.0)
 
 - **Fix: the standalone page never actually rendered in a real browser.** `sections.js` and `starmap.js`
