@@ -37,9 +37,10 @@ def found(query):
 
 def test_every_inventory_is_searched_by_name_in_either_language():
     """'Kupfer' and 'copper' both find every copper stack - storage, freighter - and Activated Copper (a word of its
-    name); the matching is the planet search's (a word finds longer ones), so 'kupf' finds them too."""
-    copper = [("Freighter 'Kayani'", "YELLOW2", 50), ("Storage Container 0", "YELLOW2", 581),
-              ("Storage Container 0", "EX_YELLOW", 103), ("Storage Container 7 (Metals)", "YELLOW2", 119)]
+    name); the matching is the planet search's (a word finds longer ones), so 'kupf' finds them too. The biggest
+    stack comes first: the table is cut at MAX_ROWS, and the big stack answers "where is my copper"."""
+    copper = [("Storage Container 0", "YELLOW2", 581), ("Storage Container 7 (Metals)", "YELLOW2", 119),
+              ("Storage Container 0", "EX_YELLOW", 103), ("Freighter 'Kayani'", "YELLOW2", 50)]
     assert found("Kupfer") == copper and found("copper") == copper and found("kupf") == copper
 
 

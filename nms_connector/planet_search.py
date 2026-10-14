@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from dataclasses import dataclass
 
 from . import galaxy
 
@@ -76,10 +77,14 @@ def term_matches(term: str, text_words: set[str]) -> bool:
     return any(w.startswith(term) or w.startswith(base) for w in text_words)
 
 
-def _cell_text(cell) -> str:
+def cell_text(cell) -> str:
+    """The text of a table cell, plain or an {text, icon} / {text, sort} one (save_search reads it too)."""
     if isinstance(cell, dict):
         return str(cell.get("text") or "")
     return "" if cell is None else str(cell)
+
+
+_cell_text = cell_text
 
 
 OCEAN_WORDS = ("ocean", "oceans", "ozean", "ozeane", "ozeanwelt", "water", "wasser", "sea", "meer")
@@ -94,6 +99,44 @@ def is_ocean(planet: dict) -> bool:
 def ocean_words() -> set[str]:
     """The words an ocean planet is found by (English and German), as a set."""
     return set(OCEAN_WORDS)
+
+
+@dataclass(frozen=True)
+class Query:
+    """What the planet search was asked for: free text, one biome, and resources it must have.
+
+    One object instead of three parameters threaded through the view builders (code-shape.md: a long
+    parameter list is a dataclass). An empty one means no search; `str(query)` is what the page shows."""
+    text: str = ""
+    biome: str = ""
+    resource: str = ""
+
+    @classmethod
+    def of(cls, params: dict | None) -> Query:
+        """From the form's untrusted values: strings, each cut to the field's length."""
+        params = params or {}
+        return cls(*(str(params.get(k) or "").strip()[:MAX_QUERY_CHARS] for k in ("query", "biome", "resource")))
+
+    def __bool__(self) -> bool:
+        return bool(self.text or self.biome or self.resource)
+
+    def __str__(self) -> str:
+        return ", ".join(part for part in (self.text, self.resource, self.biome) if part)
+
+
+#: Cells of a planet row (planets_view._planet_row without a system cell) that name what it yields:
+#: common, uncommon and rare substance, the extra ones, and the harvester gas.
+RESOURCE_CELLS = slice(3, 8)
+
+
+def resource_words(planet: dict, row: list) -> set[str]:
+    """The words the planet's resources are found by: their names in both languages and their ids.
+
+    Separate from the planet's other words so the search's resource field can ask for a resource
+    alone - "Kupfer" in the free text also matches a planet *named* Kupfer."""
+    extra = planet.get("extra") or []
+    ids = [planet.get("common"), planet.get("uncommon"), planet.get("rare"), *extra]
+    return set(words(" ".join([cell_text(c) for c in row[RESOURCE_CELLS]] + [str(i) for i in ids if i])))
 
 
 class PlanetIndex:
@@ -115,7 +158,8 @@ class PlanetIndex:
                 if is_ocean(planet):
                     world |= ocean_words()
                 self.entries.append({"planet": planet, "system": key, "system_label": label, "row": row,
-                                     "words": set(words(text)) | world})
+                                     "words": set(words(text)) | world,
+                                     "resources": resource_words(planet, row)})
 
     @staticmethod
     def _matches(term: str, planet_words: set[str]) -> bool:
@@ -131,13 +175,38 @@ class PlanetIndex:
             return (-len(matched), dist is None, dist or 0.0, entry["system_label"], entry["planet"].get("name") or "")
         return sorted(found, key=rank)
 
-    def search(self, query: str) -> list[tuple[dict, list[str]]]:
-        """Planets matching every word of the query (the page's search field), nearest first."""
+    def search(self, query: str, biome: str | None = None, resource: str | None = None) -> list[tuple[dict, list[str]]]:
+        """Planets matching every word of the query, nearest first (the page's search field).
+
+        `biome` keeps only planets of that recorded biome, `resource` only those whose resources match
+        every word of it - the free text alone cannot tell a planet *named* Kupfer from one that has it."""
         wanted = terms(query)
-        if not wanted:
+        wanted_resources = terms(resource or "")
+        if not (wanted or wanted_resources or biome):
             return []
-        found = [(e, wanted) for e in self.entries if all(self._matches(t, e["words"]) for t in wanted)]
+        found = [(e, wanted) for e in self.entries
+                 if self._keeps(e, wanted, biome, wanted_resources)]
         return self._ranked(found)
+
+    def _keeps(self, entry: dict, wanted: list[str], biome: str | None, resources: list[str]) -> bool:
+        if biome and (entry["planet"].get("biome") or "") != biome:
+            return False
+        if not all(self._matches(t, entry["words"]) for t in wanted):
+            return False
+        return all(self._matches(t, entry["resources"]) for t in resources)
+
+    def biomes(self, describe=None) -> list[tuple[str, str]]:
+        """(biome, label) of the biomes among the recorded planets, by label - the search's biome select.
+
+        `describe(planet)` gives the game's own words for the type ("Scorched Planet"); without it the
+        raw biome stands for itself."""
+        out = {}
+        for entry in self.entries:
+            biome = entry["planet"].get("biome")
+            if biome and biome not in out:
+                described = describe(entry["planet"]) if describe else None
+                out[biome] = f"{described} ({biome})" if described else biome
+        return sorted(out.items(), key=lambda kv: kv[1])
 
     def best(self, question: str, limit: int | None = 8) -> tuple[list[str], list[tuple[dict, list[str]]]]:
         """(search words, planets matching most of them, nearest first; all of them with limit None) for a chat

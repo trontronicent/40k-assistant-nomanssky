@@ -52,8 +52,11 @@ def item_words(item_id: str, entry: dict) -> set[str]:
 
 
 def search(snap: dict | None, query: str, lookup) -> list[Hit]:
-    """Every stack whose item and place words match every word of the query, in the inventories' order.
-    `lookup(item_id)` = GameData.lookup (None for an unknown id)."""
+    """Every stack whose item and place words match every word of the query, biggest stack first.
+
+    `lookup(item_id)` = GameData.lookup (None for an unknown id). Ranked rather than left in the
+    inventories' order, because the table is cut at MAX_ROWS: "copper" should show the 581 in storage
+    container 0, not whichever stack happens to sit in the first inventory."""
     wanted = planet_search.terms(query)
     if not snap or not wanted:
         return []
@@ -66,7 +69,7 @@ def search(snap: dict | None, query: str, lookup) -> list[Hit]:
             found_by = here | item_words(str(item_id), lookup(item_id) or {})
             if all(planet_search.term_matches(t, found_by) for t in wanted):
                 hits.append(Hit(place, str(item_id), int(amount or 0), maximum))
-    return hits
+    return sorted(hits, key=lambda h: (-h.amount, h.item_id, h.place))
 
 
 def totals(hits: list[Hit]) -> list[tuple[str, int, int]]:
@@ -79,10 +82,23 @@ def totals(hits: list[Hit]) -> list[tuple[str, int, int]]:
     return sorted(((i, t, n) for i, (t, n) in sums.items()), key=lambda x: (-x[1], x[0]))
 
 
-def totals_text(hits: list[Hit], name_of) -> str:
-    """'12 stacks of 3 items. Total: Copper 700 (2 places), ...' - `name_of(item_id)` gives the shown name."""
+def total_value(hits: list[Hit], value_of) -> int:
+    """What everything found is worth in units (base value x amount), 0 when no value is known.
+
+    `value_of(item_id)` = the item's base value from the game files (GcProductData BaseValue), which
+    the inventory tables already show per item - summing it answers "is this stash worth a trip?"."""
+    return sum((value_of(hit.item_id) or 0) * hit.amount for hit in hits)
+
+
+def totals_text(hits: list[Hit], name_of, value_of=None) -> str:
+    """'12 stacks of 3 items, worth 1,200,000 units. Total: Copper 700 (2 places), ...'
+
+    `name_of(item_id)` gives the shown name, `value_of(item_id)` the base value (optional: without it
+    the line says nothing about worth)."""
     items = totals(hits)
     named = [f"{name_of(i)} {t:,}" + (f" ({n} places)" if n > 1 else "") for i, t, n in items[:MAX_TOTALS]]
     more = len(items) - MAX_TOTALS
-    return (f"{len(hits)} stack(s) of {len(items)} item(s). Total: " + ", ".join(named)
-            + (f", +{more} more items." if more > 0 else "."))
+    worth = total_value(hits, value_of) if value_of else 0
+    return (f"{len(hits)} stack(s) of {len(items)} item(s)"
+            + (f", worth {worth:,} units" if worth else "")
+            + ". Total: " + ", ".join(named) + (f", +{more} more items." if more > 0 else "."))

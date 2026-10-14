@@ -26,7 +26,7 @@ from datetime import datetime
 from functools import cached_property
 from pathlib import Path
 
-from . import codex_sync, discoveries, equipment, frigates, galaxy, guilds, hgpak, inventory_search, logs, memory, planet_search, planets_view, positions, route, saves, settlements, ships, starmap, timers, trade, transfer
+from . import codex_sync, discoveries, equipment, frigates, galaxy, guilds, hgpak, inventory_search, logs, memory, planet_search, planets_view, positions, route, save_search, saves, settlements, ships, starmap, timers, trade, transfer
 from .companion import PluginCompanion
 from .describe import StateText
 from .game_install import GameInstall, find_game
@@ -113,8 +113,9 @@ class NmsConnector:
         self.tables = GameTables(TableStore(self.data_dir))                # timers, frigate traits, warp range, settlements, tech stats
         self.settlement_live = settlements.LiveSettlements(self.data_dir / "settlement_screen.json")  # screen values
         self.galaxy_colors = "kind"               # how the galaxy map colours systems (planets_view.COLOR_MODES)
-        self.planet_query = ""                    # Systems -> Planets search (planet_search)
+        self.planet_query = planet_search.Query()   # Systems -> Planets search (planet_search.Query)
         self.inventory_query = ""                 # Inventory -> search across all inventories (inventory_search)
+        self.save_query = ""                      # Overview -> one search over every tab's tables (save_search)
         self.settings_path = self.data_dir / "settings.json"
         self.settings = PluginSettings.load(self.settings_path)   # Settings tab: single context, codeword
         self.error: str | None = None
@@ -765,6 +766,7 @@ class NmsConnector:
             page.EXPORT_DATA: self._act_export_data,
             page.IMPORT_DATA: self._act_import_data,
             inventory_search.SEARCH_INVENTORY: self._act_search_inventory,
+            save_search.SEARCH_SAVE: self._act_search_save,
             "rescan": self._act_rescan,
             "update_mapping": self._act_update_mapping,
             "write_codex": lambda params: self._write_codex(),
@@ -812,13 +814,20 @@ class NmsConnector:
         return {"ok": True, "focus": planets_view.GALAXY_MAP_ID}
 
     async def _act_search_planets(self, params: dict) -> dict:
-        # Untrusted form value: a string, cut to the field's length.
-        self.planet_query = str(params.get("query") or "").strip()[:planet_search.MAX_QUERY_CHARS]
+        # Untrusted form values (text, resource, biome): Query.of cuts each to the field's length.
+        self.planet_query = planet_search.Query.of(params)
         if not self.planet_query:
             return {"ok": True, "message": "Planet search cleared."}
-        found = len(planets_view.planet_index(self.context()).search(self.planet_query))
+        query = self.planet_query
+        index = planets_view.planet_index(self.context())
+        found = len(index.search(query.text, query.biome or None, query.resource or None))
+        if not found and query.text:
+            closest = len(index.best(query.text, limit=None)[1])
+            return {"ok": True, "focus": planets_view.PLANET_SEARCH_ID,
+                    "message": f"No planet matches all of \"{query}\"; showing the {closest} closest match(es)."
+                               if closest else f"No recorded planet matches \"{query}\"."}
         return {"ok": True, "focus": planets_view.PLANET_SEARCH_ID,
-                "message": f"{found} planet(s) match \"{self.planet_query}\"."}
+                "message": f"{found} planet(s) match \"{query}\"."}
 
     async def _act_search_inventory(self, params: dict) -> dict:
         # Untrusted form value: a string, cut to the field's length.
@@ -828,6 +837,14 @@ class NmsConnector:
         found = len(inventory_search.search(self.snapshot, self.inventory_query, self.gamedata.lookup))
         return {"ok": True, "focus": inventory_search.RESULTS_ID,
                 "message": f"{found} stack(s) match \"{self.inventory_query}\"."}
+
+    async def _act_search_save(self, params: dict) -> dict:
+        """The Overview's one search box. The page searches the tables it builds, so the action only
+        stores the (untrusted) text; the count comes from the view that is built right after."""
+        self.save_query = str(params.get("query") or "").strip()[:save_search.MAX_QUERY_CHARS]
+        if not self.save_query:
+            return {"ok": True, "message": "Search cleared."}
+        return {"ok": True, "focus": save_search.RESULTS_ID, "message": f"Searching for \"{self.save_query}\"."}
 
     async def _act_rescan(self, params: dict) -> dict:
         self._read_save_again()

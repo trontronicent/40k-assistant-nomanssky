@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import time
 
-from . import (companions_view, discoveries_view, equipment, frigates, inventory_search, planets_view, settlements,
-               ships, timers, transfer)
+from . import (companions_view, discoveries_view, equipment, frigates, inventory_search, planets_view, save_search,
+               settlements, ships, timers, transfer)
 
 EXPORT_DATA = "export_data"              # action: write the plugin's data as one zip
 IMPORT_DATA = "import_data"              # action: look into a zip, or merge/replace from it
@@ -209,7 +209,8 @@ class ConnectorPage:
         out = [form]
         if hits:
             out.append({"type": "text", "text": inventory_search.totals_text(
-                hits, lambda i: (gamedata.lookup(i) or {}).get("en") or i)})
+                hits, lambda i: (gamedata.lookup(i) or {}).get("en") or i,
+                lambda i: (gamedata.lookup(i) or {}).get("value"))})
         cut = f" - the first {len(shown)}" if len(shown) < len(hits) else ""
         out.append({"type": "table", "id": inventory_search.RESULTS_ID,
                     "title": f"Items matching \"{query}\" ({len(hits)}{cut})",
@@ -349,6 +350,29 @@ class ConnectorPage:
         parts = base.get("parts") or {}
         return [f"{count}x {ctx.texts.name(part_id) or part_id}"
                 for part_id, count in sorted(parts.items(), key=lambda kv: (-kv[1], kv[0]))]
+
+    def save_search_sections(self, tabs: list[dict]) -> list[dict]:
+        """The Overview's one search box over everything in the save, and its results (save_search.py).
+
+        `tabs` are the other tabs as they were just built: their tables are what is searched, so a kind
+        that gets a new table or column is searchable the moment it appears on the page."""
+        query = self.connector.save_query
+        form = {"type": "form", "id": save_search.FORM_ID, "title": "Search your save",
+                "action": save_search.SEARCH_SAVE, "submit_label": "Search",
+                "description": "One search over everything read from your save: systems, planets, items in every "
+                               "inventory, ships, bases, settlements, discoveries and companions - in English or "
+                               "the game's language. Every word must match, a word also finds longer ones "
+                               "(\"kupf\" finds Kupfer), and a result stays clickable as in its own tab. "
+                               "An empty search clears it.",
+                "fields": [{"id": "query", "label": "Search", "type": "text", "value": query,
+                            "max_length": save_search.MAX_QUERY_CHARS, "placeholder": "e.g. Kupfer, toxic, Delta",
+                            "hint": "Any words that appear in one of the tabs' tables."}]}
+        if not query:
+            return [form]
+        groups = save_search.groups_from_sections(tabs, skip=(save_search.RESULTS_ID,))
+        results = save_search.search(groups, query)
+        found = [{"type": "text", "text": save_search.summary(results, query)}] if results else []
+        return [form] + found + save_search.sections(results, query)
 
     def saves_tabs(self, snap: dict | None, ctx) -> list[dict]:
         """The Saves & source tab: where the data comes from, and the transfer of it between the two hosts."""
@@ -505,8 +529,7 @@ class ConnectorPage:
         snap = c.snapshot
         ctx = c.context()
         sections = self.notices()
-        sections.append({"type": "tabs", "id": "main", "tabs": [
-            {"id": "overview", "label": "Overview", "sections": self.overview(snap, ctx)},
+        tabs = [
             {"id": "systems", "label": "Systems", "badge": len(ctx.keys()) or None,
              "sections": [planets_view.systems_tabs(ctx, c.selected_system, c.route_state, c.primary_range(),
                                                     c.galaxy_colors, c.planet_query)]},
@@ -522,7 +545,12 @@ class ConnectorPage:
                                                          ctx.texts, time.time(), c.settlement_live.values)},
             {"id": "saves", "label": "Saves & source", "sections": self.saves_tabs(snap, ctx)},
             {"id": "settings", "label": "Settings", "sections": self.settings_sections()},
-        ]})
+        ]
+        # The Overview's one search box searches the tables the other tabs have just been built from, so
+        # nothing is indexed twice and a hit keeps its own columns and click target (save_search.py).
+        overview = self.overview(snap, ctx) + self.save_search_sections(tabs)
+        sections.append({"type": "tabs", "id": "main",
+                         "tabs": [{"id": "overview", "label": "Overview", "sections": overview}] + tabs})
         return {
             "title": "No Man's Sky",
             "subtitle": "Read from your save files (updates whenever the game saves) and, while it runs, from the game.",

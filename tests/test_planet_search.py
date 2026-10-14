@@ -92,9 +92,16 @@ def test_the_search_action_takes_untrusted_text_and_clears_with_an_empty_one(tmp
     monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
     plugin = create_plugin(FakeCtx(tmp_path / "data"))
     result = asyncio.run(plugin.action(planets_view.SEARCH_PLANETS, {"query": "  heiss " + "x" * 200}))
-    assert result["ok"] and len(plugin.planet_query) == planet_search.MAX_QUERY_CHARS and "0 planet(s)" in result["message"]
+    assert result["ok"] and len(plugin.planet_query.text) == planet_search.MAX_QUERY_CHARS
+    # Nothing is recorded here, so there is not even a closest match.
+    assert "No recorded planet matches" in result["message"]
     assert asyncio.run(plugin.action(planets_view.SEARCH_PLANETS, {"query": None}))["message"] == "Planet search cleared."
-    assert plugin.planet_query == ""
+    assert not plugin.planet_query and plugin.planet_query == planet_search.Query()
+    # The other two fields are untrusted the same way, and each is a filter of its own.
+    filtered = asyncio.run(plugin.action(planets_view.SEARCH_PLANETS,
+                                         {"query": "", "resource": "k" * 200, "biome": "LUSH"}))
+    assert filtered["ok"] and plugin.planet_query.biome == "LUSH"
+    assert len(plugin.planet_query.resource) == planet_search.MAX_QUERY_CHARS
 
 
 def test_the_persona_gets_the_planets_a_question_describes(tmp_path):
@@ -110,3 +117,45 @@ def test_the_persona_gets_the_planets_a_question_describes(tmp_path):
     assert companion.planet_lines("wie viel Kupfer habe ich", {"wie", "viel", "kupfer", "habe", "ich"}, ctx) == []
     none = companion.planet_lines("planets with crystals", {"planets", "with", "crystals"}, ctx)
     assert none[0].startswith("No recorded planet matches crystals")
+
+
+def test_a_search_that_matches_nothing_shows_the_closest_planets(tmp_path):
+    """Asked for on 2026-10-14: "no planet matches every word" is rarely what the player wanted to know. When
+    no planet matches all the words, the planets matching the most of them are shown instead, with a Matched
+    column naming those words, so it is clear why they are there."""
+    ctx = context(tmp_path)
+    form, table = planets_view.planet_search_sections(ctx, planet_search.Query("sengend Ammoniak"))
+    assert "closest match" in table["title"] and table["columns"][-1] == "Matched"
+    # Gifthorn matched "ammoniak", the two scorched ones "sengend" - one word each, so all three are closest.
+    assert sorted(r[0] for r in table["rows"]) == ["Anzak", "Aphaste Delta", "Gifthorn"]
+    assert {r[-1] for r in table["rows"]} == {"sengend", "ammoniak"}
+    # A word no planet knows at all: no table rows, and the empty text says so.
+    _, nothing = planets_view.planet_search_sections(ctx, planet_search.Query("crystals"))
+    assert nothing["rows"] == [] and "any of these words" in nothing["empty"]
+    # Nothing is lost for a query that does match everything: no Matched column, no "closest" in the title.
+    _, exact = planets_view.planet_search_sections(ctx, planet_search.Query("sengend heiß"))
+    assert "closest" not in exact["title"] and "Matched" not in exact["columns"]
+
+
+def test_the_search_filters_by_resource_and_by_the_planets_type(tmp_path):
+    """The resource field matches the planet's resources and gas only, which the free text cannot: a planet
+    *named* like a resource is not one that has it. The type select offers the recorded biomes in the game's
+    own words, and both filters combine with the free text."""
+    ctx = context(tmp_path)
+    index = planets_view.planet_index(ctx)
+    assert [e["planet"]["name"] for e, _ in index.search("", resource="Ammoniak")] == ["Gifthorn"]
+    assert len(index.search("", resource="Kupfer")) == 3                      # copper is the common one everywhere
+    assert index.search("", resource="Gifthorn") == []                        # a planet name is not a resource
+    assert [e["planet"]["name"] for e, _ in index.search("", biome="Toxic")] == ["Gifthorn"]
+    assert index.search("sengend", biome="Toxic") == []                       # the filters narrow each other
+    assert index.biomes() == [("Scorched", "Scorched"), ("Toxic", "Toxic")]
+    described = index.biomes(lambda p: ctx.texts.description(p.get("info") or {}))
+    assert described == [("Scorched", "Scorched Planet (Sengend heißer Planet) (Scorched)"),
+                         ("Toxic", "Toxic Planet (Giftiger Planet) (Toxic)")]
+
+    form = planets_view.planet_search_sections(ctx, planet_search.Query(biome="Toxic"))[0]
+    assert [f["id"] for f in form["fields"]] == ["query", "resource", "biome"]
+    assert form["fields"][2]["value"] == "Toxic" and form["fields"][2]["options"][0]["value"] == ""
+    # A biome alone is a search: the form is not the only section.
+    assert len(planets_view.planet_search_sections(ctx, planet_search.Query(biome="Toxic"))) == 2
+    assert len(planets_view.planet_search_sections(ctx, planet_search.Query())) == 1

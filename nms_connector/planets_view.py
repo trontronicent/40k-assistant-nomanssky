@@ -772,31 +772,56 @@ def planet_index(ctx: Context) -> planet_search.PlanetIndex:
     return planet_search.PlanetIndex(ctx, _planet_row, _system_label)
 
 
-def planet_search_sections(ctx: Context, query: str | None) -> list[dict]:
-    """Systems -> Planets: the search form and, for a query, the matching planets (nearest first, clickable)."""
-    query = (query or "").strip()
-    form = {"type": "form", "id": "planet-search-form", "title": "Search planets", "action": SEARCH_PLANETS,
+def planet_search_form(ctx: Context, query, index: planet_search.PlanetIndex) -> dict:
+    """The Planets tab's search: free text, one biome, and resources the planet must actually have."""
+    biomes = index.biomes(lambda planet: ctx.texts.description(planet.get("info") or {}))
+    return {"type": "form", "id": "planet-search-form", "title": "Search planets", "action": SEARCH_PLANETS,
             "submit_label": "Search",
             "description": "Find planets by what they are like: type, weather, resources, plants, gas, flora, fauna, "
                            "sentinels or name - in English or the game's language, e.g. \"sengend heiß\", \"toxic\", "
                            "\"Kupfer\". Every word must match; a word also finds longer ones (\"heiss\" finds "
-                           "\"heißer\"). An empty search clears it.",
-            "fields": [{"id": "query", "label": "Search", "type": "text", "max_length": planet_search.MAX_QUERY_CHARS,
-                        "value": query, "placeholder": "e.g. sengend heiß",
-                        "hint": "Words of the planet's type, weather, resources, flora, fauna, sentinels or name."}]}
+                           "\"heißer\"). When nothing matches all of them, the closest matches are shown instead. "
+                           "An empty search clears it.",
+            "fields": [
+                {"id": "query", "label": "Search", "type": "text", "max_length": planet_search.MAX_QUERY_CHARS,
+                 "value": query.text, "placeholder": "e.g. sengend heiß",
+                 "hint": "Words of the planet's type, weather, resources, flora, fauna, sentinels or name."},
+                {"id": "resource", "label": "Has the resource", "type": "text", "value": query.resource,
+                 "max_length": planet_search.MAX_QUERY_CHARS, "placeholder": "e.g. Kupfer",
+                 "hint": "Matched against the planet's resources and gas only - unlike the free text, which also "
+                         "finds a planet whose name or type reads like the resource."},
+                {"id": "biome", "label": "Of the type", "type": "select", "value": query.biome,
+                 "options": [{"value": "", "label": "any type"}]
+                            + [{"value": biome, "label": label} for biome, label in biomes],
+                 "hint": "The types among your recorded planets, in the game's own words."}]}
+
+
+def planet_search_sections(ctx: Context, query) -> list[dict]:
+    """Systems -> Planets: the search form and, for a query, the matching planets (nearest first, clickable).
+
+    All words must match; when no planet matches all of them, the planets matching most are shown instead
+    (with a column saying which words they matched), because "no planet matches every word" is rarely what
+    the player wanted to know."""
+    query = query if isinstance(query, planet_search.Query) else planet_search.Query(str(query or "").strip())
+    index = planet_index(ctx)
+    form = planet_search_form(ctx, query, index)
     if not query:
         return [form]
-    index = planet_index(ctx)
-    found = index.search(query)
-    # The planet first: on a phone the app shows each row as a card titled by its first cell.
-    rows = [e["row"][:1] + [e["system_label"], index.distance_text(e["system"])] + e["row"][1:] for e, _ in found]
-    return [form, {"type": "table", "id": PLANET_SEARCH_ID,
-                   "title": f"Planets matching \"{query}\" ({len(rows)})",
-                   "columns": PLANET_COLUMNS[:1] + ["System", "Distance"] + PLANET_COLUMNS[1:], "rows": rows,
+    found = index.search(query.text, query.biome or None, query.resource or None)
+    partial = []
+    if not found and query.text:
+        _, partial = index.best(query.text, limit=None)
+        found = partial
+    columns = PLANET_COLUMNS[:1] + ["System", "Distance"] + PLANET_COLUMNS[1:] + (["Matched"] if partial else [])
+    rows = [e["row"][:1] + [e["system_label"], index.distance_text(e["system"])] + e["row"][1:]
+            + ([", ".join(matched)] if partial else []) for e, matched in found]
+    title = f"Planets with the closest match to \"{query}\" ({len(rows)})" if partial \
+        else f"Planets matching \"{query}\" ({len(rows)})"
+    return [form, {"type": "table", "id": PLANET_SEARCH_ID, "title": title, "columns": columns, "rows": rows,
                    "row_keys": [system_key_text(e["system"]) for e, _ in found], "row_action": OPEN_SYSTEM,
                    "row_hint": "Open this planet's system map",
-                   "empty": "No recorded planet matches every word. Planets are recorded while you play with the game "
-                            "running; try fewer or shorter words."}]
+                   "empty": "No recorded planet matches any of these words. Planets are recorded while you play "
+                            "with the game running; try fewer or shorter words."}]
 
 
 def visited_planets_section(ctx: Context) -> dict:
@@ -1221,7 +1246,7 @@ def star_fix_sections(ctx: Context) -> list[dict]:
 
 
 def systems_tabs(ctx: Context, selected: int | None, route_state: dict | None = None,
-                 ship_range: dict | None = None, color_by: str = "kind", planet_query: str | None = None) -> dict:
+                 ship_range: dict | None = None, color_by: str = "kind", planet_query=None) -> dict:
     """The Systems tab's sub-tabs: current system, visited systems (with the map), planets, galaxy, trade, route
     and the star positions found on the galaxy map (prototype)."""
     planets = visited_planets_section(ctx)
