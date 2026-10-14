@@ -93,11 +93,53 @@
   });
 
   function drawView() {
-    const host = document.getElementById("page-view");
+    const host = document.getElementById("view-sections");
     const rendered = window.Sections.renderSections(state.view, renderApi());
     host.textContent = "";
     host.appendChild(rendered.node);
+    drawViewHead();
     if (window.Timers) window.Timers.attach(host);
+  }
+
+  // The view's title, subtitle and action buttons - the bar the app's plugin page puts above the sections.
+  // The buttons are rebuilt on every poll, so a connector that offers another action is followed at once.
+  function drawViewHead() {
+    const head = document.getElementById("view-head");
+    const view = state.view || {};
+    const actions = view.actions || [];
+    head.hidden = !view.title && !actions.length;
+    document.getElementById("view-title").textContent = view.title || "";
+    const subtitle = document.getElementById("view-subtitle");
+    const updated = view.updated_at ? "Read at " + view.updated_at : "";
+    subtitle.textContent = [view.subtitle || "", updated].filter(Boolean).join(" · ");
+    subtitle.hidden = !subtitle.textContent;
+    const bar = document.getElementById("view-actions");
+    bar.textContent = "";
+    for (const action of actions) {
+      bar.appendChild(actionButton(action));
+    }
+  }
+
+  function actionButton(action) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = action.label || action.id;
+    button.title = action.description || action.label || action.id;
+    button.addEventListener("click", async () => {
+      // `confirm` is the app's rule for a destructive action (ACTIONS' clear_history).
+      if (action.confirm && !window.confirm(action.confirm)) return;
+      const running = document.querySelectorAll("#view-actions button");
+      running.forEach((other) => { other.disabled = true; });
+      button.classList.add("on");
+      try {
+        await runAction(action.id, {}, { quiet: false });
+      } finally {
+        // The poll inside runAction redraws the bar; these buttons are only still here if it did not.
+        button.classList.remove("on");
+        running.forEach((other) => { other.disabled = false; });
+      }
+    });
+    return button;
   }
 
   async function pollView() {

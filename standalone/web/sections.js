@@ -162,20 +162,22 @@ function toHtml(node) {
 // --------------------------------------------------------------------------- builders
 
 function buildNotice(doc, section) {
+  // Not carded, as in the app: a bordered line in its level's colour, the sign drawn by the CSS.
   const box = el(doc, "div", "stc-notice stc-notice-" + (section.level || "info"));
-  if (section.title) box.appendChild(el(doc, "strong", null, section.title));
-  box.appendChild(el(doc, "p", null, section.text || ""));
+  const text = el(doc, "div", "stc-notice-text");
+  if (section.title) text.appendChild(el(doc, "strong", null, section.title));
+  text.appendChild(el(doc, "p", null, section.text || ""));
+  box.appendChild(text);
   return box;
 }
 
 function buildStats(doc, section) {
   const box = el(doc, "div", "stc-stats");
-  if (section.title) box.appendChild(el(doc, "h3", null, section.title));
   const grid = el(doc, "div", "stc-stats-grid");
   for (const item of section.items || []) {
     const cell = el(doc, "div", "stc-stat");
-    cell.appendChild(el(doc, "span", "stc-stat-value", cellText(item.value)));
     cell.appendChild(el(doc, "span", "stc-stat-label", item.label || ""));
+    cell.appendChild(el(doc, "span", "stc-stat-value", cellText(item.value)));
     grid.appendChild(cell);
   }
   box.appendChild(grid);
@@ -184,7 +186,6 @@ function buildStats(doc, section) {
 
 function buildKv(doc, section) {
   const box = el(doc, "div", "stc-kv-box");
-  if (section.title) box.appendChild(el(doc, "h3", null, section.title));
   const list = el(doc, "dl", "stc-kv");
   for (const item of section.items || []) {
     list.appendChild(el(doc, "dt", null, item.label || ""));
@@ -218,7 +219,6 @@ function appendCell(doc, host, cell) {
 
 function buildTable(doc, section, api) {
   const box = el(doc, "div", "stc-table-box");
-  if (section.title) box.appendChild(el(doc, "h3", null, section.title));
   const table = el(doc, "table", "stc-table");
   const head = el(doc, "tr", null);
   (section.columns || []).forEach((column, index) => {
@@ -266,7 +266,6 @@ function buildRow(doc, section, index, api) {
 
 function buildList(doc, section) {
   const box = el(doc, "div", "stc-list-box");
-  if (section.title) box.appendChild(el(doc, "h3", null, section.title));
   const list = el(doc, "ul", "stc-list");
   for (const item of section.items || []) {
     const li = el(doc, "li", null);
@@ -279,14 +278,12 @@ function buildList(doc, section) {
 
 function buildText(doc, section) {
   const box = el(doc, "div", "stc-text-box");
-  if (section.title) box.appendChild(el(doc, "h3", null, section.title));
   box.appendChild(el(doc, "p", "stc-text", section.text || ""));
   return box;
 }
 
 function buildForm(doc, section, api) {
   const box = el(doc, "form", "stc-form");
-  if (section.title) box.appendChild(el(doc, "h3", null, section.title));
   const formId = section.id || section.action || "form";
   const values = formValues(formId, section.fields);
   for (const field of section.fields || []) {
@@ -337,7 +334,6 @@ function buildField(doc, formId, field, values) {
 
 function buildTimers(doc, section, api) {
   const box = el(doc, "div", "stc-timers");
-  if (section.title) box.appendChild(el(doc, "h3", null, section.title));
   for (const item of section.items || []) {
     const row = el(doc, "div", "stc-timer");
     row.setAttribute("data-timer-key", String(item.key || ""));
@@ -355,8 +351,10 @@ function buildTimers(doc, section, api) {
 }
 
 function buildTabs(doc, section, api) {
+  // Depth 0 is the underlined strip, deeper ones are bordered chips - the app's tabs and sub-tabs.
+  const depth = api.depth || 0;
   const box = el(doc, "div", "stc-tabs");
-  const strip = el(doc, "div", "stc-tabstrip");
+  const strip = el(doc, "div", depth > 0 ? "stc-tabstrip stc-subtabs" : "stc-tabstrip");
   const tabs = section.tabs || [];
   const selected = api.selectedTab(section, tabs);
   for (const tab of tabs) {
@@ -374,7 +372,7 @@ function buildTabs(doc, section, api) {
   if (current) {
     const panel = el(doc, "div", "stc-tabpanel");
     panel.setAttribute("data-tab", String(current.id));
-    const inner = renderSections({ sections: current.sections }, api);
+    const inner = renderSections({ sections: current.sections }, Object.assign({}, api, { depth: depth + 1 }));
     panel.appendChild(inner.node);
     box.appendChild(panel);
   }
@@ -384,7 +382,6 @@ function buildTabs(doc, section, api) {
 function buildPlaceholder(doc, section) {
   // The orbit/starmap drawers live in starmap.js; without them the section still occupies its place.
   const box = el(doc, "div", "stc-" + section.type);
-  if (section.title) box.appendChild(el(doc, "h3", null, section.title));
   return box;
 }
 
@@ -421,6 +418,18 @@ function defaultApi(options) {
   return api;
 }
 
+function cardSection(doc, section, inner) {
+  // The app wraps every section in a card whose head carries the title (PluginView's SectionList); a
+  // notice and a tab strip are the two it leaves bare, so they are the two this skips.
+  if (section.type === "notice" || section.type === "tabs") return inner;
+  const card = el(doc, "div", "stc-section");
+  if (section.title) card.appendChild(el(doc, "div", "stc-section-head", section.title));
+  const body = el(doc, "div", "stc-section-body");
+  body.appendChild(inner);
+  card.appendChild(body);
+  return card;
+}
+
 function renderSections(view, options) {
   const api = defaultApi(options);
   const doc = nodeFactory(api.document);
@@ -431,7 +440,8 @@ function renderSections(view, options) {
     const builder = BUILDERS[section.type];
     if (!builder) continue;                    // an unknown type is skipped, never guessed at
     types.push(section.type);
-    const node = builder(doc, section, api);
+    const node = cardSection(doc, section, builder(doc, section, api));
+    // The id goes on the outer node: it is what `focus` scrolls to (app.js applyPendingFocus).
     if (section.id) node.setAttribute("data-section-id", section.id);
     root.appendChild(node);
   }
@@ -445,7 +455,7 @@ function renderSections(view, options) {
 }
 
 const sectionsExported = {
-  renderSections, cellText, cellIcon, cellHint, sortKey, sortRows, nextSort, tabPath,
+  renderSections, cardSection, cellText, cellIcon, cellHint, sortKey, sortRows, nextSort, tabPath,
   formValues, setFormValue, resetForms, escapeHtml, toHtml, nodeFactory, el, appendCell, BUILDERS,
 };
 if (typeof module !== "undefined" && module.exports) module.exports = sectionsExported;

@@ -2,6 +2,15 @@
 
 ## 0.15.0-beta.5 (beta; needs app 3.17.0)
 
+- **The standalone page now looks like the plugin page.** The host's stylesheet was its own invention
+  (grey panels, blue accents); it now uses the app's own design - the void background, imperial gold,
+  Cinzel titles, Chakra Petch section heads and tab strips, the same tables, forms, notices, stat tiles
+  and buttons. Every section is a card with a head strip carrying its title, nested tabs are drawn as
+  the app's sub-tab chips, and a notice is a bordered line in its level's colour.
+- **The standalone page gained the plugin's action buttons.** It showed the view's sections but neither
+  its title nor its actions, so *Rescan*, *Scan game now*, *Update key mapping*, *Re-read item names*,
+  *Write Codex documents* and *Clear save history* were reachable only from the tray (and most not at
+  all). They now sit above the tabs as in the app, with the same confirmation before clearing.
 - **One search box over your whole save.** *Overview → Search your save* searches everything the page
   shows at once - systems, planets, items in every inventory, ships, bases, settlements, discoveries,
   companions, frigates, eggs - and returns the hits grouped by kind, each row as clickable as in its own

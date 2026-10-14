@@ -151,7 +151,6 @@ function details(doc, body, api) {
 function orbit(doc, section, api) {
   const layout = orbitLayout(section);
   const box = api.el(doc, "div", "stc-orbit");
-  if (section.title) box.appendChild(api.el(doc, "h3", null, section.title));
   const canvas = svg(doc, "svg", { viewBox: "0 0 " + layout.width + " " + layout.height,
                                    role: "img", "aria-label": section.title || "System map" });
   canvas.appendChild(svg(doc, "circle", { cx: layout.center.cx, cy: layout.center.cy, r: 26,
@@ -196,7 +195,6 @@ function orbitBody(doc, body, layout, panel, api) {
 
 function starmap(doc, section, api) {
   const box = api.el(doc, "div", "stc-starmap");
-  if (section.title) box.appendChild(api.el(doc, "h3", null, section.title));
   const points = (section.points || []).filter((p) => Number.isFinite(Number(p.x)));
   const state = { mode: "top", view: section.bounds
     ? starmapFit([section.bounds.min, section.bounds.max], "top")

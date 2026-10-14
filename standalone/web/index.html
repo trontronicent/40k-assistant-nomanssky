@@ -25,7 +25,17 @@
   <div class="banner banner-ok" id="notice" hidden role="status"></div>
 
   <main>
-    <section id="page-view" class="page"></section>
+    <section id="page-view" class="page">
+      <!-- The view's own title, subtitle and action buttons, as on the app's plugin page. -->
+      <div class="view-head" id="view-head" hidden>
+        <div class="view-head-text">
+          <h2 class="view-title" id="view-title"></h2>
+          <p class="view-subtitle" id="view-subtitle"></p>
+        </div>
+        <div class="view-actions" id="view-actions"></div>
+      </div>
+      <div id="view-sections"></div>
+    </section>
     <section id="page-chat" class="page" hidden></section>
     <section id="page-codex" class="page" hidden></section>
     <section id="page-settings" class="page" hidden></section>

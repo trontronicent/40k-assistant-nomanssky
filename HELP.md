@@ -206,9 +206,12 @@ Both can stay off. Without the AI assistant you still get your inventories, equi
 maps, trade routes, settlements, frigates, timers, discoveries, companions and a full-text Codex search;
 only the chat needs a model. You can turn either on later under *Settings*, and pick another model there.
 
-**Using it.** The shortcut opens the page at `http://127.0.0.1:8787`. *Game data* is the plugin's own
-pages, *Chat* asks the companion persona about your save, *Codex* searches the generated documents,
-*Settings* holds the switches and *Updates* installs another version. The tray icon opens the page, turns
+**Using it.** The shortcut opens the page at `http://127.0.0.1:8787`. It looks like the plugin's page
+inside the Strategicum - the same dark-and-gold panels, tabs, tables and forms - and above the tabs it
+carries the same buttons: **Rescan**, **Scan game now**, **Update key mapping**, **Re-read item
+names**, **Write Codex documents** and **Clear save history** (which asks first). *Game data* is the
+plugin's own pages, *Chat* asks the companion persona about your save, *Codex* searches the generated
+documents, *Settings* holds the switches and *Updates* installs another version. The tray icon opens the page, turns
 the overlay on or off, reads the save again and alerts you when a timer ends - also when no page is open,
 which is what *Start with Windows* uses. The overlay is the same always-on-top window: drag it where you
 want it, right-click to choose which areas it shows.

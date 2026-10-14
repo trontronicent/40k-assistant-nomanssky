@@ -121,3 +121,85 @@ def test_a_changed_plugin_value_is_adopted():
                     "const after = S.formValues('f2', [{id:'q', value:'fromPlugin'}]);"
                     "console.log(JSON.stringify(after.q));")
     assert result == "fromPlugin"
+
+
+def test_every_section_is_a_card_whose_head_carries_its_title():
+    """The app wraps each section in a card with a head strip holding the title (PluginView's SectionList);
+    the page does the same, and the section's id stays on the *outer* node, which is what a `focus` answer
+    scrolls to. A title drawn inside the box instead would read as part of the content."""
+    view = {"sections": [{"type": "table", "id": "t1", "title": "Visited systems",
+                          "columns": ["A"], "rows": [["1"]]}]}
+    result = run_js(f"const r = S.renderSections({json.dumps(view)});"
+                    "const card = r.children[0];"
+                    "console.log(JSON.stringify({cls: card.attrs.class, id: card.attrs['data-section-id'],"
+                    " head: card.children[0].attrs.class, title: card.children[0].textContent,"
+                    " body: card.children[1].attrs.class, inner: card.children[1].children[0].attrs.class}));")
+    assert result == {"cls": "stc-section", "id": "t1", "head": "stc-section-head",
+                      "title": "Visited systems", "body": "stc-section-body", "inner": "stc-table-box"}
+    # A section without a title gets the card, but no empty head strip.
+    plain = run_js("const r = S.renderSections({sections: [{type: 'text', text: 'x'}]});"
+                   "console.log(JSON.stringify(r.children[0].children.map((c) => c.attrs.class)));")
+    assert plain == ["stc-section-body"]
+
+
+def test_a_notice_and_a_tab_strip_are_not_carded():
+    """The two the app leaves bare: a notice is its own bordered line in its level's colour (the sign comes
+    from the CSS, so the text sits in a box of its own), and a tab strip must not look like a section."""
+    view = {"sections": [{"type": "notice", "level": "warn", "text": "careful"},
+                         {"type": "tabs", "tabs": [{"id": "a", "label": "A", "sections": []}]}]}
+    result = run_js(f"const r = S.renderSections({json.dumps(view)});"
+                    "console.log(JSON.stringify(r.children.map((c) => c.attrs.class)));")
+    assert result == ["stc-notice stc-notice-warn", "stc-tabs"]
+    text = run_js(f"const r = S.renderSections({json.dumps(view)});"
+                  "console.log(JSON.stringify({box: r.children[0].children[0].attrs.class,"
+                  " text: r.children[0].children[0].children[0].textContent}));")
+    assert text == {"box": "stc-notice-text", "text": "careful"}
+
+
+def test_nested_tabs_are_drawn_as_the_apps_sub_tabs():
+    """The app draws the first level of tabs as an underlined strip and every deeper level as bordered
+    chips, which is how the Systems and Saves tabs read as *inside* their tab rather than beside it."""
+    view = {"sections": [{"type": "tabs", "tabs": [
+        {"id": "outer", "label": "Outer", "sections": [
+            {"type": "tabs", "tabs": [{"id": "inner", "label": "Inner", "sections": [
+                {"type": "text", "text": "deep"}]}]}]}]}]}
+    result = run_js(f"const r = S.renderSections({json.dumps(view)});"
+                    "const outer = r.children[0];"
+                    "const panel = outer.children[1].children[0].children[0];"
+                    "console.log(JSON.stringify({top: outer.children[0].attrs.class,"
+                    " sub: panel.children[0].attrs.class}));")
+    assert result == {"top": "stc-tabstrip", "sub": "stc-tabstrip stc-subtabs"}
+
+
+def test_the_stylesheet_uses_the_apps_own_tokens():
+    """The look is the app's, so the page's colours are the app's `index.css` values. This guard fails if
+    the old standalone palette (--bg/--panel/--accent) comes back, which is how the two would drift apart
+    unnoticed - there is no shared stylesheet to keep them together."""
+    css = (WEB / "app.css").read_text(encoding="utf-8")
+    for token, value in (("--void", "#050508"), ("--void-alt", "#08070f"), ("--void-surface", "#0d0b18"),
+                         ("--gold", "#c8972a"), ("--gold-bright", "#f0bb42"), ("--gold-rgb", "200, 151, 42"),
+                         ("--mech-red", "#c41e0a"), ("--text-primary", "#f1f5f9"),
+                         ("--text-secondary", "#94a3b8"), ("--text-dim", "#475569")):
+        assert f"{token}: {value};" in css, token
+    for gone in ("--panel:", "--panel-2:", "--accent:", "--accent-2:", "--line:", "--muted:"):
+        assert gone not in css, gone
+    for shape in (".stc-section {", ".stc-section-head {", ".stc-section-body {", ".stc-subtabs {",
+                  ".view-head {", ".view-actions {"):
+        assert shape in css, shape
+    assert "Chakra Petch" in css and "Cinzel" in css and "Inter" in css
+
+
+def test_the_page_has_the_views_own_header_and_action_buttons():
+    """The app's plugin page shows the view's title and subtitle and one button per action; the standalone
+    page had neither, so *Rescan*, *Scan game now* and the rest were unreachable outside the tray. The
+    markup and the wiring are asserted here (there is no browser in the suite)."""
+    html = (WEB.parent / "web" / "index.html").read_text(encoding="utf-8")
+    for element in ('id="view-head"', 'id="view-title"', 'id="view-subtitle"', 'id="view-actions"',
+                    'id="view-sections"'):
+        assert element in html, element
+    app_js = (WEB / "app.js").read_text(encoding="utf-8")
+    assert "drawViewHead" in app_js and "view-actions" in app_js
+    # A destructive action asks first (the app's rule for ACTIONS entries carrying `confirm`).
+    assert "action.confirm" in app_js and "window.confirm" in app_js
+    # The buttons are disabled while one runs, as the app disables them through busyAction.
+    assert "disabled = true" in app_js
