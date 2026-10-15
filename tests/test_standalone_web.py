@@ -203,3 +203,30 @@ def test_the_page_has_the_views_own_header_and_action_buttons():
     assert "action.confirm" in app_js and "window.confirm" in app_js
     # The buttons are disabled while one runs, as the app disables them through busyAction.
     assert "disabled = true" in app_js
+
+
+def test_a_row_menu_is_wired_and_its_helpers_match_the_apps():
+    """app 3.18.0: a table's `row_menu` becomes a right-click menu. The two pure helpers are the app's
+    (`pluginModel.rowMenuItems` / `menuPosition`) so the two hosts place and bound it the same way, and the
+    menu is appended to the body - the table box scrolls and would clip it."""
+    result = run_js("console.log(JSON.stringify({"
+                    "items: S.rowMenuItems({row_menu: [{id: 'a', label: 'A', description: 'd'}, {id: 'b'},"
+                    " {label: 'no id'}]}),"
+                    "none: S.rowMenuItems({}),"
+                    "right: S.menuPosition(1800, 100, {width: 220, height: 160}, {width: 1920, height: 1080}),"
+                    "bottom: S.menuPosition(100, 1000, {width: 220, height: 160}, {width: 1920, height: 1080}),"
+                    "tiny: S.menuPosition(10, 10, {width: 220, height: 160}, {width: 200, height: 150})}));")
+    assert result["items"] == [{"id": "a", "label": "A", "description": "d"},
+                              {"id": "b", "label": "b", "description": None}]
+    assert result["none"] == []
+    assert result["right"] == {"left": 1580, "top": 100} and result["bottom"] == {"left": 100, "top": 840}
+    assert result["tiny"] == {"left": 8, "top": 8}
+
+    js = (WEB / "sections.js").read_text(encoding="utf-8")
+    assert 'addEventListener("contextmenu"' in js and "doc.body.appendChild(box)" in js
+    assert "closeRowMenu" in js and '"Escape"' in js          # a click, a scroll or Escape closes it
+    app_js = (WEB / "app.js").read_text(encoding="utf-8")
+    assert "copyText" in app_js and "navigator.clipboard" in app_js and 'execCommand("copy")' in app_js
+    assert "refused the clipboard" in app_js
+    css = (WEB / "app.css").read_text(encoding="utf-8")
+    assert ".stc-row-menu {" in css and ".stc-row-menu-item {" in css
