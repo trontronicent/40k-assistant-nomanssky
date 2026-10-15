@@ -6,8 +6,10 @@
   copy that ship - class, base stats, slots, warp range and every installed technology with its charge -
   as **TOON** (Token-Oriented Object Notation, a compact form made for pasting into a prompt), as TOON
   with its cargo, or as JSON. On the real primary ship (30 technologies) the TOON export is 2,380
-  characters against 5,438 as indented JSON. The text goes to the clipboard and onto the page, since a
-  browser only allows the clipboard on a secure address. A left click does the plain TOON export, so it
+  characters against 5,438 as indented JSON. The text goes to the clipboard and onto the page, where the
+  block has its own **Copy** button: the copy made straight after the click can be refused (a browser
+  only allows the clipboard on a secure address, and a moment after a click it may no longer count as a
+  deliberate action), while the button copies as part of your click and works on a plain LAN address too. A left click does the plain TOON export, so it
   works on an app older than 3.18.0 too, where the menu itself is not available.
 - **All 256 galaxies, and what is different about them.** *Systems → Galaxies* names the galaxy you are
   in (all 256 are named now - the page said "Galaxy #37" beyond the first ten), says what **kind** it is

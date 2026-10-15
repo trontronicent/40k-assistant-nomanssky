@@ -342,9 +342,71 @@ function buildList(doc, section) {
   return box;
 }
 
+// --------------------------------------------------------------------------- clipboard
+
+const COPY_FROM_CHARS = 200;
+
+/** Put text on the clipboard; false when the browser refused it.
+ *
+ *  Two paths, because neither works everywhere. `navigator.clipboard` needs a secure context, and this
+ *  page is often opened over a plain LAN address, where it does not exist at all. `execCommand` works
+ *  there, but only while the click that asked for it still counts as user activation - so call this from
+ *  a click handler, not after an awaited request. The Copy button on a text section is that reliable path.
+ */
+async function copyText(text) {
+  if (typeof text !== "string" || !text) return false;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (err) {
+    console.debug("the clipboard API refused, falling back to a textarea", err);
+  }
+  const area = document.createElement("textarea");
+  try {
+    area.value = text;
+    area.setAttribute("readonly", "");
+    // Off-screen but selectable: a hidden or undisplayed textarea cannot be selected at all.
+    area.style.position = "fixed";
+    area.style.top = "0";
+    area.style.left = "-9999px";
+    document.body.appendChild(area);
+    area.select();
+    area.setSelectionRange(0, text.length);
+    return document.execCommand("copy");
+  } catch (err) {
+    console.warn("could not copy to the clipboard", err);
+    return false;
+  } finally {
+    if (area.parentNode) document.body.removeChild(area);
+  }
+}
+
 function buildText(doc, section) {
   const box = el(doc, "div", "stc-text-box");
-  box.appendChild(el(doc, "p", "stc-text", section.text || ""));
+  const text = section.text || "";
+  // Anything long enough to be data rather than a sentence gets a Copy button and a selectable block.
+  if (text.length <= COPY_FROM_CHARS && !text.includes("\n")) {
+    box.appendChild(el(doc, "p", "stc-text", text));
+    return box;
+  }
+  const row = el(doc, "div", "stc-copy-row");
+  const said = el(doc, "span", "stc-copy-said", "");
+  const button = el(doc, "button", "stc-copy-button", "Copy");
+  button.setAttribute("type", "button");
+  button.setAttribute("title", "Copy this text to the clipboard");
+  if (button.addEventListener) {
+    button.addEventListener("click", async () => {
+      said.textContent = (await copyText(text))
+        ? "Copied."
+        : "This browser refused the clipboard - select the text and press Ctrl+C.";
+    });
+  }
+  row.appendChild(said);
+  row.appendChild(button);
+  box.appendChild(row);
+  box.appendChild(el(doc, "pre", "stc-copy-block", text));
   return box;
 }
 
@@ -522,7 +584,7 @@ function renderSections(view, options) {
 
 const sectionsExported = {
   renderSections, cardSection, cellText, cellIcon, cellHint, sortKey, sortRows, nextSort, tabPath,
-  rowMenuItems, menuPosition,
+  rowMenuItems, menuPosition, copyText, COPY_FROM_CHARS,
   formValues, setFormValue, resetForms, escapeHtml, toHtml, nodeFactory, el, appendCell, BUILDERS,
 };
 if (typeof module !== "undefined" && module.exports) module.exports = sectionsExported;

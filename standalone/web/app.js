@@ -190,33 +190,8 @@
     if (node && node.scrollIntoView) node.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
-  /** Put text on the clipboard; false when the browser refused. `navigator.clipboard` needs a secure
-   *  context, and this page is often opened over a plain LAN address, so the textarea path matters. */
-  async function copyText(text) {
-    try {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(text);
-        return true;
-      }
-    } catch (err) {
-      console.debug("the clipboard API refused, falling back to a textarea", err);
-    }
-    try {
-      const area = document.createElement("textarea");
-      area.value = text;
-      area.setAttribute("readonly", "");
-      area.style.position = "fixed";
-      area.style.opacity = "0";
-      document.body.appendChild(area);
-      area.select();
-      const ok = document.execCommand("copy");
-      document.body.removeChild(area);
-      return ok;
-    } catch (err) {
-      console.warn("could not copy to the clipboard", err);
-      return false;
-    }
-  }
+  // `copyText` comes from sections.js, which the page loads first - one implementation for
+  // the action's own attempt here and for the Copy button on a text section.
 
   async function runAction(actionId, params, options) {
     if (!actionId) return;

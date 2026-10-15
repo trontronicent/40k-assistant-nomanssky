@@ -409,8 +409,12 @@ they are out on an expedition or need a repair.
 
 A left click on the row does the first of them, so it also works in an older version of the 40k
 Assistant (the menu needs 3.18.0). The text is put on your **clipboard** and shown on the page under the
-ships, because a browser only allows the clipboard on a secure address (localhost or the tunnel) - if it
-refuses, the message says so and you can select the text by hand.
+ships. The copy straight after the click can be refused - a browser only allows the clipboard on a
+secure address (localhost or the tunnel), and a moment after a click it may no longer count as
+something you asked for. The block shown under the ships therefore has its own **Copy** button, which
+copies as part of your click and works on a plain LAN address too; it says *Copied.* when it worked,
+and if even that is refused you can select the text and press Ctrl+C.
+
 ## The galaxy map
 
 *Systems → Galaxy* shows every system you know in the galaxy you are in -

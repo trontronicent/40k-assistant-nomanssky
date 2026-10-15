@@ -501,3 +501,17 @@ tr[data-selected] td { background: rgba(var(--gold-rgb), 0.08); box-shadow: inse
   .stc-table td span { min-width: 0; }
   .stc-form { grid-template-columns: 1fr; }
 }
+
+/* A text section long enough to be data: a Copy button over a selectable monospace block. */
+.stc-copy-row { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-bottom: 6px; }
+.stc-copy-said { font-size: 11px; color: var(--text-muted); }
+.stc-copy-button {
+  background: transparent; border: 1px solid rgba(var(--gold-rgb), 0.35); border-radius: 2px;
+  color: var(--gold-bright); cursor: pointer; font-family: inherit; font-size: 11px; padding: 3px 10px;
+}
+.stc-copy-button:hover { border-color: var(--gold-bright); background: rgba(var(--gold-rgb), 0.08); }
+.stc-copy-block {
+  margin: 0; font-family: "Roboto Mono", monospace; font-size: 11px; color: var(--text-secondary);
+  white-space: pre-wrap; word-break: break-word; line-height: 1.5; max-height: 420px; overflow: auto;
+  user-select: text;
+}

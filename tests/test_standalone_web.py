@@ -225,8 +225,33 @@ def test_a_row_menu_is_wired_and_its_helpers_match_the_apps():
     js = (WEB / "sections.js").read_text(encoding="utf-8")
     assert 'addEventListener("contextmenu"' in js and "doc.body.appendChild(box)" in js
     assert "closeRowMenu" in js and '"Escape"' in js          # a click, a scroll or Escape closes it
+    # One clipboard implementation, in sections.js (the page loads it first); app.js only calls it.
+    assert "navigator.clipboard" in js and 'execCommand("copy")' in js
     app_js = (WEB / "app.js").read_text(encoding="utf-8")
-    assert "copyText" in app_js and "navigator.clipboard" in app_js and 'execCommand("copy")' in app_js
-    assert "refused the clipboard" in app_js
+    assert "copyText" in app_js and "refused the clipboard" in app_js
+    assert "async function copyText" not in app_js
     css = (WEB / "app.css").read_text(encoding="utf-8")
     assert ".stc-row-menu {" in css and ".stc-row-menu-item {" in css
+
+
+def test_a_long_text_section_offers_a_copy_button():
+    """The dependable way to copy: the action's own clipboard attempt happens after an awaited request, so
+    a browser may refuse it for want of user activation - and on a plain LAN address `navigator.clipboard`
+    does not exist at all. A text section carrying data therefore renders a Copy button, which copies
+    inside the click, over a selectable block. A short sentence keeps the plain paragraph."""
+    result = run_js("const f = S.nodeFactory();"
+                    "const long = S.BUILDERS.text(f, {type: 'text', text: 'a' + String.fromCharCode(10) + 'x'.repeat(300)});"
+                    "const short = S.BUILDERS.text(f, {type: 'text', text: 'a short sentence'});"
+                    "console.log(JSON.stringify({long: S.toHtml(long), short: S.toHtml(short),"
+                    " chars: S.COPY_FROM_CHARS, copy: typeof S.copyText}));")
+    assert 'class="stc-copy-button"' in result["long"] and 'type="button"' in result["long"]
+    assert 'title="Copy this text to the clipboard"' in result["long"]
+    assert 'class="stc-copy-block"' in result["long"]          # selectable, so Ctrl+C works as a last resort
+    assert 'class="stc-text"' in result["short"] and "stc-copy-button" not in result["short"]
+    assert result["chars"] == 200 and result["copy"] == "function"
+
+    js = (WEB / "sections.js").read_text(encoding="utf-8")
+    assert 'addEventListener("click"' in js and "Copied." in js
+    assert "select the text and press Ctrl+C" in js            # a refusal is reported, never swallowed
+    css = (WEB / "app.css").read_text(encoding="utf-8")
+    assert ".stc-copy-button {" in css and ".stc-copy-block {" in css
