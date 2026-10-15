@@ -26,7 +26,7 @@ from datetime import datetime
 from functools import cached_property
 from pathlib import Path
 
-from . import codex_sync, discoveries, equipment, frigates, galaxy, guilds, hgpak, inventory_search, logs, memory, planet_search, planets_view, positions, route, save_search, saves, settlements, ships, starmap, timers, trade, transfer
+from . import codex_sync, discoveries, equipment, frigates, galaxy, guilds, hgpak, inventory_search, logs, memory, planet_search, planets_view, positions, route, save_search, saves, settlements, ships, starmap, timers, toon, trade, transfer
 from .companion import PluginCompanion
 from .describe import StateText
 from .game_install import GameInstall, find_game
@@ -116,6 +116,7 @@ class NmsConnector:
         self.planet_query = planet_search.Query()   # Systems -> Planets search (planet_search.Query)
         self.inventory_query = ""                 # Inventory -> search across all inventories (inventory_search)
         self.save_query = ""                      # Overview -> one search over every tab's tables (save_search)
+        self.ship_export: dict | None = None      # the last ship export (ships.export_section; also copied)
         self.settings_path = self.data_dir / "settings.json"
         self.settings = PluginSettings.load(self.settings_path)   # Settings tab: single context, codeword
         self.error: str | None = None
@@ -379,6 +380,33 @@ class NmsConnector:
         self._planet_icons_ready = False
         logs.log().info("data dir re-read after an import: %d planets, %d economies",
                       len(self.history.planets), len(self.history.economies))
+
+    def _export_ship(self, action_id: str, params: dict) -> dict:
+        """Copy one ship's data (TOON, with or without its cargo, or JSON). Params are untrusted: `key` is
+        the ship's index in the save, as the Ships table's row keys hand it back.
+
+        The text goes into the action's `copy` (app 3.18.0 puts it on the clipboard) *and* into the page, so
+        it is reachable even where a browser refuses the clipboard."""
+        try:
+            index = int(str(params.get("key") or "").strip())
+        except ValueError:
+            return {"ok": False, "message": "Choose a ship."}
+        ship = next((s for s in self.ships if s["index"] == index), None)
+        if ship is None:
+            return {"ok": False, "message": "That ship is not in the newest save (any more)."}
+        # The item texts alone, not the whole Context: an export needs no systems, planets or bases.
+        texts = planets_view.Texts(self.gamedata)
+        cargo = ships.cargo_of(self.snapshot, index) if action_id == ships.EXPORT_TOON_CARGO else None
+        data = ships.export_data(ship, self.tables.ship_ranges, texts, cargo)
+        if action_id == ships.EXPORT_JSON:
+            text, fmt = json.dumps(data, ensure_ascii=False, indent=2), "JSON"
+        else:
+            text, fmt = toon.encode(data), "TOON" + (" with cargo" if cargo else "")
+        label = ships.ship_label(ship)
+        self.ship_export = {"ship": label, "format": fmt, "text": text, "chars": len(text)}
+        return {"ok": True, "copy": text, "focus": ships.EXPORT_ID,
+                "message": f"{label} as {fmt}: {len(text):,} characters copied"
+                           f" ({len(data['technology'])} technologies)."}
 
     def _set_guild(self, params: dict) -> dict:
         """Record which guild's envoy a station holds, for the whole voxel region of that system.
@@ -764,6 +792,7 @@ class NmsConnector:
             planets_view.NAME_FIX: self._act_name_fix,
             planets_view.SET_GUILD: self._act_set_guild,
             page.EXPORT_DATA: self._act_export_data,
+            **{action: self._ship_export_handler(action) for action in ships.EXPORT_ACTIONS},
             page.IMPORT_DATA: self._act_import_data,
             inventory_search.SEARCH_INVENTORY: self._act_search_inventory,
             save_search.SEARCH_SAVE: self._act_search_save,
@@ -795,6 +824,12 @@ class NmsConnector:
 
     async def _act_export_data(self, params: dict) -> dict:
         return await self.ctx.run_blocking(self._export_data, params)
+
+    def _ship_export_handler(self, action_id: str):
+        """The handler of one ship-export action (they differ only in the format they write)."""
+        async def run(params: dict) -> dict:
+            return await self.ctx.run_blocking(self._export_ship, action_id, params)
+        return run
 
     async def _act_import_data(self, params: dict) -> dict:
         return await self.ctx.run_blocking(self._import_data, params)

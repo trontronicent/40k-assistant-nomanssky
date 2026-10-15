@@ -241,6 +241,69 @@ function buildTable(doc, section, api) {
   return box;
 }
 
+function rowMenuItems(section) {
+  // The app's `pluginModel.rowMenuItems`: only plain {id, label} entries reach the page.
+  return (section.row_menu || [])
+    .filter((item) => item && typeof item.id === "string")
+    .map((item) => ({ id: item.id, label: item.label || item.id, description: item.description || null }));
+}
+
+function menuPosition(x, y, menu, viewport, margin) {
+  // The app's `pluginModel.menuPosition`: a menu at the right or bottom edge flips back onto the page.
+  const pad = margin === undefined ? 8 : margin;
+  const left = x + menu.width + pad > viewport.width ? Math.max(pad, x - menu.width) : x;
+  const top = y + menu.height + pad > viewport.height ? Math.max(pad, y - menu.height) : y;
+  return { left: Math.round(left), top: Math.round(top) };
+}
+
+function openRowMenu(doc, section, key, event, api) {
+  // The menu is appended to the body, not into the table: the table box scrolls and would clip it.
+  if (!doc.body || !event.preventDefault) return;
+  event.preventDefault();
+  closeRowMenu();
+  const items = rowMenuItems(section);
+  if (!items.length || key === null || key === undefined) return;
+  const box = el(doc, "div", "stc-row-menu");
+  box.setAttribute("role", "menu");
+  for (const item of items) {
+    const button = el(doc, "button", "stc-row-menu-item", item.label);
+    button.setAttribute("type", "button");
+    button.setAttribute("role", "menuitem");
+    button.setAttribute("title", item.description || item.label);
+    button.addEventListener("click", () => {
+      closeRowMenu();
+      api.onAction(item.id, { key: key }, { quiet: false });
+    });
+    box.appendChild(button);
+  }
+  doc.body.appendChild(box);
+  const rect = box.getBoundingClientRect ? box.getBoundingClientRect() : { width: 0, height: 0 };
+  const at = menuPosition(event.clientX || 0, event.clientY || 0, { width: rect.width, height: rect.height },
+                          { width: window.innerWidth, height: window.innerHeight });
+  box.style.left = at.left + "px";
+  box.style.top = at.top + "px";
+  openMenu = box;
+  // One listener each, removed with the menu: a click anywhere, a scroll or Escape closes it.
+  setTimeout(() => {
+    window.addEventListener("pointerdown", closeRowMenu, { once: true, capture: true });
+    window.addEventListener("scroll", closeRowMenu, { once: true, capture: true });
+    window.addEventListener("keydown", escapeCloses);
+  }, 0);
+}
+
+let openMenu = null;
+
+function escapeCloses(event) {
+  if (event.key === "Escape") closeRowMenu();
+}
+
+function closeRowMenu() {
+  if (!openMenu) return;
+  if (openMenu.parentNode) openMenu.parentNode.removeChild(openMenu);
+  openMenu = null;
+  window.removeEventListener("keydown", escapeCloses);
+}
+
 function buildRow(doc, section, index, api) {
   const row = el(doc, "tr", null);
   const keys = section.row_keys || [];
@@ -259,6 +322,9 @@ function buildRow(doc, section, index, api) {
     row.addEventListener("keydown", (event) => {
       if (event.key === "Enter" || event.key === " ") api.onAction(section.row_action, { key: key });
     });
+  }
+  if (section.row_menu && key !== null) {
+    row.addEventListener("contextmenu", (event) => openRowMenu(doc, section, key, event, api));
   }
   if (section.selected_key && key === section.selected_key) row.setAttribute("data-selected", "1");
   return row;
@@ -456,6 +522,7 @@ function renderSections(view, options) {
 
 const sectionsExported = {
   renderSections, cardSection, cellText, cellIcon, cellHint, sortKey, sortRows, nextSort, tabPath,
+  rowMenuItems, menuPosition,
   formValues, setFormValue, resetForms, escapeHtml, toHtml, nodeFactory, el, appendCell, BUILDERS,
 };
 if (typeof module !== "undefined" && module.exports) module.exports = sectionsExported;

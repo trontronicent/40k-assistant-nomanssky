@@ -395,6 +395,22 @@ the frigate for the list, negative ones are marked), how many expeditions they
 flew and how many events they won, the system they were bought in, and whether
 they are out on an expedition or need a repair.
 
+### Copying a ship's data for a prompt
+
+**Right-click a ship** in *Ships & bases → Ships* for a menu:
+
+- **Copy ship data (TOON)** - the ship, its class, its base stats, its slots, its estimated warp range
+  and every installed technology with its charge, in *TOON* (Token-Oriented Object Notation): a compact
+  text form made for pasting into a prompt. On a ship with 30 technologies it is about half the
+  characters of the same data as JSON, because the technology list is written as one header and one line
+  per module instead of repeating the field names.
+- **Copy ship data with cargo (TOON)** - the same, plus what the ship is carrying.
+- **Copy ship data (JSON)** - the same data as JSON, for a script rather than a prompt.
+
+A left click on the row does the first of them, so it also works in an older version of the 40k
+Assistant (the menu needs 3.18.0). The text is put on your **clipboard** and shown on the page under the
+ships, because a browser only allows the clipboard on a secure address (localhost or the tunnel) - if it
+refuses, the message says so and you can select the text by hand.
 ## The galaxy map
 
 *Systems → Galaxy* shows every system you know in the galaxy you are in -

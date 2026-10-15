@@ -383,6 +383,35 @@ tr[data-selected] td { background: rgba(var(--gold-rgb), 0.08); box-shadow: inse
   white-space: nowrap;
 }
 
+/* A table row's right-click menu (app 3.18.0), appended to the body so no table box clips it. */
+.stc-row-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 200px;
+  display: flex;
+  flex-direction: column;
+  padding: 2px;
+  background: var(--void-surface);
+  border: 1px solid rgba(var(--gold-rgb), 0.3);
+  border-radius: 2px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+.stc-row-menu-item {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  text-align: left;
+  padding: 6px 10px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--text-primary);
+}
+
+.stc-row-menu-item:hover { background: rgba(var(--gold-rgb), 0.08); color: var(--gold-bright); }
+
 /* --- chat --------------------------------------------------------------- */
 
 .chat-log { display: grid; gap: 10px; margin-bottom: 12px; }

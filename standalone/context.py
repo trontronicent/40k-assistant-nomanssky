@@ -19,7 +19,7 @@ SECTION_TYPES = ("notice", "stats", "kv", "table", "list", "text", "tabs", "orbi
 
 # What the connector may assume of its host. Kept at the app version whose features this host
 # implements; raising the manifest's `app.min_version` means raising this with it.
-APP_VERSION = "3.17.0"
+APP_VERSION = "3.18.0"
 
 
 class StandaloneContext:

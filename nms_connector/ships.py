@@ -33,6 +33,13 @@ TECH_ID_AT, TECH_BONUSES_AT, BONUS_SIZE = techstats.TECH_ID_AT, techstats.TECH_B
 PROC_ID_AT, PROC_LEVELS_AT, LEVEL_SIZE = techstats.PROC_ID_AT, techstats.PROC_LEVELS_AT, techstats.LEVEL_SIZE
 
 STAR_COLOURS = {"HDRIVEBOOST1": "red", "HDRIVEBOOST2": "green", "HDRIVEBOOST3": "blue", "HDRIVEBOOST4": "purple"}
+
+# Actions of the Ships table's row menu (app 3.18.0): copy one ship's data to the clipboard.
+EXPORT_TOON = "export_ship_toon"
+EXPORT_TOON_CARGO = "export_ship_toon_cargo"
+EXPORT_JSON = "export_ship_json"
+EXPORT_ACTIONS = (EXPORT_TOON, EXPORT_TOON_CARGO, EXPORT_JSON)
+EXPORT_ID = "ship-export"                 # the section the copied text is also shown in
 BASE_STATS = {"^SHIP_DAMAGE": "damage", "^SHIP_SHIELD": "shield", "^SHIP_HYPERDRIVE": "hyperdrive", "^SHIP_AGILE": "agility"}
 
 # Measured from the game's files on 2026-10-04 (build 25625620): used when they cannot be read.
@@ -165,6 +172,61 @@ def ship_label(ship: dict) -> str:
     return ship["name"] or f"(unnamed {ship['type']})"
 
 
+def export_data(ship: dict, tables: dict, texts, inventory=None) -> dict:
+    """One ship as plain data for an export: what it is, its stats, its slots, its warp range and every
+    installed technology with its charge - the facts the Ships table and its technology tab show.
+
+    The technology rows all carry the same keys on purpose: that is the shape TOON writes as one header plus
+    bare rows (`toon.table_fields`), which is where the format saves its tokens. `inventory` is an optional
+    [(item id, amount, max)] of what the ship carries."""
+    est = warp_range(ship, tables)
+    technology = [{"id": tech_id(t["id"]), "name": texts.name(t["id"]) or tech_id(t["id"]),
+                   "charge": t.get("charge") if (t.get("charge") or -1) >= 0 else None,
+                   "max_charge": t.get("max") or None,
+                   "damaged": t["id"].startswith(DAMAGED_PREFIX)} for t in ship["technology"]]
+    out = {
+        "ship": ship_label(ship),
+        "type": ship["type"],
+        "class": ship["class"],
+        "primary": bool(ship["primary"]),
+        "stats_percent": {name: ship["stats"].get(name, 0.0) for name in ("damage", "shield", "hyperdrive", "agility")},
+        "slots": {"general": ship["slots"], "cargo": ship["cargo_slots"], "tech": ship["tech_slots"],
+                  "damaged": damaged_slots(ship)},
+        "warp_range_ly": {"low": est["low"], "high": est["high"], "star_colours": est["colours"] or ["yellow"]},
+        "technology": technology,
+    }
+    if inventory:
+        out["cargo"] = [{"id": str(i), "name": texts.name(i) or str(i), "amount": int(a or 0), "max": m or None}
+                        for i, a, m in inventory]
+    return out
+
+
+def export_toon(ship: dict, tables: dict, texts, inventory=None) -> str:
+    """`export_data` as TOON text, ready to paste into a prompt."""
+    from . import toon
+    return toon.encode(export_data(ship, tables, texts, inventory))
+
+
+def cargo_of(snap: dict | None, index: int) -> list:
+    """What that ship is carrying, as the snapshot holds it ([(item id, amount, max)]), or []."""
+    for ship in (snap or {}).get("ships") or []:
+        if ship.get("index") == index:
+            return ship.get("inventory") or []
+    return []
+
+
+def export_section(state: dict | None) -> list[dict]:
+    """The last copied ship export, shown on the page as well as put on the clipboard.
+
+    A browser only reaches the clipboard in a secure context (localhost or the tunnel), and the standalone
+    host can be opened over a plain LAN address - so the text is always on the page too, to select by hand."""
+    if not state:
+        return []
+    return [{"type": "text", "id": EXPORT_ID,
+             "title": f"{state['ship']} as {state['format']} - {state['chars']:,} characters",
+             "text": state["text"]}]
+
+
 def primary_range(items: list[dict], tables: dict) -> dict | None:
     """The primary ship's warp-range estimate with its name, or None."""
     primary = next((s for s in items if s["primary"]), None)
@@ -199,7 +261,19 @@ def ship_sections(items: list[dict], tables: dict, texts) -> list[dict]:
     out = [{"type": "table", "id": "ships", "title": f"Ships ({len(items)})",
             "columns": ["Ship", "Type", "Class", "Warp range (estimate)", "Star colours it can reach", "Damage",
                         "Shield", "Hyperdrive", "Maneuverability", "Slots (general / cargo / tech)"],
-            "rows": rows}]
+            "rows": rows,
+            # app 3.18.0: right-click a ship to copy it. The keys are the ship's index in the save, and the
+            # same actions sit on a left click too, so an older app can still export (`row_action`).
+            "row_keys": [str(s["index"]) for s in items],
+            "row_action": EXPORT_TOON,
+            "row_menu": [{"id": EXPORT_TOON, "label": "Copy ship data (TOON)",
+                          "description": "The ship, its stats, slots, warp range and every installed "
+                                         "technology as TOON - a compact form for pasting into a prompt."},
+                         {"id": EXPORT_TOON_CARGO, "label": "Copy ship data with cargo (TOON)",
+                          "description": "The same, plus what the ship is carrying."},
+                         {"id": EXPORT_JSON, "label": "Copy ship data (JSON)",
+                          "description": "The same data as JSON, for a script rather than a prompt."}],
+            "row_hint": "Right-click a ship to copy its data (left click copies it as TOON)."}]
     def adds(raw_id: str) -> str | None:
         """What the stat list does not say: the star colours a drive opens; the warp range when the technology
         tables' stats are not available (texts without modifiers)."""

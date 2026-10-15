@@ -190,6 +190,34 @@
     if (node && node.scrollIntoView) node.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
+  /** Put text on the clipboard; false when the browser refused. `navigator.clipboard` needs a secure
+   *  context, and this page is often opened over a plain LAN address, so the textarea path matters. */
+  async function copyText(text) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        return true;
+      }
+    } catch (err) {
+      console.debug("the clipboard API refused, falling back to a textarea", err);
+    }
+    try {
+      const area = document.createElement("textarea");
+      area.value = text;
+      area.setAttribute("readonly", "");
+      area.style.position = "fixed";
+      area.style.opacity = "0";
+      document.body.appendChild(area);
+      area.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(area);
+      return ok;
+    } catch (err) {
+      console.warn("could not copy to the clipboard", err);
+      return false;
+    }
+  }
+
   async function runAction(actionId, params, options) {
     if (!actionId) return;
     try {
@@ -200,7 +228,13 @@
         timeoutMs: 130000,
       });
       clearError();
-      if (options && options.quiet === false && result.message) showNotice(result.message);
+      // app 3.18.0: an action may hand back text for the clipboard (a row menu's "copy ..." entry).
+      const copied = typeof result.copy === "string" && result.copy ? await copyText(result.copy) : null;
+      if (options && options.quiet === false && result.message) {
+        showNotice(copied === false
+          ? result.message + " - this browser refused the clipboard; the text is on the page."
+          : result.message);
+      }
       if (result.focus) state.pendingFocus = result.focus;
       await pollView();
     } catch (err) {

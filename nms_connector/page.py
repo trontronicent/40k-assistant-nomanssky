@@ -296,7 +296,8 @@ class ConnectorPage:
         if not snap:
             return [{"type": "text", "text": "Ships and bases appear once a save has been read."}]
 
-        return ships.ship_sections(c.ships, c.tables.ship_ranges, ctx.texts) + frigates.frigate_sections(
+        return ships.ship_sections(c.ships, c.tables.ship_ranges, ctx.texts) \
+            + ships.export_section(c.ship_export) + frigates.frigate_sections(
             c.frigates, c.tables.trait_names, ctx.texts, lambda key: system_label(key, ctx)) + [self.bases_table(snap, ctx)]
 
     def bases_newest_first(self, snap: dict) -> list[dict]:
