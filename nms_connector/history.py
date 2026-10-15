@@ -15,7 +15,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 
-from . import logs
+from . import logs, memory
 from .memory import system_key
 
 HISTORY_VERSION = 2
@@ -38,19 +38,47 @@ def _packed(value) -> int | None:
     return None
 
 
+def _teleports(ps: dict) -> list[tuple[int, str]]:
+    """(system key, what it is) per teleport endpoint in the save.
+
+    You can only have an endpoint where you have been - a base you built, a station you docked at - so
+    this is the save's own record of the systems, and the galaxies, you reached (the Galaxies tab)."""
+    out = []
+    for endpoint in ps.get("TeleportEndpoints") or []:
+        if not isinstance(endpoint, dict):
+            continue
+        ua = endpoint.get("UniverseAddress")
+        if not isinstance(ua, dict) or not isinstance(ua.get("GalacticAddress"), dict):
+            continue
+        try:
+            key = system_key(memory.pack_address(ua))
+        except (KeyError, TypeError):
+            continue
+        out.append((key, str(endpoint.get("Name") or endpoint.get("TeleporterType") or "endpoint")[:80]))
+    return out
+
+
 def visits_from_save(save: dict) -> dict[int, dict]:
-    """{system key: {"name", "named_by", "visited", "discovered_at", "planets": {index: {...}}}} from a save."""
+    """{system key: {"name", "named_by", "visited", "teleport", "discovered_at", "planets": {...}}} from a save.
+
+    The three sources are packed differently, which cost the plugin dearly until 2026-10-15:
+    ``VisitedSystems`` has its own bit layout (`memory.unpack_visited`), while the discovery records'
+    ``DD.UA`` and the teleport endpoints' ``UniverseAddress`` are the normal one."""
     ps = (save.get("BaseContext") or {}).get("PlayerStateData") or {}
     systems: dict[int, dict] = {}
 
     def system(key: int) -> dict:
-        return systems.setdefault(key, {"name": None, "named_by": None, "visited": False, "discovered_at": None,
-                                        "planets": {}})
+        return systems.setdefault(key, {"name": None, "named_by": None, "visited": False, "teleport": None,
+                                        "discovered_at": None, "planets": {}})
 
     for value in ps.get("VisitedSystems") or []:
         packed = _packed(value)
         if packed is not None:
-            system(system_key(packed))["visited"] = True
+            system(memory.visited_key(packed))["visited"] = True
+    for key, teleport in _teleports(ps):
+        entry = system(key)
+        entry["visited"] = True
+        entry["teleport"] = teleport
     records = (((save.get("DiscoveryManagerData") or {}).get("DiscoveryData-v1") or {}).get("Store") or {}).get("Record") or []
     for record in records:
         dd = record.get("DD") or {}

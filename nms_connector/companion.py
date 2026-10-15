@@ -18,7 +18,7 @@ import re
 import time
 from datetime import date
 
-from . import (assistant, conversation, cooking, craftable, creature_lines, diagrams, discoveries_view, logs, galaxy, merging, page as page_module, planet_search, planets_view, recipes, seasons,
+from . import (assistant, conversation, cooking, craftable, creature_lines, diagrams, discoveries_view, logs, galaxies, galaxy, merging, page as page_module, planet_search, planets_view, recipes, seasons,
                settlements, timers, trade)
 
 PERSONA_PROMPT = (
@@ -95,6 +95,9 @@ SETTLEMENT_WORDS = {"settlement", "settlements", "siedlung", "siedlungen", "over
 BASE_WORDS = {"base", "bases", "basis", "basen", "homestead", "outpost", "aussenposten", "außenposten",
               "freighter base", "frachterbasis", "built", "gebaut", "build", "baue", "teleporter"}
 ECONOMY_WORDS = {"economy", "economies", "wirtschaft", "trade", "sell", "buy", "verkaufen", "kaufen", "handel"}
+# A question about galaxies: which one you are in, what kind it is, where you have been (galaxies.py).
+GALAXY_WORDS = {"galaxy", "galaxies", "galaxie", "galaxien", "galaktisch", "galactic", "euclid",
+                "eissentam", "calypso", "hilbert", "core", "kern", "zentrum", "centre", "center"}
 # A question about equipment: the installed technology of what it names (all of it when it names nothing).
 EQUIPMENT_WORDS = {
     "multitool": "multitools", "multi-tool": "multitools", "multitools": "multitools", "multiwerkzeug": "multitools",
@@ -276,6 +279,7 @@ class PluginCompanion:
         extra += self._block("companions", self.pet_lines, question, snap, now)
         extra += self._block("discoveries", self.discovery_lines, question, ctx)
         extra += self._block("game terms", self.world_lines, question)
+        extra += self._block("galaxies", self.galaxy_lines, words, ctx, here)
         # The overview (timers, settlements, frigates) comes last: when a block is over the app's 8,000-character cut it
         # is the tail that goes, and that should be the lines every question gets, not the ones this question asked for.
         extra += self._overview_lines(now)
@@ -549,6 +553,31 @@ class PluginCompanion:
         def label_of(row: dict) -> str:
             return discoveries_view.place(row, ctx)
         return creature_lines.discovery_lines(question, self.connector.discovery_book, label_of)
+
+    def galaxy_lines(self, words: set, ctx, here) -> list[str]:
+        """For a question about galaxies: which one you are in, what kind it is and what that changes, the
+        galaxies your save has been to, and the next one through the core.
+
+        Only on a galaxy word - "galaxy" is otherwise a word the model sprinkles into any answer about
+        space, and these lines would then crowd out the ones the question asked for."""
+        if not (GALAXY_WORDS & words):
+            return []
+        index = galaxy.galaxy_of(here) if here is not None else None
+        research = galaxies.research()
+        out = []
+        if index is not None:
+            out.append(f"You are in {galaxies.label(index)}: " + " ".join(galaxies.kind_facts(index, research)))
+            nxt = index + 1
+            if nxt < galaxies.count():
+                out.append(f"The next galaxy through the galactic core is {galaxies.label(nxt)}.")
+        counts = planets_view.galaxy_counts(ctx)
+        been = [i for i in sorted(counts, key=lambda i: -counts[i]["systems"]) if counts[i]["systems"]]
+        if been:
+            listed = ", ".join(f"{galaxies.label(i)}: {counts[i]['systems']} system(s), "
+                               f"{counts[i]['planets']} planet(s) with resources" for i in been[:6])
+            out.append(f"Galaxies your save has been to ({len(been)}): {listed}.")
+        out.append(f"There are {galaxies.count()} galaxies; {galaxies.UNCHANGED[0].lower()}{galaxies.UNCHANGED[1:]}")
+        return out
 
     def world_lines(self, question: str) -> list[str]:
         """What the game terms of a question mean, in the game's own words: "stickige" is the German game's

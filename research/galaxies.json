@@ -1,0 +1,62 @@
+{
+  "researched": "2026-10-15",
+  "note": "What distinguishes the 256 galaxies. The names are community-recorded (the game's language files name only the first five: MAIN_GALAXY, SECOND_GALAXY, THIRD_GALAXY, FOURTH_GALAXY, FIFTH_GALAXY, checked against build 25732212), and so are the kinds. nms_connector/galaxies.py holds the names and derives each galaxy's kind from the pattern below; the prose here is what the page and the persona read.",
+  "sources": [
+    "https://nomanssky.miraheze.org/wiki/Galaxy",
+    "https://nomanssky.fandom.com/wiki/Galaxy_(Atlas)",
+    "https://nomansskyrecipes.com/blog/no-mans-sky-galaxies-guide/",
+    "https://steamcommunity.com/app/275850/discussions/0/3458220484830981442"
+  ],
+  "pattern": {
+    "rule": "A galaxy's kind depends only on its number: number modulo 20 -> 3 harsh, 7 empty, 10 lush, 12 empty, 15 harsh, 19 lush; every other number is a normal galaxy.",
+    "derivation": "Taken from the galaxies the wiki labels (3 Calypso harsh, 7 Budullangr empty, 10 Eissentam lush, 12 Aptarkaba empty, 15 Ogtialabi harsh, 19 Isdoraijung lush) and each of them +20 (23 harsh, 27 empty, 30 lush, 32 empty, 35 harsh, 39 lush, 43 harsh, 47 empty, 50 lush, 52 empty, 55 harsh, 59 lush, 63 harsh, 67 empty, 70 lush - all as the wiki labels them).",
+    "check": "The rule yields 26 harsh, 26 empty, 25 lush and 179 normal, which matches the totals the wiki states (26/26/25). The wiki's own 'normal' count of 178 excludes galaxy 256 (Odyalutai), which it says normal play cannot reach since 2017."
+  },
+  "kinds": {
+    "normal": {
+      "label": "Normal",
+      "hologram": "cyan",
+      "descriptors": ["Imperfect", "Improved", "Parallel", "Rebuilt"],
+      "differences": [
+        "The standard mix of worlds and weather - 179 of the 256 galaxies, Euclid among them.",
+        "Nothing is dialled up or down: this is the distribution every guide's planet odds are written for."
+      ]
+    },
+    "lush": {
+      "label": "Lush",
+      "hologram": "green",
+      "descriptors": ["Halcyon", "Inspiring", "Serene", "Tranquil"],
+      "differences": [
+        "Lush, green worlds are far more common - around yellow stars roughly four times as likely as in a normal galaxy.",
+        "Dead worlds are about half as likely, and weather is reported as milder.",
+        "25 galaxies, Eissentam (10) the best known: it is where many players settle after the Atlas path."
+      ]
+    },
+    "harsh": {
+      "label": "Harsh",
+      "hologram": "red",
+      "descriptors": ["Burning", "Raging", "Relentless", "Ruthless"],
+      "differences": [
+        "Hostile worlds dominate: toxic, scorched, frozen and irradiated planets are markedly more common.",
+        "Players report more aggressive Sentinels; the guides disagree on whether anything but planet generation changes, so treat this as a report rather than a fact.",
+        "26 galaxies, Calypso (3) the first one you can reach."
+      ]
+    },
+    "empty": {
+      "label": "Empty",
+      "hologram": "blue",
+      "descriptors": ["Ancestral", "Exhausted", "Frozen", "Silent"],
+      "differences": [
+        "Dead, barren worlds are about four times as likely, and most worlds carry little flora or fauna.",
+        "Star systems are sparser, and some worlds have thinner atmospheres and lower gravity.",
+        "26 galaxies, Budullangr (7) the first; good for quiet building, poor for farming creatures or plants."
+      ]
+    }
+  },
+  "unchanged": "Resources, recipes, prices, item drops, hyperdrive range, refining and cooking, the races, the Sentinel rules, base building limits and the whole progression are identical in every galaxy. The kind only changes how planets are generated, and the galaxy's name changes nothing at all.",
+  "caveats": [
+    "Players repeatedly point out that the differences are shifts in probability, not different rules: a harsh galaxy still has lush worlds and an empty one still has life, just more rarely.",
+    "The hologram colour on the galaxy map (cyan/green/red/blue) is the one way to tell a galaxy's kind in game before travelling to it.",
+    "Travelling to the next galaxy is one jump through the galactic core (or an Atlas path ending); the number always goes up by one, so the kind of the next galaxy is known in advance from the pattern."
+  ]
+}

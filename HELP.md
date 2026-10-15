@@ -23,7 +23,7 @@ On a phone every table of three or more columns is shown as a list of cards (the
 The tabs:
 
 - **Overview** - **Search your save** (one box over *everything* read from your save: systems, planets, items in every inventory, ships, bases, settlements, discoveries, companions and more - results come back grouped by kind and stay clickable as in their own tab), **timers** (when your settlement buildings are finished and your frigate expeditions return), units, nanites, quicksilver, health, where you were at the last save, where you are now, your fleet and companions: the **primary ship** with its estimated warp range and the star colours it reaches, your **settlements** at a glance (construction, a decision waiting), the **freighter** with its warp range, and the current mission in the game's words.
-- **Systems** - *Current system* (live from the game, with a map), *Visited systems* (every system from your save; click one to see its map), *Planets* (every planet whose resources were read, with a **search**: type what a planet is like - *sengend heiß*, *toxic*, *Ammoniak* - in English or the game's language, and narrow it by **Has the resource** and by the planet's **type**), *Galaxy* (the galaxy map and the nearest planet with each resource) and *Trade* (economies and trade routes), *Route* (the route planner) and *Star positions (prototype)* (exact positions of stars you lock on the galaxy map).
+- **Systems** - *Current system* (live from the game, with a map), *Visited systems* (every system from your save; click one to see its map), *Planets* (every planet whose resources were read, with a **search**: type what a planet is like - *sengend heiß*, *toxic*, *Ammoniak* - in English or the game's language, and narrow it by **Has the resource** and by the planet's **type**), *Galaxy* (the galaxy map and the nearest planet with each resource), *Galaxies* (which galaxy you are in, what kind it is and what that changes, and every galaxy your save has reached) and *Trade* (economies and trade routes), *Route* (the route planner) and *Star positions (prototype)* (exact positions of stars you lock on the galaxy map).
 - **Inventory** - exosuit, starship, freighter, **storage containers** (0-9, numbered as in the game) and **Equipment**. **Search all inventories** at the top finds an item in every inventory at once by its name, category or id, in English or the game's language (*Kupfer*, *trade goods*): every matching stack with the inventory it is in, biggest stack first, and above them each item's total and what everything found is worth in units. Every word must match, a word also finds longer ones, and a place word narrows it (*copper freighter*, *Kobalt Lager*). Each item with its icon, its name in English and in the game's language, its **category** and what it is worth: **Value (stack)** is the whole stack at the base value, **Value (each)** one unit - the two numbers the game's own tooltip shows ("Insgesamt 6.426 Units", "Je 6 Units"). Sort by *Value (stack)* to see what is worth most. Technology and upgrade modules have no base value, so their cells stay empty. Hover an item's name for its description (in English and in the game's language) and its **base value** (what the game says one unit is worth); **trade goods** also tell which economies pay well for them, the nearest such system you know (or that you have not found one yet) and where they are cheap to buy. Planet resources have the same tooltip. See *Equipment* below.
 - **Ships & bases** - your ships (type, class, estimated **warp range**, the star colours they can reach, base stats, slots), **every ship's technology** (one tab per ship) and your **bases**: where each one stands (the planet for a planet base, the system for a freighter base or a ship interior), how many parts it has, what it is built from (hover for every part, named in English and in the game's language) and when you last built on it, newest first. See *Ships* below.
 - **Settlements** - the economy of each settlement you run: see *Settlements* below.
@@ -519,6 +519,44 @@ again from where you are, and in the target system it says you have arrived.
 Distances are measured between regions and are approximate, so leave some
 margin on the range.
 
+## Galaxies
+
+The universe has **256 galaxies**, numbered 1 to 256, and every address in your save says which one it
+belongs to - so the plugin knows the galaxy of every system, planet and base you have. *Systems →
+Galaxies* shows three things.
+
+**The galaxy you are in**: its name and number, its kind, the words the game itself uses for that kind,
+the colour of its hologram on the galaxy map, what the kind changes, how much you have there, and which
+galaxy the next jump through the galactic core would take you to (always the next number, so its kind is
+known in advance).
+
+**Your galaxies**: one row per galaxy something of yours is in - a visited system, a planet whose
+resources were read, an economy, a base or a teleport endpoint - with the counts and when you were last
+there. A galaxy that only appears as a single name in the galaxy map's name cache is not counted as
+yours; a stray record there names galaxies nobody has been to, and the page says how many were left out.
+
+### What is different between galaxies
+
+A galaxy's kind follows from its **number** alone: in every block of twenty, numbers 3 and 15 are harsh,
+7 and 12 empty, 10 and 19 lush, and the rest normal.
+
+| Kind | Galaxies | Hologram | What is different |
+|---|---|---|---|
+| **Normal** | 179 | cyan | The usual mix of worlds and weather - Euclid among them. |
+| **Lush** | 25 | green | Lush worlds are far more common (around yellow stars roughly four times as likely), dead ones half as likely, weather milder. Eissentam (10) is the best known. |
+| **Harsh** | 26 | red | Toxic, scorched, frozen and irradiated worlds dominate; players report more aggressive Sentinels. Calypso (3) is the first one you can reach. |
+| **Empty** | 26 | blue | Dead, barren worlds about four times as likely, sparser star systems, little flora or fauna. Budullangr (7) is the first. |
+
+Everything else is the same in all 256: resources, recipes, prices, item drops, hyperdrive range,
+refining and cooking, the races, base building and the whole progression. The kind only changes how
+planets are generated, and the name changes nothing at all.
+
+The names and the kinds are **community-recorded**: the game's own files name only the first five
+galaxies and say nothing about kinds at all. The sources, the pattern and the places where guides
+disagree are in `research/galaxies.json` in the plugin's folder.
+
+The plugin persona answers from the same data: ask it *which galaxy am I in*, *what is different here*
+or *is Eissentam better* and it has your galaxies, their kinds and what each kind changes.
 ## Moving your data
 
 What the plugin has recorded cannot be read back out of the game: the planets

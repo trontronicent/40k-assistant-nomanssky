@@ -2,6 +2,25 @@
 
 ## 0.15.0-beta.5 (beta; needs app 3.17.0)
 
+- **All 256 galaxies, and what is different about them.** *Systems → Galaxies* names the galaxy you are
+  in (all 256 are named now - the page said "Galaxy #37" beyond the first ten), says what **kind** it is
+  - normal, lush, harsh or empty - what that changes about the worlds you will find, what the game's own
+  descriptor words and hologram colour for it are, and which galaxy the next jump through the core leads
+  to. Below it: every galaxy your save has reached, with systems, planets, economies, bases and teleport
+  endpoints per galaxy, and a table of the four kinds. A galaxy's kind follows from its number (in every
+  block of twenty: 3 and 15 harsh, 7 and 12 empty, 10 and 19 lush), which reproduces the recorded totals
+  exactly; names, kinds and the differences are community-recorded, with the sources in
+  `research/galaxies.json`. The persona answers from the same data on a galaxy question.
+- **Fix: every system known only from the save's visited list had the wrong galaxy.**
+  `PlayerStateData.VisitedSystems` packs its addresses differently from the discovery records - Y and Z
+  swapped, the system index and galaxy higher up - and the plugin read it the other way, which put the
+  galaxy byte inside the system index. On the real save that produced **167 galaxies** instead of the 3 it
+  has been to, with wrong voxels, portal addresses and distances for those systems. The layout was pinned
+  down by the save's own `UniverseAddress` and by 410 of its 417 visited systems also appearing among the
+  discovery records; found while building the Galaxies tab, which showed the nonsense plainly.
+- **The save's teleport endpoints count as visited.** A base you built or a station you docked at is an
+  endpoint, and you can only have one where you have been - so they now mark their systems and show up
+  per galaxy, which is how the plugin knows about galaxies you only passed through.
 - **The standalone page now looks like the plugin page.** The host's stylesheet was its own invention
   (grey panels, blue accents); it now uses the app's own design - the void background, imperial gold,
   Cinzel titles, Chakra Petch section heads and tab strips, the same tables, forms, notices, stat tiles

@@ -118,11 +118,49 @@ def system_key(packed: int) -> int:
 
 
 def pack_address(ua: dict) -> int:
-    """Universe address dict (save layout) -> packed u64, as used by PlanetUA and the save's VisitedSystems."""
+    """Universe address dict (save layout) -> packed u64, as `PlanetUA` and the save's discovery records
+    (``DD.UA``) hold it. **Not** the layout of `PlayerStateData.VisitedSystems` - see `unpack_visited`."""
     g = ua["GalacticAddress"]
     return ((g["VoxelX"] & 0xFFF) | (g["VoxelZ"] & 0xFFF) << 12 | (g["VoxelY"] & 0xFF) << 24
             | (ua.get("RealityIndex", 0) & 0xFF) << 32 | (g["SolarSystemIndex"] & 0xFFF) << 40
             | (g["PlanetIndex"] & 0xF) << 52)
+
+
+def _signed(value: int, bits: int) -> int:
+    """A two's-complement field of `bits` bits as a signed number (voxels run negative)."""
+    return value - (1 << bits) if value >= (1 << (bits - 1)) else value
+
+
+def unpack_visited(packed: int) -> dict:
+    """One `PlayerStateData.VisitedSystems` entry -> {RealityIndex, VoxelX, VoxelY, VoxelZ, SolarSystemIndex}.
+
+    **That list has its own bit layout**, not `pack_address`'s: Y and Z are swapped, and the system index
+    and the galaxy sit higher up:
+
+        X 0-11 | Y 12-19 | Z 20-31 | SolarSystemIndex 32-43 | unknown nibble 44-47 | RealityIndex 48-55
+
+    Measured on the real save (2026-10-15, 512 entries): read this way, the first entry is exactly the
+    system the save's own ``UniverseAddress`` names (-384, 2, -1755, system 98, Euclid), 410 of its 417
+    distinct systems also appear among the discovery records (whose ``DD.UA`` really is `pack_address`'s
+    layout), every |VoxelY| <= 57, and the galaxies are the three this save has been to. Read with
+    `pack_address`'s layout - as this plugin did until 0.15.0-beta.5 - the same list claimed **167
+    galaxies** and voxel Y values outside the game's range, because the galaxy byte fell inside the
+    system index.
+
+    The nibble at 44-47 is not a planet index (across systems it takes 0, 1, 2, 4, 8 …) and is ignored.
+    """
+    return {"VoxelX": _signed(packed & 0xFFF, 12),
+            "VoxelY": _signed((packed >> 12) & 0xFF, 8),
+            "VoxelZ": _signed((packed >> 20) & 0xFFF, 12),
+            "SolarSystemIndex": (packed >> 32) & 0xFFF,
+            "RealityIndex": (packed >> 48) & 0xFF}
+
+
+def visited_key(packed: int) -> int:
+    """A `VisitedSystems` entry as the canonical system key the rest of the plugin uses."""
+    fields = unpack_visited(packed)
+    return pack_address({"RealityIndex": fields["RealityIndex"],
+                         "GalacticAddress": {**fields, "PlanetIndex": 0}})
 
 
 def ua_bytes(ua: dict) -> bytes:

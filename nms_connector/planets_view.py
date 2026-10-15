@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from . import galaxy, guilds, planet_search, positions, starmap, trade
+from . import galaxies, galaxy, guilds, planet_search, positions, starmap, trade
 from .summary import address_portal, galaxy_name, unpack_address
 
 # GcPlanetInfo.SentinelsPerDifficulty is indexed by the ground combat timer setting.
@@ -86,6 +86,9 @@ NAME_FIX = "name_star_fix"               # PROTOTYPE action: name (or forget) a 
 STAR_FIX_ID = "star-fixes"
 SET_GUILD = "set_region_guild"            # action: record the guild envoy a station of this region holds
 GUILD_FORM_ID = "region-guild"
+GALAXY_HERE_ID = "galaxy-here"            # the galaxy you are in, and what its kind changes
+GALAXIES_ID = "galaxies"                  # the galaxies your save has been to
+GALAXY_KINDS_ID = "galaxy-kinds"          # what normal/lush/harsh/empty mean
 CURRENT_MAP_ID = "current-map"
 
 
@@ -918,6 +921,102 @@ def _route_line(route_state: dict | None) -> list[dict]:
     return [{"points": line, "label": "Your planned route", "dashed": True, "color": "#ff7a7a"}]
 
 
+def galaxy_counts(ctx: Context) -> dict:
+    """{galaxy index: what you have there} over everything the plugin knows a galaxy for.
+
+    Systems come from the save's visits and from what was read in the game; the generated names read out of
+    the galaxy map's cache are counted apart, because a stray record there can name a galaxy you have never
+    been to (on the real save three of them claim galaxy 248)."""
+    out: dict[int, dict] = {}
+
+    def slot(key: int) -> dict:
+        return out.setdefault(galaxy.galaxy_of(key), {"systems": 0, "planets": 0, "economies": 0, "bases": 0,
+                                                      "teleports": 0, "names": 0, "last": ""})
+
+    for key in ctx.keys():
+        entry = slot(key)
+        entry["systems"] += 1
+        entry["planets"] += len(ctx.recorded.get(key, []))
+        entry["teleports"] += 1 if (ctx.visit(key) or {}).get("teleport") else 0
+        entry["last"] = max(entry["last"], _last_seen(key, ctx) or "")
+    for key in ctx.recorded_economies:
+        slot(key)["economies"] += 1
+    for base in ctx.bases:
+        if isinstance(base.get("system"), int):
+            slot(base["system"])["bases"] += 1
+    for key in ctx.system_names:
+        slot(key)["names"] += 1
+    return out
+
+
+def current_galaxy_section(ctx: Context, research: dict) -> dict:
+    """Where you are: which galaxy, what kind it is, and what that kind changes about the worlds in it."""
+    index = galaxy.galaxy_of(ctx.origin) if ctx.origin is not None else None
+    if index is None:
+        return {"type": "text", "text": "The galaxy you are in is known once a save has been read."}
+    mine = galaxy_counts(ctx).get(index, {})
+    words = galaxies.descriptors(index, research)
+    items = [
+        {"label": "Galaxy", "value": f"{galaxies.name(index)} - number {galaxies.number(index)} of {galaxies.count()}"},
+        {"label": "Kind", "value": galaxies.kind_label(index)
+                                   + (f" (the game's own words: {', '.join(words)})" if words else "")},
+        {"label": "On the galaxy map", "value": f"its hologram is {galaxies.KINDS[galaxies.kind(index)]['hologram']}"},
+        {"label": "What that changes", "value": " ".join(galaxies.kind_facts(index, research))},
+        {"label": "Known here", "value": f"{mine.get('systems', 0)} system(s), {mine.get('planets', 0)} planet(s) "
+                                         f"with resources, {mine.get('bases', 0)} base(s)"},
+    ]
+    nxt = index + 1
+    if nxt < galaxies.count():
+        items.append({"label": "Next galaxy through the core",
+                      "value": f"{galaxies.label(nxt)} - {galaxies.KINDS[galaxies.kind(nxt)]['text']}"})
+    return {"type": "kv", "id": GALAXY_HERE_ID, "title": "The galaxy you are in", "items": items}
+
+
+def galaxies_sections(ctx: Context, research: dict | None = None) -> list[dict]:
+    """The galaxy you are in, the galaxies you have been to, and what the four kinds mean."""
+    research = research or {}
+    counts = galaxy_counts(ctx)
+    here = galaxy.galaxy_of(ctx.origin) if ctx.origin is not None else None
+    # A galaxy counts as yours when something solid puts you there - a system from the save, a planet read in
+    # the game, an economy, a base, a teleport endpoint. A galaxy named *only* by the galaxy map's name cache
+    # is left out: a stray record there names galaxies you have never seen (16 of them on the real save).
+    solid = [i for i, mine in counts.items()
+             if any(mine[k] for k in ("systems", "planets", "economies", "bases", "teleports"))]
+    hearsay = sorted(set(counts) - set(solid))
+    rows = []
+    for index in sorted(solid, key=lambda i: (-counts[i]["systems"], i)):
+        mine = counts[index]
+        rows.append(["yes" if index == here else "", galaxies.name(index), galaxies.number(index),
+                     galaxies.kind_label(index), mine["systems"] or None, mine["planets"] or None,
+                     mine["economies"] or None, mine["bases"] or None, mine["teleports"] or None,
+                     mine["names"] or None, mine["last"] or None])
+    return [current_galaxy_section(ctx, research),
+            {"type": "table", "id": GALAXIES_ID, "title": f"Your galaxies ({len(rows)})",
+             "columns": ["Here", "Galaxy", "Number", "Kind", "Systems", "Planets with resources", "Economies read",
+                         "Your bases", "Teleport endpoints", "Names from the map", "Last seen"],
+             "rows": rows,
+             "row_hint": "One row per galaxy something of yours is in - a visited system, a planet read in the "
+                         "game, an economy, a base or a teleport endpoint.",
+             "empty": "No galaxy known yet - every system's galaxy comes from its address in your save."},
+            *([{"type": "text", "text":
+                f"{len(hearsay)} further galaxies ({', '.join(galaxies.name(i) for i in hearsay[:8])}"
+                f"{', …' if len(hearsay) > 8 else ''}) are named by single records in the galaxy map's name "
+                "cache and by nothing else. A stray record there names a galaxy you have never been to, so "
+                "they are not counted as yours."}] if hearsay else []),
+            {"type": "table", "id": GALAXY_KINDS_ID, "title": "What the four kinds of galaxy mean",
+             "columns": ["Kind", "Galaxies", "Hologram", "The game's words", "What is different"],
+             "rows": [[galaxies.KINDS[k]["label"], len(galaxies.of_kind(k)), galaxies.KINDS[k]["hologram"],
+                       ", ".join(galaxies.descriptors(galaxies.of_kind(k)[0], research)) or None,
+                       " ".join(galaxies.kind_facts(galaxies.of_kind(k)[0], research)[:-1])]
+                      for k in (galaxies.NORMAL, galaxies.LUSH, galaxies.HARSH, galaxies.EMPTY)],
+             "row_hint": "A galaxy's kind follows from its number alone - see the note below."},
+            {"type": "text", "text": galaxies.UNCHANGED + " The kind follows from the number: in every block of "
+                                     "twenty galaxies, numbers 3 and 15 are harsh, 7 and 12 empty, 10 and 19 lush "
+                                     "and the rest normal - so the kind of the next galaxy is known before you "
+                                     "jump. Names and kinds are community-recorded; the game's own files name only "
+                                     "the first five (sources in research/galaxies.json)."}]
+
+
 def galaxy_sections(ctx: Context, selected: int | None, color_by: str = "kind",
                     route_state: dict | None = None) -> list[dict]:
     """The galaxy map of every known system (in the galaxy you are in) - including the systems the game's galaxy
@@ -1257,6 +1356,8 @@ def systems_tabs(ctx: Context, selected: int | None, route_state: dict | None = 
         {"id": "planets", "label": "Planets", "badge": len(planets["rows"]),
          "sections": planet_search_sections(ctx, planet_query) + [planets]},
         {"id": "galaxy", "label": "Galaxy", "sections": galaxy_sections(ctx, selected, color_by, route_state)},
+        {"id": "galaxies", "label": "Galaxies", "badge": len(galaxy_counts(ctx)) or None,
+         "sections": galaxies_sections(ctx, galaxies.research())},
         {"id": "trade", "label": "Trade", "badge": len(ctx.economies) or None, "sections": trade_sections(ctx)},
         {"id": "route", "label": "Route", "sections": route_sections(ctx, route_state, ship_range)},
         {"id": "star-fixes", "label": "Star positions (prototype)",

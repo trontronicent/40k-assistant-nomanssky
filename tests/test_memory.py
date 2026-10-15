@@ -14,6 +14,7 @@ import pytest
 from nms_connector import live as live_mod
 from nms_connector import memory, planets_view
 from nms_connector.history import PlanetHistory, planet_id, visits_from_save
+from nms_connector.summary import unpack_address
 from nms_connector.live import LiveMemory
 
 pytest.importorskip("numpy")
@@ -228,8 +229,17 @@ def test_name_markers_only_count_where_a_record_can_start():
 # --------------------------------------------------------------------------- history
 
 
+def visited_entry(key: int, nibble: int = 0) -> int:
+    """A canonical system key packed the way the save's VisitedSystems list holds it: Y and Z swapped,
+    the system index and the galaxy higher up (memory.unpack_visited, measured on the real save)."""
+    a = unpack_address(key)
+    return ((a["VoxelX"] & 0xFFF) | (a["VoxelY"] & 0xFF) << 12 | (a["VoxelZ"] & 0xFFF) << 20
+            | (a["SolarSystemIndex"] & 0xFFF) << 32 | (nibble & 0xF) << 44 | (a["RealityIndex"] & 0xFF) << 48)
+
+
 def save_with_visits() -> dict:
-    return {"BaseContext": {"PlayerStateData": {"VisitedSystems": [0x10620002925E80, SYSTEM_115]}},
+    return {"BaseContext": {"PlayerStateData": {
+                "VisitedSystems": [visited_entry(SYSTEM_98, nibble=1), visited_entry(SYSTEM_115)]}},
             "DiscoveryManagerData": {"DiscoveryData-v1": {"Store": {"Record": [
                 {"DD": {"UA": SYSTEM_98, "DT": "SolarSystem"}, "DM": {"CN": "Delta Sol"},
                  "OWS": {"USN": "Charlie Papa", "TS": 1700000000}},
@@ -463,7 +473,8 @@ def test_tables_show_the_current_system_and_every_visited_system(tmp_path):
     ctx = planets_view.Context(LiveIn98(), history, visits_from_save(save_with_visits()), FakeGameData(), "Normal",
                                bases=[{"name": "Home", "system": SYSTEM_98}])
     tabs = planets_view.systems_tabs(ctx, None)
-    assert [t["id"] for t in tabs["tabs"]] == ["current", "visited", "planets", "galaxy", "trade", "route", "star-fixes"]
+    assert [t["id"] for t in tabs["tabs"]] == ["current", "visited", "planets", "galaxy", "galaxies",
+                                               "trade", "route", "star-fixes"]
     current_map, current = tabs["tabs"][0]["sections"]
     assert current_map["type"] == "orbit" and current_map["id"] == "current-map"
     assert current["title"] == "Planets of Delta Sol (live from the game)" and "Gas" in current["columns"]
@@ -545,7 +556,8 @@ def test_tables_explain_when_the_game_is_not_running(tmp_path):
         status, error, current_system, current = "not-running", None, None, None
     ctx = planets_view.Context(Live(), PlanetHistory(tmp_path / "h.json"), visits_from_save(save_with_visits()),
                                FakeGameData(), None)
-    current, visited, planets, _galaxy, _trade, _route, _fixes = planets_view.systems_tabs(ctx, None)["tabs"]
+    tabs_of = planets_view.systems_tabs(ctx, None)["tabs"]
+    current, visited, planets, _galaxy, _galaxies, _trade, _route, _fixes = tabs_of
     assert current["sections"][0]["type"] == "notice" and "Start No Man's Sky" in current["sections"][0]["text"]
     assert planets_view.where_you_are(ctx) is None
     # Without a current system the map shows the clicked system, else the newest one.

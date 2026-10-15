@@ -8,11 +8,9 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from . import discoveries, pets
+from . import discoveries, galaxies, pets
 
-# The first galaxies by RealityIndex; later ones are shown as "Galaxy #n".
-GALAXIES = ["Euclid", "Hilbert Dimension", "Calypso", "Hesperius Dimension", "Hyades",
-            "Ickjamatew", "Budullangr", "Kikolgallr", "Eltiensleen", "Eissentam"]
+
 
 # Ship class from the model folder in Resource.Filename.
 SHIP_CLASSES = {"FIGHTERS": "Fighter", "DROPSHIPS": "Hauler", "SCIENTIFIC": "Explorer", "SHUTTLE": "Shuttle",
@@ -35,9 +33,8 @@ def _get(d, *path, default=None):
 
 
 def galaxy_name(reality_index) -> str:
-    if isinstance(reality_index, int) and 0 <= reality_index < len(GALAXIES):
-        return GALAXIES[reality_index]
-    return f"Galaxy #{reality_index + 1}" if isinstance(reality_index, int) else "unknown"
+    """The galaxy of an address' RealityIndex. All 256 are named in `galaxies.NAMES`."""
+    return galaxies.name(reality_index)
 
 
 def portal_code(planet: int, system: int, y: int, z: int, x: int) -> str:
