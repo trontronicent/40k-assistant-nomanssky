@@ -26,7 +26,7 @@ from datetime import datetime
 from functools import cached_property
 from pathlib import Path
 
-from . import codex_sync, discoveries, equipment, frigates, galaxy, guilds, hgpak, inventory_search, logs, memory, planet_search, planets_view, positions, route, save_search, saves, settlements, ships, starmap, timers, toon, trade, transfer
+from . import codex_sync, discoveries, equipment, frigates, galaxy, guilds, hgpak, inventory_search, logs, memory, planet_search, planets_view, positions, recipe_view, route, save_search, saves, settlements, ships, starmap, timers, toon, trade, transfer
 from .companion import PluginCompanion
 from .describe import StateText
 from .game_install import GameInstall, find_game
@@ -116,6 +116,7 @@ class NmsConnector:
         self.planet_query = planet_search.Query()   # Systems -> Planets search (planet_search.Query)
         self.inventory_query = ""                 # Inventory -> search across all inventories (inventory_search)
         self.save_query = ""                      # Overview -> one search over every tab's tables (save_search)
+        self.recipe_query = ""                    # Recipes tab + overlay -> the recipe viewer (recipe_view)
         self.ship_export: dict | None = None      # the last ship export (ships.export_section; also copied)
         self.settings_path = self.data_dir / "settings.json"
         self.settings = PluginSettings.load(self.settings_path)   # Settings tab: single context, codeword
@@ -796,6 +797,7 @@ class NmsConnector:
             page.IMPORT_DATA: self._act_import_data,
             inventory_search.SEARCH_INVENTORY: self._act_search_inventory,
             save_search.SEARCH_SAVE: self._act_search_save,
+            recipe_view.SEARCH_RECIPES: self._act_search_recipes,
             "rescan": self._act_rescan,
             "update_mapping": self._act_update_mapping,
             "write_codex": lambda params: self._write_codex(),
@@ -880,6 +882,20 @@ class NmsConnector:
         if not self.save_query:
             return {"ok": True, "message": "Search cleared."}
         return {"ok": True, "focus": save_search.RESULTS_ID, "message": f"Searching for \"{self.save_query}\"."}
+
+    async def _act_search_recipes(self, params: dict) -> dict:
+        """The recipe viewer's one search (the Recipes tab's form and the overlay's box write the same query).
+
+        Only the untrusted text is stored; the sections - and the language they are written in - are built from
+        it by `recipe_view` on the next view or overlay poll, so page and overlay always agree."""
+        self.recipe_query = str(params.get("query") or "").strip()[:recipe_view.MAX_QUERY_CHARS]
+        if not self.recipe_query:
+            return {"ok": True, "message": "Recipe search cleared."}
+        book = self.tables.recipes
+        found = len(recipe_view.search(book, self.gamedata.lookup, self.recipe_query, self.gamedata.alt_of))
+        return {"ok": True, "focus": recipe_view.RESULTS_ID,
+                "message": f"{found} item(s) match \"{self.recipe_query}\"." if found
+                           else f"No item matches \"{self.recipe_query}\"."}
 
     async def _act_rescan(self, params: dict) -> dict:
         self._read_save_again()

@@ -1,5 +1,7 @@
-"""The overlay's pure layout and choice rules (no window is created in the tests)."""
+"""The overlay's pure layout and choice rules, and the recipe viewer's real widgets."""
 import json
+
+import pytest
 
 from standalone import overlay
 
@@ -153,3 +155,129 @@ def test_the_codex_search_opt_in_is_noticed():
     assert overlay.wants_codex_search({"codex_search": True}) is True
     assert overlay.wants_codex_search({"codex_search": "yes"}) is False
     assert overlay.wants_codex_search({}) is False
+
+
+# --- the recipe viewer in the overlay --------------------------------------------------------------
+
+RECIPE = {"ingredients": [{"amount": 1, "name": "Nitrogen", "icon": "gas.1.png"},
+                          {"amount": 1, "name": "Di-hydrogen"}],
+          "result": {"amount": 1, "name": "Ammonia", "icon": "toxic.png"},
+          "station": "Medium Refiner or larger"}
+RECIPE_PAYLOAD = {"recipe_search": "search_recipes", "areas": [
+    {"id": "location", "title": "Where you are", "lines": ["Delta Sol"], "default_on": True},
+    {"id": "recipes", "title": "Recipes", "default_on": True, "search": True, "query": "ammonia",
+     "recipes": [RECIPE], "lines": ["1 Nitrogen + 1 Di-hydrogen -> 1 Ammonia"]}]}
+
+
+def test_the_recipe_area_is_recognised_and_its_action_checked():
+    """The viewer's area is the one with diagrams or its own box; the action its box runs is checked like
+    any action id, because it becomes a URL path on the host."""
+    assert [a["id"] for a in overlay.recipe_areas(RECIPE_PAYLOAD, {})] == ["recipes"]
+    assert overlay.recipe_areas(RECIPE_PAYLOAD, {"recipes": False}) == []
+    assert overlay.search_action(RECIPE_PAYLOAD) == "search_recipes"
+    assert overlay.search_action({"recipe_search": "../escape"}) == ""
+    assert overlay.search_action({}) == ""
+
+
+def test_a_recipe_becomes_cards_with_the_marks_between_them():
+    """The drawing is only placement, so the cards are decided here: amount and name per item, "+" between
+    the ingredients, the arrow before the result, and the icon file each card carries."""
+    assert overlay.recipe_cards(RECIPE) == [
+        ("1 Nitrogen", "gas.1.png"), ("+", ""), ("1 Di-hydrogen", ""), ("→", ""), ("1 Ammonia", "toxic.png")]
+
+
+def test_a_half_read_recipe_yields_no_cards_at_all():
+    """An arrow pointing at nothing would look like a bug in the game data; such an entry is skipped."""
+    assert overlay.recipe_cards({"ingredients": [{"amount": 1, "name": "A"}]}) == []
+    assert overlay.recipe_cards({"result": {"amount": 1, "name": "B"}}) == []
+    assert overlay.recipe_cards({}) == []
+
+
+_TK = {}
+
+
+def _window(tmp_path, payload, port=1):
+    """A real overlay window with a payload already applied, as a Toplevel under one hidden root shared by
+    these tests (several `Tk()` roots in one process intermittently fail with "Can't find a usable tk.tcl",
+    the same trap the app's overlay tests hit); skipped where there is no display at all."""
+    tk = pytest.importorskip("tkinter")
+    if "root" not in _TK:
+        try:
+            _TK["root"] = tk.Tk()
+        except tk.TclError as err:
+            pytest.skip(f"no display: {err}")
+        _TK["root"].withdraw()
+    window = overlay.OverlayWindow(port, tmp_path, root=tk.Toplevel(_TK["root"]))
+    window.state.apply(payload)
+    return window
+
+
+def _labels(widget, out=None):
+    """Every label text below `widget`, in drawing order."""
+    out = [] if out is None else out
+    for child in widget.winfo_children():
+        if child.winfo_class() == "Label":
+            out.append(child.cget("text"))
+        _labels(child, out)
+    return out
+
+
+def test_the_window_draws_the_recipe_diagrams_and_searches_through_the_host(tmp_path):
+    """The real window: the recipe area gets a text box and one row of cards per recipe (with the marks and
+    the station), its text block no longer repeats them, and Enter posts the connector's action with the
+    words typed - the connector then answers the next poll, so the overlay and the page agree."""
+    window = _window(tmp_path, RECIPE_PAYLOAD)
+    posted = []
+    window._post_action = lambda action, params: posted.append((action, params)) or ""
+    window.poll_now = lambda: None
+    try:
+        window.render()
+        window.root.update()
+        assert window._query_box is not None
+        texts = _labels(window.recipes)
+        assert "1 Nitrogen" in texts and "1 Ammonia" in texts and "→" in texts and "+" in texts
+        assert "Medium Refiner or larger" in texts
+        # The area is drawn as diagrams, so the text block holds only the other area.
+        assert "Recipes" not in window.body.cget("text") and "Delta Sol" in window.body.cget("text")
+        window._query_box.insert(0, "  ferrit  staub ")
+        window._query_box.focus_force()          # a borderless window does not hold the keyboard by itself
+        window.root.update()
+        window._query_box.event_generate("<Return>")
+        window.root.update()
+        assert posted == [("search_recipes", {"query": "ferrit staub"})]
+        window.clear_search()
+        assert window._query_box.get() == "" and posted[-1] == ("search_recipes", {"query": ""})
+    finally:
+        window.root.destroy()
+
+
+def test_an_area_without_diagrams_still_shows_its_lines(tmp_path):
+    """"Nothing matches" must be readable: with no diagram to draw, the area's `lines` are shown as text -
+    the same fallback an overlay from before the viewer relied on."""
+    payload = {"recipe_search": "search_recipes", "areas": [
+        {"id": "recipes", "title": "Recipes", "search": True, "recipes": [], "lines": ['Nothing matches "zzz".'],
+         "default_on": True}]}
+    window = _window(tmp_path, payload)
+    try:
+        window.render()
+        window.root.update()
+        assert 'Nothing matches "zzz".' in window.body.cget("text")
+        assert not [w for w in window.recipes.winfo_children() if w.winfo_class() == "Frame"]
+    finally:
+        window.root.destroy()
+
+
+def test_an_icon_is_read_from_the_plugins_assets_and_never_from_outside(tmp_path):
+    """The icons are the plugin's own files next to the overlay, so there is nothing to download; a name
+    that is not a plain file name is refused before it becomes a path, and a missing or damaged file costs
+    the picture only - the card still shows the item."""
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets" / "broken.png").write_bytes(b"not a png")
+    window = _window(tmp_path, RECIPE_PAYLOAD)
+    try:
+        assert window._icon("../../secret.png") is None
+        assert window._icon("missing.png") is None
+        assert window._icon("broken.png") is None
+        assert window._icon("") is None
+    finally:
+        window.root.destroy()

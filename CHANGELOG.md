@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.15.0-beta.7 (beta; needs app 3.17.0, draws diagrams on 3.19.0)
+
+- **A recipe viewer, in all four places.** New **Recipes** tab: one search box, and for each item found what it
+  is, its base value, every recipe that makes it (refiner, Nutrient Processor, crafting) and what it is used in -
+  each drawn as the diagram the chat already draws under a reply. The same viewer is in the **desktop overlay**
+  (the *Recipes* area, with its own box), and in both hosts: the app's plugin page and the standalone page, the
+  app's overlay and the standalone overlay. One builder (`recipe_view.py`) feeds all of them, and the connector
+  owns the query, so the page and the overlay always show the same item.
+
+- **English or German, decided by what you type.** `recipe_view.language_of` compares the search words against
+  each found item's English and local names: *Ammoniak* gives German names, the German refiner and German
+  headings, *ammonia* gives English ones, and for German the question words alone decide when the name cannot
+  (*wie mache ich ...*). An id has no language, so English is used. Nothing else in the viewer picks a language.
+
+- **The overlay draws recipes instead of writing them out.** Both overlays now show a recipe as boxed cards with
+  the item icons, the "+" between the ingredients, the arrow and the station below it - the app's overlay fetches
+  the icons over HTTP once each (`src/overlay/recipes.py` in the app), the standalone one reads them straight from
+  the plugin's assets folder. An overlay that cannot draw them still gets the recipes as `lines`, which is what
+  the area showed before, so nothing is lost on an older app.
+
+- Searching also finds raw materials no recipe makes or uses (the substance table), because "where does Copper
+  come from" is exactly what goes into that box.
+
 ## 0.15.0-beta.6 (beta; needs app 3.17.0)
 
 - **The recipe diagrams no longer repeat the previous questions' recipes.** Asking for three recipes in a

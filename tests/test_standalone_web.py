@@ -15,13 +15,15 @@ pytestmark = pytest.mark.skipif(NODE is None, reason="node is not on PATH")
 def run_js(script: str):
     """Run a snippet with `sections.js` loaded as `S` and return the JSON it prints."""
     source = f"const S = require({json.dumps(str(WEB / 'sections.js'))});\n{script}"
-    out = subprocess.run([NODE, "-e", source], capture_output=True, text=True, timeout=30)
+    # UTF-8 explicitly: this machine's console encoding is cp1252 and would turn the recipe arrow into a
+    # question mark before any assertion saw it (the same trap tests/test_standalone_look.py notes).
+    out = subprocess.run([NODE, "-e", source], capture_output=True, text=True, timeout=30, encoding="utf-8")
     assert out.returncode == 0, out.stderr
     return json.loads(out.stdout)
 
 
 def test_every_section_type_renders():
-    """The context advertises eleven section types; one the page cannot draw would show as a blank gap in
+    """The context advertises twelve section types; one the page cannot draw would show as a blank gap in
     the real view, so each is rendered here and asserted to produce a node."""
     view = {"sections": [
         {"type": "notice", "text": "x"}, {"type": "stats", "items": [{"label": "a", "value": 1}]},
@@ -33,11 +35,13 @@ def test_every_section_type_renders():
         {"type": "orbit", "center": {"label": "Star"}, "bodies": [{"label": "P1"}]},
         {"type": "starmap", "points": [{"key": "a", "label": "A", "x": 0, "y": 0, "z": 0}]},
         {"type": "tabs", "tabs": [{"id": "t1", "label": "One", "sections": [{"type": "text", "text": "in"}]}]},
+        {"type": "recipes", "recipes": [{"ingredients": [{"amount": 1, "name": "Nitrogen"}],
+                                         "result": {"amount": 1, "name": "Ammonia"}}]},
     ]}
     result = run_js(f"const r = S.renderSections({json.dumps(view)}); "
                     "console.log(JSON.stringify({count: r.children.length, types: r.types}));")
-    assert result["count"] == 11
-    assert "starmap" in result["types"]
+    assert result["count"] == 12
+    assert "starmap" in result["types"] and "recipes" in result["types"]
 
 
 def test_an_unknown_section_type_is_skipped_not_guessed():
@@ -268,3 +272,49 @@ def test_a_row_menu_entry_survives_its_own_pointer_down():
     assert 'removeEventListener("pointerdown", pointerCloses, true)' in js
     assert 'removeEventListener("scroll", closeRowMenu, true)' in js
     assert "{ once: true, capture: true }" not in js
+
+
+RECIPE = {"ingredients": [{"amount": 1, "name": "Nitrogen", "icon": "gas.1.png"},
+                          {"amount": 1, "name": "Di-hydrogen"}],
+          "result": {"amount": 1, "name": "Ammonia", "icon": "toxic.png"},
+          "station": "Medium Refiner or larger"}
+
+
+def test_a_recipes_section_draws_cards_an_arrow_and_the_station():
+    """The Recipes tab's diagrams: a card per ingredient with its icon from the asset route, "+" between them,
+    the arrow, the result and the station as a caption - the shape the app's RecipeDiagramView draws, so the
+    same recipe reads the same in both hosts. An item without a converted icon keeps an empty picture box."""
+    view = {"sections": [{"type": "recipes", "title": "How to get Ammonia", "recipes": [RECIPE]}]}
+    html = run_js(f"const r = S.renderSections({json.dumps(view)}); console.log(JSON.stringify(r.html));")
+    assert "How to get Ammonia" in html
+    assert '"/api/assets/gas.1.png"' in html and '"/api/assets/toxic.png"' in html
+    assert html.count('class="recipe-item"') == 3 and html.count('class="box"') == 3
+    assert ">+<" in html and "\u2192" in html
+    assert '1 x Nitrogen' in html and '1 x Ammonia' in html
+    assert 'class="recipe-station"' in html and "Medium Refiner or larger" in html
+
+
+def test_an_empty_recipes_section_says_so():
+    """A search that found an item with no recipe must read as an answer, not as a drawing failure."""
+    view = {"sections": [{"type": "recipes", "recipes": [], "empty": "Copper is mined, not refined."}]}
+    html = run_js(f"const r = S.renderSections({json.dumps(view)}); console.log(JSON.stringify(r.html));")
+    assert "Copper is mined, not refined." in html and 'class="recipe"' not in html
+
+
+def test_the_chat_draws_its_recipes_with_the_same_builder():
+    """The chat must not keep a second drawing of its own: `chat.js` calls `Sections.recipeRow`, so a change to
+    the cards reaches the reply, the Recipes tab and the overlay at once (this is what "one beautifier" means)."""
+    chat = (WEB / "chat.js").read_text(encoding="utf-8")
+    assert "Sections.recipeRow" in chat
+    assert "recipe-item" not in chat and "/api/assets/" not in chat      # no drawing left here
+
+
+def test_a_chat_recipe_may_still_name_its_icon_by_item_name():
+    """The older chat path knew only a name -> file map (`Chat.setIcons`), the connector now names the file in
+    the recipe itself. Both must work, or an older reply's diagram would lose its pictures."""
+    out = run_js("const doc = S.nodeFactory(null);"
+                 "const row = S.recipeRow(doc, {ingredients: [{amount: 2, name: 'Copper'}],"
+                 " result: {amount: 1, name: 'Chromatic Metal'}}, {Copper: 'yellow.2.png'});"
+                 "console.log(JSON.stringify(S.toHtml(row)));")
+    assert '"/api/assets/yellow.2.png"' in out
+    assert out.count("<img") == 1          # the result card has no icon here, so exactly one picture is drawn

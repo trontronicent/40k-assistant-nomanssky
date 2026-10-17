@@ -772,6 +772,59 @@ function buildTabs(doc, section, api) {
   return box;
 }
 
+// --------------------------------------------------------------------------- recipe diagrams
+
+/** The asset URL of one diagram card's icon, or null: the connector names the file (`icon`), and the
+ *  older chat path only knew the item's name, so a name -> file map may be passed instead. */
+function recipeIconUrl(item, icons) {
+  const file = (item && item.icon) || (icons && icons[item && item.name]);
+  return file ? "/api/assets/" + file : null;
+}
+
+/** One card of a diagram: the icon box above "amount x name". */
+function recipeCard(doc, item, icons) {
+  const wrap = el(doc, "div", "recipe-item");
+  const box = el(doc, "div", "box");
+  const url = recipeIconUrl(item, icons);
+  if (url) {
+    const img = doc.createElement("img");
+    img.setAttribute("src", url);
+    img.setAttribute("alt", "");
+    box.appendChild(img);
+  }
+  wrap.appendChild(box);
+  wrap.appendChild(el(doc, "small", null, (item.amount || 1) + " x " + (item.name || "")));
+  return wrap;
+}
+
+/** One recipe as a diagram: ingredient cards, "+" between them, the arrow, the result, the station.
+ *
+ *  The chat (chat.js) and the `recipes` sections of the page draw recipes with this one builder, so a
+ *  recipe looks the same wherever it appears - the app does the same with its RecipeDiagramView. */
+function recipeRow(doc, recipe, icons) {
+  const row = el(doc, "div", "recipe");
+  (recipe.ingredients || []).forEach((item, index) => {
+    if (index) row.appendChild(el(doc, "span", null, "+"));
+    row.appendChild(recipeCard(doc, item, icons));
+  });
+  row.appendChild(el(doc, "span", null, "→"));
+  if (recipe.result) row.appendChild(recipeCard(doc, recipe.result, icons));
+  if (recipe.station) row.appendChild(el(doc, "small", "recipe-station", recipe.station));
+  return row;
+}
+
+/** A `recipes` section (app 3.19.0): one diagram per recipe, or the plugin's own empty text. */
+function buildRecipes(doc, section) {
+  const box = el(doc, "div", "stc-recipes");
+  const recipes = section.recipes || [];
+  if (!recipes.length) {
+    box.appendChild(el(doc, "div", "stc-muted", section.empty || "No recipes."));
+    return box;
+  }
+  for (const recipe of recipes) box.appendChild(recipeRow(doc, recipe));
+  return box;
+}
+
 function buildPlaceholder(doc, section) {
   // The orbit/starmap drawers live in starmap.js; without them the section still occupies its place.
   const box = el(doc, "div", "stc-" + section.type);
@@ -787,6 +840,7 @@ const BUILDERS = {
   text: buildText,
   form: buildForm,
   timers: buildTimers,
+  recipes: buildRecipes,
   tabs: buildTabs,
   orbit: (doc, section, api) => api.orbit(doc, section, api),
   starmap: (doc, section, api) => api.starmap(doc, section, api),
@@ -857,6 +911,7 @@ const sectionsExported = {
   tabPath, rowMenuItems, menuPosition, copyText, COPY_FROM_CHARS,
   measureTables, tableAsCards, cardFields, neededFor, CARD_BREAKPOINT, CARD_OVERFLOW_MAX,
   formValues, setFormValue, resetForms, escapeHtml, toHtml, nodeFactory, el, appendCell, BUILDERS,
+  recipeRow, recipeCard, recipeIconUrl,
 };
 if (typeof module !== "undefined" && module.exports) module.exports = sectionsExported;
 if (typeof window !== "undefined") window.Sections = sectionsExported;

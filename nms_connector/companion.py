@@ -18,7 +18,7 @@ import re
 import time
 from datetime import date
 
-from . import (assistant, conversation, cooking, craftable, creature_lines, diagrams, discoveries_view, logs, galaxies, galaxy, merging, page as page_module, planet_search, planets_view, recipes, seasons,
+from . import (assistant, conversation, cooking, craftable, creature_lines, diagrams, discoveries_view, logs, galaxies, galaxy, merging, page as page_module, planet_search, planets_view, recipe_view, recipes, seasons,
                settlements, timers, trade)
 
 PERSONA_PROMPT = (
@@ -448,7 +448,12 @@ class PluginCompanion:
             data = content[area_id]
             areas.append({"id": area_id, "title": title, "default_on": default_on,
                           "timers": data if area_id == "timers" else [], "lines": [] if area_id == "timers" else data})
+        # The recipe viewer's own area (recipe_view): the diagrams of whatever was last searched for, here or on
+        # the page - one query, one language decision, both places.
+        areas.append(recipe_view.overlay_area(c.tables.recipes, c.gamedata, c.tables.terms, c.recipe_query))
         return {"title": "No Man's Sky", "timers": shown_timers, "lines": lines, "areas": areas,
+                # App 3.19.0: what the overlay's recipe box runs with the words typed into it.
+                "recipe_search": recipe_view.SEARCH_RECIPES,
                 # App 3.12.0: a full-text search (no model) in the Codex libraries attached to the persona.
                 "codex_search": True,
                 "persona_id": PERSONA_ID, "codeword": c.settings.codeword,

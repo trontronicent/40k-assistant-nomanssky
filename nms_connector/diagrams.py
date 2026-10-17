@@ -68,7 +68,11 @@ def answer_language(question: str, items: list[str], lookup, game_language: str)
     return recipes.ENGLISH
 
 
-def _item(lookup, icon_name, item: str, amount: int, language: str) -> dict:
+def item_card(lookup, icon_name, item: str, amount: int, language: str) -> dict:
+    """One card of a diagram: the amount, the item's name in `language` and its converted icon when there is one.
+
+    Public because the recipe viewer (`recipe_view.py`) draws crafting recipes from the same cards.
+    """
     out = {"amount": amount, "name": recipes.name_in(lookup, item, language)}
     icon = icon_name(item)
     if icon:
@@ -78,8 +82,8 @@ def _item(lookup, icon_name, item: str, amount: int, language: str) -> dict:
 
 def recipe_diagram(lookup, icon_name, r: recipes.Recipe, language: str, terms) -> dict:
     """One refiner or Nutrient Processor recipe."""
-    return {"ingredients": [_item(lookup, icon_name, i, a, language) for i, a in r.ingredients],
-            "result": _item(lookup, icon_name, r.result, r.amount, language),
+    return {"ingredients": [item_card(lookup, icon_name, i, a, language) for i, a in r.ingredients],
+            "result": item_card(lookup, icon_name, r.result, r.amount, language),
             "station": recipes.station_name(r, language, terms)}
 
 
@@ -91,6 +95,6 @@ def item_diagrams(book, lookup, icon_name, items: list[str], language: str, term
         out += [recipe_diagram(lookup, icon_name, r, language, terms) for r in made]
         crafted = book.crafting.get(item)
         if crafted:
-            out.append({"ingredients": [_item(lookup, icon_name, i, a, language) for i, a in crafted],
-                        "result": _item(lookup, icon_name, item, 1, language)})
+            out.append({"ingredients": [item_card(lookup, icon_name, i, a, language) for i, a in crafted],
+                        "result": item_card(lookup, icon_name, item, 1, language)})
     return out[:MAX_DIAGRAMS]

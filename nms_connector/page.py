@@ -13,7 +13,7 @@ from __future__ import annotations
 import time
 
 from . import (companions_view, credits, discoveries_view, equipment, frigates, inventory_search, planets_view,
-               save_search, settlements, ships, timers, transfer)
+               recipe_view, save_search, settlements, ships, timers, transfer)
 
 EXPORT_DATA = "export_data"              # action: write the plugin's data as one zip
 IMPORT_DATA = "import_data"              # action: look into a zip, or merge/replace from it
@@ -217,6 +217,14 @@ class ConnectorPage:
                     "columns": columns[:names] + ["Inventory"] + columns[names:], "rows": rows,
                     "empty": "No item in any inventory matches every word; try fewer or shorter words."})
         return out
+
+    def recipe_sections(self) -> list[dict]:
+        """The Recipes tab: the recipe viewer (recipe_view) - a search box and the diagrams of what was found.
+
+        Needs no save: the recipes come from the game's own files, so the tab works before a save has been read."""
+        c = self.connector
+        return recipe_view.sections(c.tables.recipes, c.gamedata, c.tables.terms, c.recipe_query,
+                                    getattr(c.ctx, "section_types", ()))
 
     # ------------------------------------------------------------------ tabs
 
@@ -546,6 +554,7 @@ class ConnectorPage:
             {"id": "settlements", "label": "Settlements", "badge": len(c.settlements) or None,
              "sections": settlements.settlement_sections(c.settlements, c.tables.settlement_rules,
                                                          ctx.texts, time.time(), c.settlement_live.values)},
+            {"id": "recipes", "label": "Recipes", "sections": self.recipe_sections()},
             {"id": "saves", "label": "Saves & source", "sections": self.saves_tabs(snap, ctx)},
             {"id": "settings", "label": "Settings", "sections": self.settings_sections()},
         ]

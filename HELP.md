@@ -28,6 +28,14 @@ The tabs:
 - **Inventory** - exosuit, starship, freighter, **storage containers** (0-9, numbered as in the game) and **Equipment**. **Search all inventories** at the top finds an item in every inventory at once by its name, category or id, in English or the game's language (*Kupfer*, *trade goods*): every matching stack with the inventory it is in, biggest stack first, and above them each item's total and what everything found is worth in units. Every word must match, a word also finds longer ones, and a place word narrows it (*copper freighter*, *Kobalt Lager*). Each item with its icon, its name in English and in the game's language, its **category** and what it is worth: **Value (stack)** is the whole stack at the base value, **Value (each)** one unit - the two numbers the game's own tooltip shows ("Insgesamt 6.426 Units", "Je 6 Units"). Sort by *Value (stack)* to see what is worth most. Technology and upgrade modules have no base value, so their cells stay empty. Hover an item's name for its description (in English and in the game's language) and its **base value** (what the game says one unit is worth); **trade goods** also tell which economies pay well for them, the nearest such system you know (or that you have not found one yet) and where they are cheap to buy. Planet resources have the same tooltip. See *Equipment* below.
 - **Ships & bases** - your ships (type, class, estimated **warp range**, the star colours they can reach, base stats, slots), **every ship's technology** (one tab per ship) and your **bases**: where each one stands (the planet for a planet base, the system for a freighter base or a ship interior), how many parts it has, what it is built from (hover for every part, named in English and in the game's language) and when you last built on it, newest first. See *Ships* below.
 - **Settlements** - the economy of each settlement you run: see *Settlements* below.
+- **Recipes** - the **recipe viewer**: one box, one item. Type an item by name or by its id, in English or in the
+  language your game is in, and loosely is enough (*chrom* finds Chromatic Metal, *ferrit* Ferrite Dust, *LAND1*
+  finds it too). For each item you get what it is and what the game says it is worth, **every recipe that makes
+  it** - refiner, Nutrient Processor and its crafting recipe - and what the item is **used in**, each drawn as a
+  small diagram: the ingredients with their icons, an arrow, the result, and the refiner or the Nutrient Processor
+  it needs. **The language follows what you type**: search *Ammoniak* and the names, the refiner and the headings
+  are German; search *ammonia* and they are English. This tab needs no save file - the recipes come from the game's
+  own files - and an item the game only lets you mine or buy says so rather than showing an empty diagram.
 - **Saves & source** - *Save files & source* (how often the game saves, the recent save writes, where the data comes from and the last memory scans) and *Transfer* (export your recorded data as one zip and import it again - see *Moving your data* below).
 - **Settings** - the plugin persona's **codeword** and **Single Context Per Question**: see *Settings and the overlay* below.
 - **About** - who made this and the credits: every project, data source, library, font and model this builds on, ships or downloads, each with its licence and a link. The same list is in `THIRD-PARTY-NOTICES.md` beside the program, and in the app's manual under *Plugin Help*.
@@ -279,7 +287,11 @@ Nanites, Quicksilver), **Ships** (primary ship with its warp range, freighter) a
 timers, where you are and settlements in one block). The area **Codex search** finds
 words in the Codex libraries attached to the plugin persona (the *No Man's Sky* library,
 for example): click the box, type - *warp cell*, *"antimatter housing"*, *Hyperantrieb*
-- and press Enter. No AI: it finds exactly the words, instantly, while you play. The buttons
+- and press Enter. No AI: it finds exactly the words, instantly, while you play. The area **Recipes** (tick it on)
+is the Recipes tab in the overlay: type an item into its box, press Enter, and the recipes that make it are drawn
+as the same diagrams with the same icons, in the language you typed in - a recipe looked up without leaving the
+game. Escape empties the box. The page and the overlay share this one search, so what you look up in one is what
+the other shows. The buttons
 **Codeword** (with the codeword from the Settings tab) and **Live call** switch the
 open app tab to the plugin persona and start Live Comms, so you can ask by voice
 without leaving the game; **Off** stops listening. Above the buttons the overlay shows

@@ -14,38 +14,13 @@
     return node;
   }
 
-  function iconFor(name) {
-    const file = state.icons[name];
-    return file ? "/api/assets/" + file : null;
-  }
-
   // --- recipe diagrams ----------------------------------------------------
-
-  function itemBox(item) {
-    const wrap = el("div", "recipe-item");
-    const box = el("div", "box");
-    const url = iconFor(item.name);
-    if (url) {
-      const img = document.createElement("img");
-      img.src = url;
-      img.alt = "";
-      box.appendChild(img);
-    }
-    wrap.appendChild(box);
-    wrap.appendChild(el("small", null, (item.amount || 1) + " x " + (item.name || "")));
-    return wrap;
-  }
+  // Drawn by sections.js (Sections.recipeRow), the same builder the page's `recipes` sections use - so a
+  // recipe under a reply, in the Recipes tab and in the overlay all look the same.
 
   function recipeRow(recipe) {
-    const row = el("div", "recipe");
-    (recipe.ingredients || []).forEach((item, index) => {
-      if (index) row.appendChild(el("span", null, "+"));
-      row.appendChild(itemBox(item));
-    });
-    row.appendChild(el("span", null, "→"));
-    if (recipe.result) row.appendChild(itemBox(recipe.result));
-    if (recipe.station) row.appendChild(el("small", "recipe-station", recipe.station));
-    return row;
+    const doc = window.Sections.nodeFactory(document);
+    return window.Sections.recipeRow(doc, recipe, state.icons);
   }
 
   // --- the turn -----------------------------------------------------------

@@ -239,7 +239,7 @@ def test_plugin_reads_saves_read_only_and_builds_a_view(tmp_path, monkeypatch):
 
     plugin, view, result = asyncio.run(scenario())
     main = section(view, type="tabs", id="main")
-    assert [t["label"] for t in main["tabs"]] == ["Overview", "Systems", "Inventory", "Ships & bases", "Discoveries", "Companions", "Settlements", "Saves & source", "Settings", "About"]
+    assert [t["label"] for t in main["tabs"]] == ["Overview", "Systems", "Inventory", "Ships & bases", "Discoveries", "Companions", "Settlements", "Recipes", "Saves & source", "Settings", "About"]
     titles = [s.get("title") for s in all_sections(view["sections"])]
     assert "Status" in titles and "Location (at the last save)" in titles and "Exosuit inventory" in titles
     assert "Status" in [s.get("title") for s in main["tabs"][0]["sections"]]
@@ -488,7 +488,7 @@ def test_the_overlay_offers_areas_the_user_switches_in_the_app(tmp_path, monkeyp
     plugin.timers = [{"key": "frigate.1", "label": "Expedition back", "started_at": int(now), "ends_at": int(now) + 600}]
     overlay = plugin.overlay()
     areas = {a["id"]: a for a in overlay["areas"]}
-    assert [a["id"] for a in overlay["areas"]] == [i for i, _, _ in OVERLAY_AREAS]
+    assert [a["id"] for a in overlay["areas"]] == [i for i, _, _ in OVERLAY_AREAS] + ["recipes"]
     assert [a["id"] for a in overlay["areas"] if a["default_on"]] == ["timers", "location", "settlements"]
     assert [t["key"] for t in areas["timers"]["timers"]] == ["frigate.1"] and areas["timers"]["lines"] == []
     kay, = areas["settlements"]["lines"]

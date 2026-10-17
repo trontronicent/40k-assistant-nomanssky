@@ -15,11 +15,11 @@ from typing import Any, Coroutine
 # section and a plain table, so it must list what `standalone/web/sections.js` actually draws
 # (tests/test_host_contract.py compares the two).
 SECTION_TYPES = ("notice", "stats", "kv", "table", "list", "text", "tabs", "orbit", "starmap",
-                 "form", "timers")
+                 "form", "timers", "recipes")
 
 # What the connector may assume of its host. Kept at the app version whose features this host
 # implements; raising the manifest's `app.min_version` means raising this with it.
-APP_VERSION = "3.18.0"
+APP_VERSION = "3.19.0"
 
 
 class StandaloneContext:

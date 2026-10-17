@@ -81,6 +81,25 @@ def test_the_connector_runs_against_both_contexts(tmp_path, monkeypatch):
     assert answers[0]["personas"] == ["companion"]
 
 
+def test_the_recipe_viewer_reaches_both_hosts():
+    """The viewer is one builder (`recipe_view`) used by the page and the overlay, and both hosts must draw
+    what it sends: the `recipes` section type in the standalone renderer, and the overlay area in
+    `standalone/overlay.py`. A viewer wired into the app alone is exactly what this file exists to catch."""
+    from standalone.context import SECTION_TYPES
+    from nms_connector import recipe_view
+    assert recipe_view.SECTION_TYPE in SECTION_TYPES
+    page = (HOST / "web" / "sections.js").read_text(encoding="utf-8")
+    assert "recipes: buildRecipes" in page and "recipeRow" in page
+    overlay = (HOST / "overlay.py").read_text(encoding="utf-8")
+    # The host never hard-codes the action id: it takes it from the payload (search_action), so the
+    # connector may rename it without the overlay going quiet.
+    assert "recipe_cards" in overlay and "search_action" in overlay
+    assert '"search_recipes"' not in overlay
+    page_builder = (CONNECTOR / "page.py").read_text(encoding="utf-8")
+    companion = (CONNECTOR / "companion.py").read_text(encoding="utf-8")
+    assert "recipe_view.sections" in page_builder and "recipe_view.overlay_area" in companion
+
+
 def test_the_standalone_app_version_covers_the_manifests_minimum():
     """`app.min_version` says which host features the connector needs. The standalone host declares the
     version it implements; if the manifest asks for more, the host is behind and must catch up in the
@@ -111,10 +130,11 @@ def test_every_chat_context_key_is_handled_somewhere():
 
 
 def test_every_overlay_key_is_handled():
-    """The connector's `overlay()` sends areas, timers, lines, its persona, the codeword, toggles and the
-    Codex-search opt-in. The standalone side must account for each or silently drop features."""
+    """The connector's `overlay()` sends areas, timers, lines, its persona, the codeword, toggles, the
+    Codex-search opt-in and - since the recipe viewer - `recipe_search` plus an area's `recipes`, `search`
+    and `query`. The standalone side must account for each or silently drop features."""
     text = (HOST / "overlay.py").read_text(encoding="utf-8") + (HOST / "alerts.py").read_text(encoding="utf-8")
-    for key in ("areas", "timers", "lines", "default_on"):
+    for key in ("areas", "timers", "lines", "default_on", "recipe_search", "recipes", "search", "query"):
         assert key in text, key
     # The remaining keys are the page's and the tray's business; they are accounted for there.
     page = (HOST / "web" / "panels.js").read_text(encoding="utf-8") + (HOST / "tray.py").read_text(encoding="utf-8")
