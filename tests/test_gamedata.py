@@ -426,6 +426,11 @@ def test_ids_that_are_not_items_get_the_games_icons_too(tmp_path):
     assert gd.icon_texture("NOT_AN_ID") is None and gd.icon_name("UI_BONES_HINT") is None     # not converted yet
     (tmp_path / "assets").mkdir()
     (tmp_path / "assets" / "bones.png").write_bytes(b"png")
+    # `icon_name` answers from `icon_files()`, one listing of the assets folder per build (16,804 `stat()`
+    # calls per page build before it). The listing is only refreshed where the folder changes, which in the
+    # plugin is `ensure_icons` - so a test that puts a PNG there itself has to say so, exactly as any future
+    # writer of that folder would have to.
+    gd.forget_icon_files()
     assert gd.icon_name("UI_BONES_HINT") == "bones.png"
     assert len([k for k in EXTRA_ICONS if k.startswith("SETTLEMENT_")]) == 15
 

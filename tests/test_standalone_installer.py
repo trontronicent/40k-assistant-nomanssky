@@ -16,7 +16,7 @@ def test_the_iss_file_packages_everything_the_program_needs():
     """A missing `[Files]` entry produces an install that starts and then fails on an import."""
     text = read("nms-companion.iss")
     for part in ("nms_connector", "standalone", "vendor", "strategicum-plugin.json", "codex",
-                 "HELP.md", "postinstall.ps1", "40k-12b-companion.Modelfile"):
+                 "HELP.md", "postinstall.ps1", "40k-12b-companion.Modelfile", "THIRD-PARTY-NOTICES.md"):
         assert part in text, part
 
 
@@ -188,3 +188,30 @@ def test_the_build_script_finds_the_compiler_where_it_is():
     assert "Find-Iscc" in text
     assert "LOCALAPPDATA" in text and "Program Files (x86)" in text
     assert "winget install" in text
+
+
+def test_the_installer_shows_and_ships_the_third_party_notices():
+    """The install packages its own Python and five wheels, one of them LGPL; their licences only reach
+    the user if the notices file is shown in the wizard, installed beside the program and reachable from
+    the Start menu afterwards."""
+    text = read("nms-companion.iss")
+    assert r"InfoBeforeFile=..\THIRD-PARTY-NOTICES.md" in text
+    ships = [line for line in text.splitlines()
+             if line.startswith("Source:") and "THIRD-PARTY-NOTICES.md" in line]
+    assert ships and 'DestDir: "{app}"' in ships[0]
+    assert "credits" in text                       # the Start menu entry
+
+
+def test_the_installer_names_the_author_and_the_repository():
+    """What Windows shows as the publisher, and where a user who installed the exe can find the source."""
+    text = read("nms-companion.iss")
+    assert "Shorthand Dev / TronTronic Entertainment" in text
+    assert "AppCopyright=Copyright (c) 2026" in text
+    assert "github.com/trontronicent/40k-assistant-nomanssky" in text
+
+
+def test_the_build_refuses_a_stale_notices_file():
+    """`credits.py` is the one list; the installer must not be compilable while the file it ships
+    disagrees with it (that is how the old "nothing LGPL is packaged" claim survived)."""
+    text = read("build.ps1")
+    assert "write_notices.py" in text and "--check" in text

@@ -36,11 +36,31 @@ downloads the repository as a tarball rather than an installer.
 Everything the installer fetches is logged to `%LOCALAPPDATA%\NMS Companion\install.log`, and a part
 that cannot be set up is left switched off rather than half-installed.
 
-## Licences and what is never shipped
+## Licences, credits and what is never shipped
 
-* This plugin and its standalone host: **MIT** (see `LICENSE`).
+Everything this plugin builds on, bundles or downloads is listed in
+[`THIRD-PARTY-NOTICES.md`](../THIRD-PARTY-NOTICES.md), which is **generated** from
+`nms_connector/credits.py` (`python tools/write_notices.py`). That one module also feeds the manifest's
+`credits`, which the 40k Assistant shows in its manual, and the page's own **About** tab. `build.ps1`
+runs `tools/write_notices.py --check` and refuses to compile while any of them is out of date.
+
+The installer shows the notices on its info page and installs the file beside the program, with a Start
+menu entry of its own.
+
+In short:
+
+* This plugin and its standalone host: **MIT**, copyright Reto Kummer alias Reat Kay, Shorthand Dev /
+  TronTronic Entertainment (see `LICENSE`).
+* **Packaged** in `vendor\`: the embeddable **Python 3.11** (PSF-2.0) and the five wheels the host
+  imports — **numpy** (BSD-3-Clause), **python-zstandard** (BSD-3-Clause), **Pillow** (MIT-CMU),
+  **six** (MIT) and **pystray** (**LGPL-3.0**). pystray is shipped unmodified and imported dynamically;
+  its own licence text travels with it in its `.dist-info` folder, so it may be replaced by another
+  build of the same library. The installer itself is built with **Inno Setup** (Jordan Russell, Martijn
+  Laan).
+* **Fonts** are loaded from Google Fonts at runtime: Cinzel, Chakra Petch and Inter (SIL OFL 1.1) and
+  Roboto Mono (Apache-2.0).
 * **Ollama** (MIT) and the **gemma4** model are installed from their own sources on the user's machine;
-  the model's own licence applies and nothing of it is redistributed here.
+  the model's own terms apply and nothing of it is redistributed here.
 * **Piper** (MIT) and the **en_GB-cori-high** voice (LibriVox, public domain) are downloaded from their
   release pages.
 * **MBINCompiler**'s `mapping.json` is LGPL-3.0 and is **downloaded at runtime**, never packaged.

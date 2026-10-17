@@ -88,8 +88,14 @@ ELISION_RE = re.compile(r"\b(?:l|d|j|n|s|c|m|t|qu|dell|all|nell|sull|un)['\u2019
 
 
 def _words(text: str) -> list[str]:
-    """The lower-case words of a text; a French/Italian elision is cut off first ("l'ammoniac" -> "ammoniac")."""
-    return [w.lower() for w in WORD_RE.findall(ELISION_RE.sub(" ", text or ""))]
+    """The lower-case words of a text; a French/Italian elision is cut off first ("l'ammoniac" -> "ammoniac")
+    and a **hyphen separates words** ("Donut-Rezepte" -> donut, rezepte).
+
+    The hyphen matters because German compounds freely: *"alle Donut-Rezepte mit Grundwerten"* used to yield the
+    single word `donut-rezepte`, which matches no item name - so that question named no item at all and the
+    persona answered with no game data behind it (measured 2026-10-17). Item names go through this same
+    function, so both sides agree and a hyphenated name ("Proto-Donut", "Multi-tool") still matches as a whole."""
+    return [w.lower() for w in WORD_RE.findall(ELISION_RE.sub(" ", (text or "").replace("-", " ")))]
 
 
 # The generic parts of an equipment group title ("Starship Mad Falcon (primary)", "Multi-tool Quantum Kay Needler

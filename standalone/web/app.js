@@ -90,6 +90,11 @@
     formatRemaining: (item) => (window.Timers
       ? window.Timers.formatRemaining(item, Date.now() / 1000)
       : String(item.ends_at || "")),
+    formatEndLabel: (item) => (window.Timers ? window.Timers.endLabel(item, Date.now() / 1000) : ""),
+    setSort: (section, sort) => {
+      state.sort.set(section.id || "t", sort);
+      drawView();
+    },
   });
 
   function drawView() {
@@ -98,6 +103,9 @@
     host.textContent = "";
     host.appendChild(rendered.node);
     drawViewHead();
+    // Only now do the tables have a width: this is where each one becomes a table or cards, as the app's
+    // ResizeObserver does it there. A resize re-runs it without asking the connector for the view again.
+    window.Sections.measureTables(host);
     if (window.Timers) window.Timers.attach(host);
   }
 
@@ -268,6 +276,16 @@
     await pollView();
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") pollView();
+    });
+    // Turning a phone, or dragging the window narrow, decides tables and cards again - the view itself
+    // has not changed, so nothing is fetched. Debounced: a resize fires continuously while dragging.
+    let resizing = null;
+    window.addEventListener("resize", () => {
+      if (resizing) clearTimeout(resizing);
+      resizing = setTimeout(() => {
+        resizing = null;
+        window.Sections.measureTables(document.getElementById("view-sections"));
+      }, 120);
     });
   }
 

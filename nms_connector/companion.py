@@ -243,6 +243,9 @@ class PluginCompanion:
     def _chat_context(self, question: str) -> dict:
         c = self.connector
         which = conversation.kind(question)
+        # Before `plain_question`, which drops the label but keeps the earlier questions: what the player just
+        # sent is what the recipe diagrams are for (`recipe_diagrams`).
+        asked = conversation.current_message(question)
         question = conversation.plain_question(question)
         if which:                       # a greeting or a request for the instructions: no game data on purpose
             return {"title": "No Man's Sky", "text": conversation.minimal_text(which), "instructions": [],
@@ -291,29 +294,39 @@ class PluginCompanion:
                 # The Settings tab's "Single Context Per Question": this plugin's persona gets no earlier turns (3.11.0).
                 "single_context": bool(c.settings.single_context),
                 # The recipes found for the question, as data the app draws under the reply (app 3.17.0).
-                "recipes": self._diagrams(question, words)}
+                "recipes": self._diagrams(question, words, asked)}
 
-    def _diagrams(self, question: str, words: set[str]) -> list[dict]:
+    def _diagrams(self, question: str, words: set[str], asked: str | None = None) -> list[dict]:
         """`recipe_diagrams`, never raising: a failure costs the diagrams only (logged once per few minutes)."""
         try:
-            return self.recipe_diagrams(question, words)
+            return self.recipe_diagrams(question, words, asked)
         except Exception as exc:
             logs.warn_once(f"diagrams:{type(exc).__name__}", "The recipe diagrams failed: %s: %s",
                            type(exc).__name__, exc)
             return []
 
-    def recipe_diagrams(self, question: str, words: set[str]) -> list[dict]:
+    def recipe_diagrams(self, question: str, words: set[str], asked: str | None = None) -> list[dict]:
         """For a question about getting, making or cooking an item: every recipe that makes the items it names in full
         (diagrams.named_items - stricter than the persona data's word match, so no unrelated item is drawn), named
-        in the question's language, with the converted icons (diagrams.item_diagrams)."""
+        in the question's language, with the converted icons (diagrams.item_diagrams).
+
+        Only the **current** message names the items (`conversation.current_message`). The host appends the user's
+        earlier questions to a short one, and matching those as well drew the earlier replies' recipes again under
+        every new answer - with three recipe questions in a row the third reply carried all twelve diagrams of all
+        three, and `MAX_DIAGRAMS` then began to push the current answer's own recipes out (browser run
+        2026-10-17). The *trigger* still looks at the whole text, so "und Natrium?" after a recipe question keeps
+        working: it is about a new item, and that item is in the current message."""
         c = self.connector
         book = c.tables.recipes
         if not (words & (RECIPE_WORDS | cooking.COOKING_WORDS)) or book is None or not book.recipes:
             return []
+        # `asked` is the message on its own, handed in by `_chat_context` before the label was stripped; falling
+        # back to cutting here keeps a direct caller (and the tests) working.
+        asked = asked or conversation.current_message(question)
         made = {r.result for r in book.recipes} | set(book.crafting)
-        items = diagrams.named_items(question, c.gamedata.names_with_alt(), made)[:MAX_RECIPE_ITEMS]
+        items = diagrams.named_items(asked, c.gamedata.names_with_alt(), made)[:MAX_RECIPE_ITEMS]
         lookup, terms = c.gamedata.lookup, c.tables.terms
-        language = diagrams.answer_language(question, items, lookup, terms.language)
+        language = diagrams.answer_language(asked, items, lookup, terms.language)
         return diagrams.item_diagrams(book, lookup, c.gamedata.icon_name, items, language, terms)
 
     def _status_lines(self, snap: dict | None, ctx, here) -> tuple[list[str], list[str]]:

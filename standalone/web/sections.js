@@ -155,7 +155,10 @@ function toHtml(node) {
   if (node.tag === "#text") return escapeHtml(node.text);
   const attrs = Object.keys(node.attrs).map((k) => " " + k + '="' + escapeHtml(node.attrs[k]) + '"').join("");
   if (VOID_TAGS.indexOf(node.tag) >= 0) return "<" + node.tag + attrs + ">";
-  const inner = node.text ? escapeHtml(node.text) : (node.children || []).map(toHtml).join("");
+  // Text first, then the children, as a real element behaves: `el()` sets textContent and a builder may
+  // then append to it (a sort button is its label plus the arrow). Taking the text alone hid the arrow
+  // from the tests while the browser drew it.
+  const inner = escapeHtml(node.text || "") + (node.children || []).map(toHtml).join("");
   return "<" + node.tag + attrs + ">" + inner + "</" + node.tag + ">";
 }
 
@@ -176,6 +179,8 @@ function buildStats(doc, section) {
   const grid = el(doc, "div", "stc-stats-grid");
   for (const item of section.items || []) {
     const cell = el(doc, "div", "stc-stat");
+    // The app shows a stat's own explanation as a tooltip; here it is the title, as for a cell hint.
+    if (item.hint) cell.setAttribute("title", item.hint);
     cell.appendChild(el(doc, "span", "stc-stat-label", item.label || ""));
     cell.appendChild(el(doc, "span", "stc-stat-value", cellText(item.value)));
     grid.appendChild(cell);
@@ -197,6 +202,16 @@ function buildKv(doc, section) {
   return box;
 }
 
+/** True when this cell is short enough never to wrap - the app's `pluginModel.cellNoWrap`.
+ *
+ *  In the app the answer lands on the `<td>` (its `white-space` and its 20ch minimum), not on the text
+ *  inside it, so `appendCell` leaves this to `buildRow` and a key/value or list entry wraps freely in
+ *  both hosts, as it does in the app. */
+function cellNoWrap(cell) {
+  const raw = cell && typeof cell === "object" ? cell.text : cell;
+  return typeof raw !== "string" || raw.length <= NOWRAP_CHARS;
+}
+
 function appendCell(doc, host, cell) {
   const url = cellIcon(cell);
   if (url) {
@@ -206,39 +221,253 @@ function appendCell(doc, host, cell) {
     img.setAttribute("class", "stc-icon");
     host.appendChild(img);
   }
-  const text = cellText(cell);
-  const span = el(doc, "span", text.length <= NOWRAP_CHARS ? "stc-nowrap" : null, text);
   const hint = cellHint(cell);
-  if (hint) {
-    span.setAttribute("title", hint);
-    span.setAttribute("class", (text.length <= NOWRAP_CHARS ? "stc-nowrap " : "") + "stc-hinted");
-  }
+  const span = el(doc, "span", hint ? "stc-hinted" : null, cellText(cell));
+  if (hint) span.setAttribute("title", hint);
   host.appendChild(span);
   return host;
 }
 
-function buildTable(doc, section, api) {
-  const box = el(doc, "div", "stc-table-box");
-  const table = el(doc, "table", "stc-table");
+// The arrows the app draws in a column header (lucide ChevronUp/ChevronDown/ChevronsUpDown); a glyph each,
+// because the standalone install ships no icon set.
+const SORT_MARKS = { asc: "↑", desc: "↓", none: "⇅" };
+
+function sortTitle(column, direction) {
+  // The app's wording, so the same header explains itself the same way in both hosts.
+  if (direction === "asc") return "Sort by " + column + ", descending";
+  if (direction === "desc") return "Show the rows in their original order";
+  return "Sort by " + column + ", ascending";
+}
+
+function buildHead(doc, section, api) {
+  const order = api.sortFor(section);
   const head = el(doc, "tr", null);
   (section.columns || []).forEach((column, index) => {
-    const th = el(doc, "th", null);
+    const direction = order && order.column === index ? order.direction : null;
+    const th = el(doc, "th", direction ? "stc-sorted" : null);
+    th.setAttribute("aria-sort", direction === "asc" ? "ascending"
+      : direction === "desc" ? "descending" : "none");
     const button = el(doc, "button", "stc-sort", String(column));
     button.setAttribute("type", "button");
-    button.setAttribute("title", "Sort by " + column);
+    button.setAttribute("title", sortTitle(column, direction));
+    const mark = el(doc, "span", "stc-sort-mark" + (direction ? "" : " stc-sort-mark-off"),
+                    SORT_MARKS[direction || "none"]);
+    mark.setAttribute("aria-hidden", "true");
+    button.appendChild(mark);
     button.addEventListener("click", () => api.onSort(section, index));
     th.appendChild(button);
     head.appendChild(th);
   });
-  table.appendChild(head);
+  return head;
+}
+
+function rowOrder(section, api) {
   const order = api.sortFor(section);
   const rows = section.rows || [];
-  const indices = order ? sortRows(rows, order.column, order.direction) : rows.map((_, i) => i);
-  for (const index of indices) {
-    table.appendChild(buildRow(doc, section, index, api));
+  return order ? sortRows(rows, order.column, order.direction) : rows.map((_, i) => i);
+}
+
+function truncatedNote(doc, section) {
+  // The app's line under a table the connector cut short, so a missing row is never silent.
+  if (!section.truncated) return null;
+  return el(doc, "div", "stc-truncated",
+            "Only the first " + (section.rows || []).length + " rows are shown.");
+}
+
+function buildTableBox(doc, section, api) {
+  const box = el(doc, "div", "stc-table-box");
+  const table = el(doc, "table", "stc-table");
+  const thead = el(doc, "thead", null);
+  thead.appendChild(buildHead(doc, section, api));
+  table.appendChild(thead);
+  const body = el(doc, "tbody", null);
+  for (const index of rowOrder(section, api)) {
+    body.appendChild(buildRow(doc, section, index, api));
   }
+  table.appendChild(body);
   box.appendChild(table);
+  const note = truncatedNote(doc, section);
+  if (note) box.appendChild(note);
   return box;
+}
+
+/** A table section: the hint above it, then the table or - on a narrow page - the cards.
+ *
+ *  The app decides between the two from the measured width (`pluginModel.tableAsCards`), which no builder
+ *  can know while it builds; `measureTables` does that pass once the nodes are in the document and swaps
+ *  this box's contents. `api.layout` forces one of them, as the app's `layout` prop does for tests. */
+function buildTable(doc, section, api) {
+  const outer = el(doc, "div", "stc-table-outer");
+  if (!(section.rows || []).length) {
+    outer.appendChild(el(doc, "div", "stc-muted", section.empty || "No entries."));
+    return outer;
+  }
+  if (section.row_action && section.row_hint) {
+    outer.appendChild(el(doc, "div", "stc-hint", section.row_hint));
+  }
+  const inner = el(doc, "div", "stc-table-inner");
+  inner.appendChild(api.layout === "cards" ? buildCards(doc, section, api)
+                                           : buildTableBox(doc, section, api));
+  inner.setAttribute("data-layout", api.layout === "cards" ? "cards" : "table");
+  outer.appendChild(inner);
+  if (api.layout === "auto" && inner.ownerDocument) measured.set(inner, { section: section, api: api });
+  return outer;
+}
+
+// --------------------------------------------------------------------------- cards (the phone layout)
+
+const CARD_BREAKPOINT = 560;
+const CARD_OVERFLOW_MAX = 1024;
+const EMPTY_CELL = "–";
+
+// What each table needed the last time it was shown as a table, kept per section id so switching to cards
+// does not forget it (the app keeps it in the component's state for the same reason).
+const neededWidths = new Map();
+// Boxes whose layout `measureTables` may still change: node -> {section, api}.
+const measured = new WeakMap();
+
+/** True when a table `width` px wide with `columnCount` columns reads better as cards - the app's
+ *  `pluginModel.tableAsCards`, including its measured thresholds, so neither host switches first. */
+function tableAsCards(width, columnCount, needed) {
+  const need = needed || 0;
+  if (!(width > 0) || columnCount < 3) return false;
+  if (width < CARD_BREAKPOINT) return true;
+  if (need > width * 1.25) return true;
+  return width < CARD_OVERFLOW_MAX && need > width * 1.1;
+}
+
+/** The label/value pairs of one card: every column after the first, empty cells left out (the app's
+ *  `pluginModel.cardFields` - a "–" is noise in a card where it is a placeholder in a table). */
+function cardFields(columns, row) {
+  return (columns || []).slice(1)
+    .map((label, i) => ({ label: label, column: i + 1, cell: (row || [])[i + 1] }))
+    .filter((field) => cellText(field.cell) !== EMPTY_CELL);
+}
+
+function buildCardSort(doc, section, api) {
+  // The phone layout's stand-in for the column headers: pick a column, then flip the direction.
+  const order = api.sortFor(section);
+  const bar = el(doc, "div", "stc-card-sort");
+  const label = el(doc, "label", "stc-field");
+  label.appendChild(el(doc, "span", "stc-field-label", "Sort by"));
+  const select = doc.createElement("select");
+  select.setAttribute("title", "Order the entries by one of the table's columns");
+  const none = el(doc, "option", null, "The plugin's order");
+  none.setAttribute("value", "");
+  select.appendChild(none);
+  (section.columns || []).forEach((column, index) => {
+    const option = el(doc, "option", null, String(column));
+    option.setAttribute("value", String(index));
+    if (order && order.column === index) option.setAttribute("selected", "selected");
+    select.appendChild(option);
+  });
+  select.addEventListener("change", (event) => api.setSort(section, event.target.value === ""
+    ? null
+    : { column: Number(event.target.value), direction: "asc" }));
+  label.appendChild(select);
+  bar.appendChild(label);
+  if (order) bar.appendChild(buildDirectionButton(doc, section, api, order));
+  return bar;
+}
+
+function buildDirectionButton(doc, section, api, order) {
+  const asc = order.direction !== "desc";
+  const button = el(doc, "button", "stc-card-dir", asc ? "↑ Asc" : "↓ Desc");
+  button.setAttribute("type", "button");
+  button.setAttribute("title", asc ? "Ascending - tap for descending" : "Descending - tap for ascending");
+  button.addEventListener("click", () => api.setSort(section,
+    { column: order.column, direction: asc ? "desc" : "asc" }));
+  return button;
+}
+
+function buildCard(doc, section, index, api) {
+  const row = (section.rows || [])[index] || [];
+  const keys = section.row_keys || [];
+  const key = keys[index] === undefined ? null : keys[index];
+  const open = Boolean(section.row_action) && key !== null;
+  const card = el(doc, "div", "stc-card" + (open ? " stc-clickable" : ""));
+  const title = el(doc, "div", "stc-card-title");
+  appendCell(doc, title, row[0]);
+  if (open && section.row_hint && !cellHint(row[0])) title.setAttribute("title", section.row_hint);
+  card.appendChild(title);
+  const fields = cardFields(section.columns, row);
+  if (fields.length) card.appendChild(buildCardFields(doc, fields));
+  if (open) {
+    card.setAttribute("role", "button");
+    card.setAttribute("tabindex", "0");
+    card.addEventListener("click", () => api.onAction(section.row_action, { key: key }));
+    card.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") api.onAction(section.row_action, { key: key });
+    });
+  }
+  if (section.row_menu && key !== null) {
+    card.addEventListener("contextmenu", (event) => openRowMenu(doc, section, key, event, api));
+  }
+  if (section.selected_key && key === section.selected_key) card.setAttribute("data-selected", "1");
+  return card;
+}
+
+function buildCardFields(doc, fields) {
+  const list = el(doc, "dl", "stc-card-fields");
+  for (const field of fields) {
+    list.appendChild(el(doc, "dt", null, String(field.label)));
+    const value = el(doc, "dd", null);
+    appendCell(doc, value, field.cell);
+    list.appendChild(value);
+  }
+  return list;
+}
+
+function buildCards(doc, section, api) {
+  const box = el(doc, "div", "stc-cards-box");
+  if ((section.rows || []).length > 1) box.appendChild(buildCardSort(doc, section, api));
+  const list = el(doc, "div", "stc-cards");
+  list.setAttribute("role", "list");
+  for (const index of rowOrder(section, api)) {
+    list.appendChild(buildCard(doc, section, index, api));
+  }
+  box.appendChild(list);
+  const note = truncatedNote(doc, section);
+  if (note) list.appendChild(note);
+  return box;
+}
+
+/** How much room this table needs: what it measures now, else what it needed when it was last a table.
+ *
+ *  A box showing cards has no table to measure, so without the memory the page would find that the table
+ *  fits, swap back, measure, swap to cards again - a flicker on every poll. Only a section with an id can
+ *  be remembered: without that check every id-less table would share one entry and answer for the others.
+ */
+function neededFor(sectionId, measuredWidth) {
+  const key = sectionId || null;
+  if (!key) return measuredWidth;
+  if (measuredWidth) neededWidths.set(key, measuredWidth);
+  return neededWidths.get(key) || 0;
+}
+
+/** Decide table-or-cards for every table under `root` now that it has a width, and swap what differs.
+ *
+ *  Called after the page inserted the sections and again on a resize. A table that is shown keeps its
+ *  measured `scrollWidth` in `neededWidths`, so a box that is already cards still knows how much room its
+ *  table wanted - without that, switching to cards would make the page think the table fits and it would
+ *  flip back and forth. */
+function measureTables(root) {
+  if (!root || !root.querySelectorAll) return;
+  for (const inner of root.querySelectorAll(".stc-table-inner")) {
+    const entry = measured.get(inner);
+    if (!entry) continue;
+    const table = inner.querySelector("table");
+    const needed = neededFor(entry.section.id, table ? Math.round(table.scrollWidth) : 0);
+    const width = Math.round(inner.getBoundingClientRect().width);
+    const wanted = tableAsCards(width, (entry.section.columns || []).length, needed);
+    const shown = inner.getAttribute("data-layout") === "cards";
+    if (wanted === shown) continue;
+    const doc = inner.ownerDocument;
+    inner.textContent = "";
+    inner.setAttribute("data-layout", wanted ? "cards" : "table");
+    inner.appendChild(wanted ? buildCards(doc, entry.section, entry.api)
+                             : buildTableBox(doc, entry.section, entry.api));
+  }
 }
 
 function rowMenuItems(section) {
@@ -283,10 +512,10 @@ function openRowMenu(doc, section, key, event, api) {
   box.style.left = at.left + "px";
   box.style.top = at.top + "px";
   openMenu = box;
-  // One listener each, removed with the menu: a click anywhere, a scroll or Escape closes it.
+  // One listener each, removed with the menu: a click outside, a scroll or Escape closes it.
   setTimeout(() => {
-    window.addEventListener("pointerdown", closeRowMenu, { once: true, capture: true });
-    window.addEventListener("scroll", closeRowMenu, { once: true, capture: true });
+    window.addEventListener("pointerdown", pointerCloses, true);
+    window.addEventListener("scroll", closeRowMenu, true);
     window.addEventListener("keydown", escapeCloses);
   }, 0);
 }
@@ -297,10 +526,22 @@ function escapeCloses(event) {
   if (event.key === "Escape") closeRowMenu();
 }
 
+/** A pointer-down closes the menu - unless it landed on the menu itself.
+ *
+ *  This is a capture-phase listener, so it runs before the entry's own click handler. Closing here would
+ *  remove the button from the document before the browser dispatches `click`, and the entry would never
+ *  run: the menu opened, an entry did nothing, and nothing was logged. */
+function pointerCloses(event) {
+  if (openMenu && openMenu.contains && event && openMenu.contains(event.target)) return;
+  closeRowMenu();
+}
+
 function closeRowMenu() {
   if (!openMenu) return;
   if (openMenu.parentNode) openMenu.parentNode.removeChild(openMenu);
   openMenu = null;
+  window.removeEventListener("pointerdown", pointerCloses, true);
+  window.removeEventListener("scroll", closeRowMenu, true);
   window.removeEventListener("keydown", escapeCloses);
 }
 
@@ -309,7 +550,8 @@ function buildRow(doc, section, index, api) {
   const keys = section.row_keys || [];
   const key = keys[index] === undefined ? null : keys[index];
   (section.rows[index] || []).forEach((cell, column) => {
-    const td = el(doc, "td", null);
+    // The app puts the no-wrap decision and the 20ch minimum on the cell, not on the text inside it.
+    const td = el(doc, "td", cellNoWrap(cell) ? "stc-nowrap" : null);
     appendCell(doc, td, cell);
     if (column === 0 && section.row_hint && !cellHint(cell)) td.setAttribute("title", section.row_hint);
     row.appendChild(td);
@@ -332,6 +574,10 @@ function buildRow(doc, section, index, api) {
 
 function buildList(doc, section) {
   const box = el(doc, "div", "stc-list-box");
+  if (!(section.items || []).length) {
+    box.appendChild(el(doc, "div", "stc-muted", section.empty || "No entries."));
+    return box;
+  }
   const list = el(doc, "ul", "stc-list");
   for (const item of section.items || []) {
     const li = el(doc, "li", null);
@@ -386,8 +632,9 @@ async function copyText(text) {
 function buildText(doc, section) {
   const box = el(doc, "div", "stc-text-box");
   const text = section.text || "";
-  // Anything long enough to be data rather than a sentence gets a Copy button and a selectable block.
-  if (text.length <= COPY_FROM_CHARS && !text.includes("\n")) {
+  // Data - several lines, and long enough not to be a sentence - gets a Copy button and a selectable
+  // block; prose stays prose. On length alone, 13 explanations in the view became monospace blocks.
+  if (text.length <= COPY_FROM_CHARS || !text.includes("\n")) {
     box.appendChild(el(doc, "p", "stc-text", text));
     return box;
   }
@@ -462,20 +709,38 @@ function buildField(doc, formId, field, values) {
 
 function buildTimers(doc, section, api) {
   const box = el(doc, "div", "stc-timers");
+  if (!(section.items || []).length) {
+    box.appendChild(el(doc, "div", "stc-muted", section.empty || "No timers running."));
+    return box;
+  }
   for (const item of section.items || []) {
-    const row = el(doc, "div", "stc-timer");
-    row.setAttribute("data-timer-key", String(item.key || ""));
-    row.setAttribute("data-ends-at", String(item.ends_at || 0));
-    if (item.started_at) row.setAttribute("data-started-at", String(item.started_at));
-    row.appendChild(el(doc, "span", "stc-timer-label", item.label || ""));
-    row.appendChild(el(doc, "span", "stc-timer-remaining", api.formatRemaining(item)));
-    if (item.detail) row.appendChild(el(doc, "small", "stc-timer-detail", item.detail));
-    const bar = el(doc, "div", "stc-timer-bar");
-    bar.appendChild(el(doc, "div", "stc-timer-fill"));
-    row.appendChild(bar);
-    box.appendChild(row);
+    box.appendChild(buildTimerRow(doc, item, api));
   }
   return box;
+}
+
+/** One timer, in the app's shape: what it is on the left, the countdown and when it ends on the right,
+ *  and the progress bar across the bottom while it runs (TimersSection's TimerRow).
+ *
+ *  The app has a bell per timer, because its notifications are per timer and reach other devices. Here
+ *  one page-wide switch under *Alerts* does that for every timer, so there is no bell to draw. */
+function buildTimerRow(doc, item, api) {
+  const row = el(doc, "div", "stc-timer");
+  row.setAttribute("data-timer-key", String(item.key || ""));
+  row.setAttribute("data-ends-at", String(item.ends_at || 0));
+  if (item.started_at) row.setAttribute("data-started-at", String(item.started_at));
+  const what = el(doc, "div", "stc-timer-what");
+  what.appendChild(el(doc, "div", "stc-timer-label", item.label || ""));
+  if (item.detail) what.appendChild(el(doc, "div", "stc-timer-detail", item.detail));
+  row.appendChild(what);
+  const when = el(doc, "div", "stc-timer-when");
+  when.appendChild(el(doc, "div", "stc-timer-remaining", api.formatRemaining(item)));
+  when.appendChild(el(doc, "div", "stc-timer-at", api.formatEndLabel(item)));
+  row.appendChild(when);
+  const bar = el(doc, "div", "stc-timer-bar");
+  bar.appendChild(el(doc, "div", "stc-timer-fill"));
+  row.appendChild(bar);
+  return row;
 }
 
 function buildTabs(doc, section, api) {
@@ -534,10 +799,15 @@ function defaultApi(options) {
     starmap: buildPlaceholder,
     onAction: () => {},
     onSort: () => {},
+    // The card layout sets a sort outright (a column, or none) instead of cycling through it.
+    setSort: () => {},
+    // "auto" measures (measureTables); "cards"/"table" force one, as the app's `layout` prop does.
+    layout: "auto",
     onSelectTab: () => {},
     sortFor: () => null,
     selectedTab: (section, tabs) => (tabs[0] ? tabs[0].id : null),
     formatRemaining: (item) => String(item.ends_at || ""),
+    formatEndLabel: () => "",
     // The orbit/starmap drawers build their panels with these, so the render api always carries them:
     // a page that only overrides `orbit`/`starmap` must not have to remember them.
     el: el,
@@ -583,8 +853,9 @@ function renderSections(view, options) {
 }
 
 const sectionsExported = {
-  renderSections, cardSection, cellText, cellIcon, cellHint, sortKey, sortRows, nextSort, tabPath,
-  rowMenuItems, menuPosition, copyText, COPY_FROM_CHARS,
+  renderSections, cardSection, cellText, cellIcon, cellHint, cellNoWrap, sortKey, sortRows, nextSort,
+  tabPath, rowMenuItems, menuPosition, copyText, COPY_FROM_CHARS,
+  measureTables, tableAsCards, cardFields, neededFor, CARD_BREAKPOINT, CARD_OVERFLOW_MAX,
   formValues, setFormValue, resetForms, escapeHtml, toHtml, nodeFactory, el, appendCell, BUILDERS,
 };
 if (typeof module !== "undefined" && module.exports) module.exports = sectionsExported;

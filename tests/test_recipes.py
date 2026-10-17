@@ -62,10 +62,11 @@ ITEMS = {
     "PLANT_TOXIC": {"en": "Fungal Mould", "local": "Pilzschimmel"}, "SALT": {"en": "Salt", "local": "Salz"},
     "GAS3": {"en": "Nitrogen", "local": "Stickstoff"}, "GAS2": {"en": "Di-hydrogen", "local": "Diwasserstoff"},
     "LAND1": {"en": "Ferrite Dust", "local": "Ferritstaub"}, "CATALYST2": {"en": "Sodium Nitrate"},
-    "SULPHIDE": {"en": "Crystal Sulphide"}, "FOOD_STEW": {"en": "Toxic Stew"}, "FOOD_MEAT": {"en": "Meat"},
+    "SULPHIDE": {"en": "Crystal Sulphide"}, "FOOD_STEW": {"en": "Toxic Stew", "value": 105000}, "FOOD_MEAT": {"en": "Meat"},
     "ANTIMATTER": {"en": "Antimatter", "local": "Antimaterie", "desc_en": "Contained negative matter."},
     "STELLAR2": {"en": "Chromatic Metal"}, "FUEL2": {"en": "Condensed Carbon"},
-    "YELLOW2": {"en": "Copper", "local": "Kupfer", "desc_en": "Copper is found on planets orbiting yellow stars."},
+    "YELLOW2": {"en": "Copper", "local": "Kupfer", "desc_en": "Copper is found on planets orbiting yellow stars.",
+                "value": 240},
 }
 
 
@@ -436,3 +437,39 @@ def test_the_choice_of_a_recipe_is_answered_through_the_answer_rules(tmp_path, m
     block = plugin.companion.chat_context(wrapped)
     assert len(block["instructions"]) == 1 and companion.ONLY_THESE in block["instructions"][0]
     assert "ignore the Codex" not in block["text"] and "refiner 1:" in block["text"]
+
+
+def test_an_items_document_states_its_base_value():
+    """The documents carried no base value at all, so a question answered from the Codex - "all donut recipes
+    with base values" - was answered with "there are no base values" while the plugin had them all along
+    (2026-10-17). The value goes in the first passage, which is what a search snippet shows, and German writes
+    it with dots."""
+    doc = recipes.item_markdown(book(), ITEMS.get, "FOOD_STEW", "english", terms())
+    assert "Base value: 105,000 units each" in doc
+    german = recipes.item_markdown(book(), ITEMS.get, "FOOD_STEW", "german", terms())
+    assert "Grundwert: 105.000 Units pro Stück" in german
+    assert recipes.value_text(240, "english") == "240" and recipes.value_text(105000, "german") == "105.000"
+
+
+def test_an_item_the_game_gives_no_value_says_so():
+    """Silence would read as "nobody knows"; the technology and upgrade modules genuinely have no base value, and
+    the document has to say which of the two it is."""
+    doc = recipes.item_markdown(book(), ITEMS.get, "TOXIC1", "english", terms())
+    assert "The game gives this no base value." in doc
+    assert "Base value:" not in doc
+
+
+def test_the_item_tooltip_shows_cooking_recipes_too():
+    """`made_by` answers refiner recipes unless it is asked for cooking, so the tooltip left the Nutrient
+    Processor out: a dish, or an ingredient only used for cooking, had no "How to get it" block at all, while
+    the plugin had its recipes all along (2026-10-17). It is the one place that offers a recipe unasked."""
+    from types import SimpleNamespace
+    from nms_connector import planets_view
+    gd = SimpleNamespace(lookup=ITEMS.get, recipes=book(), terms=None)
+    texts = SimpleNamespace(gamedata=gd)
+    how = planets_view.Texts.how_to_get(texts, "FOOD_STEW")
+    assert how is not None and "Nutrient Processor" in how
+    assert "→ 1 Toxic Stew" in how
+    # Both stations in one block when an item has both, and the cut-off names the station it left out.
+    cut = planets_view.recipe_lines(gd, book(), "FOOD_STEW", 0, cooking=True)
+    assert cut == ["… 1 more Nutrient Processor recipe (Codex / ask the persona)"]

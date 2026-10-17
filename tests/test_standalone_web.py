@@ -135,7 +135,7 @@ def test_every_section_is_a_card_whose_head_carries_its_title():
                     " head: card.children[0].attrs.class, title: card.children[0].textContent,"
                     " body: card.children[1].attrs.class, inner: card.children[1].children[0].attrs.class}));")
     assert result == {"cls": "stc-section", "id": "t1", "head": "stc-section-head",
-                      "title": "Visited systems", "body": "stc-section-body", "inner": "stc-table-box"}
+                      "title": "Visited systems", "body": "stc-section-body", "inner": "stc-table-outer"}
     # A section without a title gets the card, but no empty head strip.
     plain = run_js("const r = S.renderSections({sections: [{type: 'text', text: 'x'}]});"
                    "console.log(JSON.stringify(r.children[0].children.map((c) => c.attrs.class)));")
@@ -255,3 +255,16 @@ def test_a_long_text_section_offers_a_copy_button():
     assert "select the text and press Ctrl+C" in js            # a refusal is reported, never swallowed
     css = (WEB / "app.css").read_text(encoding="utf-8")
     assert ".stc-copy-button {" in css and ".stc-copy-block {" in css
+
+
+def test_a_row_menu_entry_survives_its_own_pointer_down():
+    """The same bug the app had (2026-10-15): the menu closed on a capture-phase `pointerdown`, removing
+    the entry from the document before `click` was dispatched, so an entry did nothing at all and logged
+    nothing. A pointer-down on the menu itself must be ignored, and every listener must come off with the
+    menu - a `once: true` listener that the inside click consumed would leave the next click unwatched."""
+    js = (WEB / "sections.js").read_text(encoding="utf-8")
+    assert "function pointerCloses(" in js and "openMenu.contains(event.target)" in js
+    assert 'addEventListener("pointerdown", pointerCloses, true)' in js
+    assert 'removeEventListener("pointerdown", pointerCloses, true)' in js
+    assert 'removeEventListener("scroll", closeRowMenu, true)' in js
+    assert "{ once: true, capture: true }" not in js

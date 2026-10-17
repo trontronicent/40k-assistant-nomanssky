@@ -239,7 +239,7 @@ def test_plugin_reads_saves_read_only_and_builds_a_view(tmp_path, monkeypatch):
 
     plugin, view, result = asyncio.run(scenario())
     main = section(view, type="tabs", id="main")
-    assert [t["label"] for t in main["tabs"]] == ["Overview", "Systems", "Inventory", "Ships & bases", "Discoveries", "Companions", "Settlements", "Saves & source", "Settings"]
+    assert [t["label"] for t in main["tabs"]] == ["Overview", "Systems", "Inventory", "Ships & bases", "Discoveries", "Companions", "Settlements", "Saves & source", "Settings", "About"]
     titles = [s.get("title") for s in all_sections(view["sections"])]
     assert "Status" in titles and "Location (at the last save)" in titles and "Exosuit inventory" in titles
     assert "Status" in [s.get("title") for s in main["tabs"][0]["sections"]]

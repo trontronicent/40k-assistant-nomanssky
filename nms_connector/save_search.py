@@ -46,9 +46,23 @@ class Found:
     total: int = 0
 
 
-def row_words(row: list) -> set[str]:
+# A row's words, kept by the row's own text. The page rebuilds its tables on every poll, so the same
+# rows are folded again for every search; the same text always yields the same words, which makes this
+# exact rather than a guess. Capped so a long session cannot grow it without bound (the whole page is
+# about 10,000 rows, so the cap holds two full pages).
+_WORDS: dict[str, frozenset] = {}
+_WORDS_MAX = 20_000
+
+
+def row_words(row: list) -> frozenset:
     """Every searchable word of a row - its cells' texts, icon cells by their text."""
-    return set(planet_search.words(" ".join(planet_search.cell_text(c) for c in row)))
+    text = " ".join(planet_search.cell_text(c) for c in row)
+    found = _WORDS.get(text)
+    if found is None:
+        if len(_WORDS) >= _WORDS_MAX:
+            _WORDS.clear()
+        found = _WORDS[text] = frozenset(planet_search.words(text))
+    return found
 
 
 def groups_from_sections(sections: list[dict], skip: tuple = ()) -> list[Group]:
@@ -90,7 +104,10 @@ def search(groups: list[Group], query: str, per_group: int = MAX_PER_GROUP) -> l
         found = Found(group=group)
         keys = group.keys or []
         for index, row in enumerate(group.rows):
-            if all(planet_search.term_matches(t, row_words(row)) for t in wanted):
+            # One fold per row: this used to be inside the `all(...)`, so every search term folded the
+            # whole row again (0.75 s for 10,112 rows on a real save, measured 2026-10-16).
+            words = row_words(row)
+            if all(planet_search.term_matches(t, words) for t in wanted):
                 found.total += 1
                 if len(found.rows) < per_group:
                     found.rows.append(row)

@@ -287,6 +287,13 @@ def _front(title: str, tags: list[str], language: str, mark: str) -> list[str]:
             f"# {mark} - edits are overwritten when the documents are generated again", "---", ""]
 
 
+def value_text(value: int, language: str = ENGLISH) -> str:
+    """A base value with the thousands separator of the language the document is written in: 105,000 in English,
+    105.000 in German (the game writes it that way too, and the number is read by a player, not by code)."""
+    grouped = f"{int(value):,}"
+    return grouped.replace(",", ".") if language == "german" else grouped
+
+
 def item_markdown(book: RecipeBook, lookup, item: str, language: str = ENGLISH, terms=None) -> str:
     """One item's Codex document in one language: where it comes from (the game's description), every recipe
     that makes it, its crafting recipe and what it is used for - names and terms as the game writes them there."""
@@ -305,6 +312,11 @@ def item_markdown(book: RecipeBook, lookup, item: str, language: str = ENGLISH, 
     if desc:
         out += [f"## {h('where_from') if kind_of(book, item) == 'substance' else h('about')}", "",
                 " ".join(desc.split()), ""]
+    # The base value, in the first passage: a question about what something is worth - "all donut recipes with
+    # base values" - is answered from these documents when the live data block does not cover it, and until now
+    # they carried no value at all, so the persona said there were none (2026-10-17).
+    value = entry.get("value")
+    out += [h("base_value", value=value_text(value, language)) if value else h("value_unknown"), ""]
     if other and other != name:
         out += [h("other_name", lang_name=game_terms.language_name(other_lang, language), name=other), ""]
     refined = book.made_by(item)

@@ -214,3 +214,95 @@ def test_dishes_of_equal_value_are_listed_in_a_stable_order():
     view = cooking.CookingView(book, {}, _label, {"A": 100, "B": 100, "C": 100, "D": 100}.get)
     lines = cooking._most_valuable_lines(view)
     assert lines[0].startswith("  The most valuable dish in the game is A:") and lines[1].index("B:") < lines[1].index("C:")
+
+
+# --------------------------------------------------------------------------- a whole kind of dish
+# "alle Donut-Rezepte mit Grundwerten" (2026-10-17): the question named no item at all, so the persona answered
+# from Codex excerpts that carried no values - it listed a few donuts and said there were no base values.
+
+
+def _donuts():
+    """A doughnut family as the game has it: one id family, names in two languages, one of them named neither
+    "Donut" nor "Doughnut" (the game's own *The Stellarator* / *Pollen Puffball*)."""
+    book = RecipeBook([_cook("1", "FOOD_DNUT_PLAIN", "dough"), _cook("2", "FOOD_DNUT_JAM", "FOOD_DNUT_PLAIN", "jam"),
+                       _cook("3", "FOOD_DNUT_STAR", "FOOD_DNUT_PLAIN", "custard"),
+                       _cook("4", "FOOD_STEW_VEG", "veg", "bean")])
+    names = {"FOOD_DNUT_PLAIN": ["Lumpen Doughnut", "Klobiger Donut"],
+             "FOOD_DNUT_JAM": ["Jam Doughnut", "Marmeladendonut"],
+             "FOOD_DNUT_STAR": ["The Stellarator", "Der Stellarator"],
+             "FOOD_STEW_VEG": ["Fibrous Stew", "Fasriger Eintopf"],
+             "dough": ["Dough", "Teig"], "jam": ["Jam", "Marmelade"], "custard": ["Custard", "Pudding"],
+             "veg": ["Veg", "Gemuese"], "bean": ["Bean", "Bohne"]}
+    value = {"FOOD_DNUT_PLAIN": 48000, "FOOD_DNUT_JAM": 70000, "FOOD_DNUT_STAR": 100000, "FOOD_STEW_VEG": 6400,
+             "dough": 1000, "jam": 3400, "custard": 28000}.get
+    return cooking.CookingView(book, {}, lambda i: names.get(i, [i])[0], value, {},
+                               lambda i: names.get(i, [i]))
+
+
+def test_a_question_about_a_kind_of_dish_lists_every_dish_of_that_kind():
+    """"all donut recipes" asks for all of them. Matching names alone gives three of the game's fifteen
+    doughnuts, so the dishes are grouped by the game's own id family (FOOD_DNUT) and the whole family is
+    answered - which is also the only way the two doughnuts whose names say neither "Donut" nor "Doughnut"
+    (*The Stellarator*, *Pollen Puffball*) are included at all."""
+    view = _donuts()
+    assert cooking.dish_group(view, "all donut recipes with base values") == [
+        "FOOD_DNUT_STAR", "FOOD_DNUT_JAM", "FOOD_DNUT_PLAIN"]          # most valuable first
+    text = "\n".join(cooking.cooking_lines(view, "all donut recipes with base values", []))
+    for dish in ("The Stellarator", "Jam Doughnut", "Lumpen Doughnut"):
+        assert dish in text, dish
+    assert "100,000 units each" in text and "70,000 units each" in text
+    assert "Fibrous Stew" not in text                                  # another kind, another family
+
+
+def test_a_german_question_finds_the_same_dishes():
+    """The question that started this: German hyphenates and compounds, so "Donut-Rezepte" and "Donutrezepte"
+    must both name the kind - and "Marmeladendonut" has to be found inside one word."""
+    view = _donuts()
+    for question in ("alle Donut-Rezepte mit Grundwerten", "alle Donutrezepte", "alle Donutpreise"):
+        assert cooking.dish_group(view, question) == ["FOOD_DNUT_STAR", "FOOD_DNUT_JAM", "FOOD_DNUT_PLAIN"], question
+
+
+def test_every_dish_of_a_kind_is_listed_with_its_value_and_what_its_ingredients_cost():
+    """The point of the question was the base values: each dish of the kind gets its own, its simplest recipe,
+    and what that recipe's ingredients are worth - so the answer says whether cooking it pays."""
+    text = "\n".join(cooking.cooking_lines(_donuts(), "all donut recipes with base values", []))
+    assert "The Stellarator: 100,000 units each - Lumpen Doughnut + Custard" in text
+    assert "(ingredients 76,000 units, so cooking gains 24,000 units)" in text
+
+
+def test_a_dish_named_in_full_is_answered_as_itself_not_as_its_kind():
+    """"How do I make Fibrous Stew?" is about that one dish. Answering it with all twenty stews of the game
+    would bury the answer - so a name the question spells out beats the kind, unless it says "all"."""
+    view = _donuts()
+    text = "\n".join(cooking.cooking_lines(view, "How do I make Jam Doughnut?", ["FOOD_DNUT_JAM"]))
+    assert "How to cook Jam Doughnut" in text
+    assert "Every dish of the kind" not in text
+    both = "\n".join(cooking.cooking_lines(view, "all donut recipes, how do I make Jam Doughnut?",
+                                            ["FOOD_DNUT_JAM"]))
+    assert "Every dish of the kind" in both and "How to cook Jam Doughnut" in both
+
+
+def test_the_phrasing_of_a_question_is_never_read_as_a_kind_of_dish():
+    """Every word of the question is matched inside the dish names, so the words the question is *made of* have
+    to be dropped: "what can I cook right now" found the Cookie family ("cook" is inside "cookie") and "the most
+    valuable dish in the game" found all thirty-five pies and tarts through the article of "The Spawning Tart"
+    (both measured against the real game data, 2026-10-17)."""
+    view = _donuts()
+    for question in ("what can I cook right now?", "what is the most valuable dish in the game?",
+                     "How much copper do I have?", "what are my dishes worth?"):
+        assert cooking.dish_group(view, question) == [], question
+
+
+def test_one_dish_alone_is_not_a_kind():
+    """A kind needs two matching dishes, or a single accidental substring turns a question into a list."""
+    book = RecipeBook([_cook("1", "FOOD_ONE_X", "dough")])
+    view = cooking.CookingView(book, {}, lambda i: i, {}.get, {}, lambda i: ["Odd Doughnut"] if "ONE" in i else [i])
+    assert cooking.dish_group(view, "all doughnut recipes") == []
+
+
+def test_the_id_family_is_the_games_own_grouping():
+    """`family_of` is what makes "all donuts" complete; it must stay at two id parts, since that is the level the
+    game groups at (FOOD_DNUT_CUST and FOOD_DNUT_JAM are one kind, FOOD_STEW_VEG is not)."""
+    assert cooking.family_of("FOOD_DNUT_CUST") == "FOOD_DNUT"
+    assert cooking.family_of("FOOD_STEW_VEG") == "FOOD_STEW"
+    assert cooking.family_of("COPPER") == "COPPER"          # an id without a family is its own

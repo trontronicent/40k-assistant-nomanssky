@@ -53,10 +53,24 @@ def stem(word: str) -> str:
     return word
 
 
+# Each non-ASCII character folded once, then whole strings are folded with str.translate at C speed.
+# NFKD decomposes per code point and every combining mark is dropped, so folding character by character
+# gives the same string as folding the whole text - which is checked against the old implementation over
+# the entire BMP in tests/test_planet_search.py. Folding the rows of every table character by character
+# cost 0.7 s per search on a real save (10,112 rows, with the economy stars and dashes making almost
+# every row non-ASCII; measured 2026-10-16).
+_FOLDED_CHARS: dict[int, str] = {}
+
+
 def fold(text: str | None) -> str:
     """Lower case, ß -> ss, ä/ö/ü -> ae/oe/ue, other accents dropped: 'Sengend heißer' -> 'sengend heisser'."""
     text = (text or "").casefold().replace("ß", "ss").replace("ä", "ae").replace("ö", "oe").replace("ü", "ue")
-    return "".join(c for c in unicodedata.normalize("NFKD", text) if not unicodedata.combining(c))
+    if text.isascii():
+        return text                 # NFKD leaves ASCII alone and no ASCII character combines
+    for code in {ord(c) for c in text if ord(c) > 127} - _FOLDED_CHARS.keys():
+        _FOLDED_CHARS[code] = "".join(c for c in unicodedata.normalize("NFKD", chr(code))
+                                      if not unicodedata.combining(c))
+    return text.translate(_FOLDED_CHARS)
 
 
 def words(text: str | None) -> list[str]:

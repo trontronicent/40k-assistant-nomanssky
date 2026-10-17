@@ -47,7 +47,7 @@ EXIT_WAIT_S = 60.0
 # Only these are replaced. `vendor/` holds the running interpreter and the loaded DLLs, which Windows
 # will not let us rename, and the data dir is not in the install folder at all.
 CODE_PARTS = ("nms_connector", "standalone", "codex", "strategicum-plugin.json", "HELP.md",
-              "CHANGELOG.md", "README.md", "LICENSE")
+              "CHANGELOG.md", "README.md", "LICENSE", "THIRD-PARTY-NOTICES.md")
 
 # Seams the tests replace (waiting for a process cannot be tested against the real clock).
 _sleep = time.sleep

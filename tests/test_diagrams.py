@@ -96,3 +96,44 @@ def test_a_failing_diagram_build_costs_only_the_diagrams(tmp_path, monkeypatch):
     monkeypatch.setattr(diagrams, "item_diagrams", lambda *a: 1 / 0)
     block = plugin.companion.chat_context("how do I make ammonia?")
     assert block["recipes"] == [] and block["text"]
+
+
+def test_the_diagrams_are_only_for_the_message_just_sent():
+    """Both hosts append the user's earlier questions to a short message so a follow-up still matches items. The
+    diagrams must not follow that chain: three recipe questions in one conversation ended with the third reply
+    drawing all twelve diagrams of all three, and `MAX_DIAGRAMS` then pushed the current answer's own recipes out
+    (browser run against the running app, 2026-10-17). The trigger still reads the whole text, so a follow-up
+    that names a new item keeps its diagrams."""
+    from nms_connector import conversation
+    wrapped = ("Wie bekomme ich Natrium?\n\n(follow-up to the user's previous messages, oldest first: "
+               "Wie bekomme ich Ammoniak? / Wie stelle ich Chromatisches Metall her?)")
+    assert conversation.current_message(wrapped) == "Wie bekomme ich Natrium?"
+    assert conversation.current_message("Wie bekomme ich Natrium?") == "Wie bekomme ich Natrium?"
+    names = {"TOXIC1": ["Ammonia", "Ammoniak"], "CATALYST1": ["Sodium", "Natrium"],
+             "STELLAR2": ["Chromatic Metal", "Chromatisches Metall"]}
+    made = set(names)
+    assert diagrams.named_items(conversation.current_message(wrapped), names, made) == ["CATALYST1"]
+    # Without the cut, every item of the chain is named - which is exactly what was drawn before.
+    assert sorted(diagrams.named_items(wrapped, names, made)) == ["CATALYST1", "STELLAR2", "TOXIC1"]
+
+
+def test_a_follow_up_draws_only_the_recipes_of_the_question_just_asked(tmp_path, monkeypatch):
+    """Through `chat_context`, the way a host calls it: a short message arrives with the user's earlier questions
+    appended, and only the newest one may produce diagrams.
+
+    This is the test the first attempt at the fix did not have, and it would have caught it: `plain_question`
+    removes the label *before* the diagrams are built, so cutting on the label inside `recipe_diagrams` found
+    nothing left to cut and the live app still drew all twelve diagrams of three questions under the third
+    reply (browser run 2026-10-17)."""
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    plugin.tables.recipes = book()
+    plugin.gamedata.items = dict(ITEMS)
+    plugin.gamedata.icon_name = ICONS.get
+    wrapped = ("Wie bekomme ich Antimaterie?\n\n(follow-up to the user's previous messages, oldest first: "
+               "Wie bekomme ich Ammoniak? / how do I make ammonia?)")
+    found = plugin.companion.chat_context(wrapped)["recipes"]
+    # One diagram, for the item of the newest question only (the fixture's game language is English, so the
+    # names come out English).
+    assert [d["result"]["name"] for d in found] == ["Antimatter"]
+    assert not any("Ammonia" in d["result"]["name"] for d in found)

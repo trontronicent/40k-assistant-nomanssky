@@ -57,7 +57,9 @@ HEADINGS = {
                 "and_more": "… and {n} more", "world_like": "What such a world is like", "resources": "Typical resources",
                 "planet_names": "Planet names the game uses", "weather": "Weather", "extreme": "extreme weather - storms",
                 "climate_word": "The game's word for this climate: **{word}**.", "biomes": "Planet records call this biome: {b}.",
-                "gas": "{harvester} gas: {gas}", "source": "Source: {s}.", "worlds": "Worlds"},
+                "gas": "{harvester} gas: {gas}", "source": "Source: {s}.", "worlds": "Worlds",
+                "base_value": "Base value: {value} units each (what the game says one unit is worth).",
+                "value_unknown": "The game gives this no base value."},
     "german": {"where_from": "Fundort", "about": "Beschreibung", "refined": "Raffinerie-Rezepte",
                "cooked": "Kochrezepte", "crafted": "Herstellung", "uses_refiner": "In der Raffinerie",
                "uses_crafting": "Zum Herstellen von", "uses_cooking": "Zum Kochen", "gathered": (
@@ -68,7 +70,9 @@ HEADINGS = {
                "planet_names": "Planetenbezeichnungen im Spiel", "weather": "Wetter", "extreme": "Extremwetter - Stürme",
                "climate_word": "Das Wort des Spiels für dieses Klima: **{word}**.",
                "biomes": "Im Planetenverzeichnis heißt dieses Biom: {b}.",
-               "gas": "Gas für die {harvester}: {gas}", "source": "Quelle: {s}.", "worlds": "Welten"},
+               "gas": "Gas für die {harvester}: {gas}", "source": "Quelle: {s}.", "worlds": "Welten",
+               "base_value": "Grundwert: {value} Units pro Stück (was ein Stück im Spiel wert ist).",
+               "value_unknown": "Das Spiel gibt dafür keinen Grundwert an."},
 }
 # ISO codes for the documents' `language` front matter (the app prefers documents in the question's language).
 LANGUAGE_CODES = {"english": "en", "usenglish": "en", "german": "de", "french": "fr", "italian": "it",

@@ -3,11 +3,11 @@
   "manifest_version": 1,
   "id": "nomanssky",
   "name": "No Man's Sky",
-  "version": "0.15.0-beta.5",
+  "version": "0.15.0-beta.6",
   "data_version": 1,
   "description": "Connector to No Man's Sky: inventories, equipment, galaxy and system maps, trade routes, settlements, frigates, timers, your discoveries, companions and creature-battle abilities, and a persona that answers from your game data. Keeps a Codex knowledge library up to date.",
   "author": {
-    "name": "Reto Kummer alias Reat Kay",
+    "name": "Reto Kummer alias Reat Kay, Shorthand Dev / TronTronic Entertainment",
     "url": "https://github.com/trontronicent"
   },
   "license": "MIT",
@@ -19,32 +19,118 @@
   "help": "HELP.md",
   "credits": [
     {
-      "name": "Reto Kummer alias Reat Kay",
+      "name": "Reto Kummer alias Reat Kay, Shorthand Dev / TronTronic Entertainment",
       "for": "the plugin",
-      "url": "https://github.com/trontronicent"
+      "url": "https://github.com/trontronicent/40k-assistant-nomanssky"
     },
     {
       "name": "monkeyman192 and the MBINCompiler contributors",
-      "for": "mapping.json (save keys) and the game's data layouts; downloaded at runtime, not bundled (LGPL-3.0)",
+      "for": "mapping.json (the save file's key names) and the game's data layouts; downloaded at runtime, not bundled (LGPL-3.0)",
       "url": "https://github.com/monkeyman192/MBINCompiler"
     },
     {
-      "name": "monkeyman192",
-      "for": "HGPAKtool, which documents the game's archive format (MIT)",
+      "name": "monkeyman192 (HGPAKtool)",
+      "for": "the documentation of the game's archive format, which is how item names and icons are read from your own installation (MIT)",
       "url": "https://github.com/monkeyman192/HGPAKtool"
     },
     {
       "name": "Stuart Coyle, had.sh and GoodGuysFree (nms_namegen)",
-      "for": "the game's system generation rules (planet seeds, star colour, economy predictions), ported in procgen.py (MIT)",
+      "for": "the game's system generation rules - planet seeds, star colour, economy predictions - ported in procgen.py (MIT)",
       "url": "https://github.com/hadsh/nms_namegen"
     },
     {
       "name": "Hello Games",
-      "for": "No Man's Sky; item names and icons are read from your own installation and never redistributed"
+      "for": "No Man's Sky itself. Item names, descriptions, values and icons are read from your own installation and never redistributed; nothing in the game or its folders is changed (All rights reserved)",
+      "url": "https://www.nomanssky.com/"
     },
     {
       "name": "The No Man's Sky community",
-      "for": "black hole, Atlas and purple-star system indices, and the gas each biome gives"
+      "for": "the black hole, Atlas and purple-star system indices, and which gas each biome gives (Freely shared)"
+    },
+    {
+      "name": "40k Assistant / Strategicum",
+      "for": "the host this plugin was written for: its plugin system, personas, Codex and overlay (MIT)",
+      "url": "https://github.com/trontronicent/40k-assistant"
+    },
+    {
+      "name": "Python (the embeddable distribution)",
+      "for": "the interpreter the standalone host runs on (PSF License 2.0)",
+      "url": "https://www.python.org/"
+    },
+    {
+      "name": "NumPy",
+      "for": "the array maths behind the memory scans and the galaxy map (BSD-3-Clause)",
+      "url": "https://numpy.org/"
+    },
+    {
+      "name": "python-zstandard and Facebook's Zstandard",
+      "for": "decompressing the save file (BSD-3-Clause)",
+      "url": "https://github.com/indygreg/python-zstandard"
+    },
+    {
+      "name": "Pillow",
+      "for": "drawing the tray icon (MIT-CMU)",
+      "url": "https://python-pillow.github.io/"
+    },
+    {
+      "name": "pystray",
+      "for": "the tray icon itself. Dynamically linked and unmodified; its own LGPL licence text ships beside it, and it may be replaced by another build (LGPL-3.0)",
+      "url": "https://github.com/moses-palmer/pystray"
+    },
+    {
+      "name": "six",
+      "for": "pystray's Python 2/3 compatibility layer (MIT)",
+      "url": "https://github.com/benjaminp/six"
+    },
+    {
+      "name": "Inno Setup (Jordan Russell, Martijn Laan)",
+      "for": "the installer itself (Inno Setup License)",
+      "url": "https://jrsoftware.org/isinfo.php"
+    },
+    {
+      "name": "Cinzel (Natanael Gama)",
+      "for": "the page title (SIL Open Font License 1.1)",
+      "url": "https://fonts.google.com/specimen/Cinzel"
+    },
+    {
+      "name": "Chakra Petch (Cadson Demak)",
+      "for": "section heads, tabs and buttons (SIL Open Font License 1.1)",
+      "url": "https://fonts.google.com/specimen/Chakra+Petch"
+    },
+    {
+      "name": "Inter (Rasmus Andersson)",
+      "for": "the body text (SIL Open Font License 1.1)",
+      "url": "https://fonts.google.com/specimen/Inter"
+    },
+    {
+      "name": "Roboto Mono (Christian Robertson)",
+      "for": "the copyable text blocks (Apache License 2.0)",
+      "url": "https://fonts.google.com/specimen/Roboto+Mono"
+    },
+    {
+      "name": "Ollama",
+      "for": "runs the language model that answers your questions (MIT)",
+      "url": "https://ollama.com/"
+    },
+    {
+      "name": "Google (Gemma)",
+      "for": "gemma4:12b, the base of the 40k-12b-companion model (Gemma Terms of Use)",
+      "url": "https://ai.google.dev/gemma/terms"
+    },
+    {
+      "name": "Nomic AI",
+      "for": "nomic-embed-text, which makes the Codex searchable (Apache License 2.0)",
+      "url": "https://github.com/nomic-ai/nomic"
+    },
+    {
+      "name": "Piper (Michael Hansen / rhasspy)",
+      "for": "the spoken replies (MIT)",
+      "url": "https://github.com/rhasspy/piper"
+    },
+    {
+      "name": "piper-voices (rhasspy)",
+      "for": "the en_GB-cori-high voice, trained on LibriVox recordings (Public domain (LibriVox))",
+      "url": "https://huggingface.co/rhasspy/piper-voices"
     }
   ],
   "app": {

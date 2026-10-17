@@ -132,12 +132,33 @@ def parse_system_key(text) -> int | None:
         return None
 
 
+def recipe_lines(gamedata, book, item_id: str, limit: int, cooking: bool) -> list[str]:
+    """The recipes of one station that make `item_id`, cut off at `limit` with a note of how many are left.
+
+    A module function, not a method: ``Texts.how_to_get`` is exercised unbound (with a stand-in for `self`), and
+    this needs nothing of the instance but the item lookup."""
+    from . import recipes
+    found = book.made_by(item_id, cooking=cooking)
+    kind = "Nutrient Processor" if cooking else "refiner"
+    out = [recipes._line_in(gamedata.lookup, r, recipes.ENGLISH, getattr(gamedata, "terms", None))
+           for r in found[:limit]]
+    if len(found) > limit:
+        more = len(found) - limit
+        out.append(f"… {more} more {kind} recipe{'s' if more > 1 else ''} (Codex / ask the persona)")
+    return out
+
+
 class Texts:
     """Turns ids and localisation keys into 'English (game language)' strings."""
 
     def __init__(self, gamedata):
         self.gamedata = gamedata
         self.trade_hint = None          # set by Context: where a trade good sells (needs your economies)
+        # A tooltip is the same for every cell holding the same item, and one page build asks for ~16,000
+        # of them from a few hundred distinct items - each one searching the recipe book and the technology
+        # tables again (0.29 s per build, measured 2026-10-16). Kept per instance, and the page builds a
+        # new one for every view, so a changed item database is never served from here.
+        self._hints: dict[str, str | None] = {}
 
     @staticmethod
     def both(en, local) -> str | None:
@@ -199,6 +220,13 @@ class Texts:
         they sell."""
         if not item_id:
             return None
+        if item_id in self._hints:
+            return self._hints[item_id]
+        self._hints[item_id] = text = self._hint(item_id)
+        return text
+
+    def _hint(self, item_id: str) -> str | None:
+        """The tooltip itself; `hint` keeps the answer."""
         entry = self.gamedata.lookup(item_id) or {}
         blocks = []
         if self.category(item_id):
@@ -222,18 +250,20 @@ class Texts:
         return "\n\n".join(blocks) or None
 
     def how_to_get(self, item_id: str, limit: int = HOW_TO_GET_RECIPES) -> str | None:
-        """Tooltip block 'How to get it:' - up to `limit` refiner recipes (best yield first, the refiner the game
-        needs) and the crafting recipe, from the game's recipe table (recipes.RecipeBook via gamedata.recipes)."""
+        """Tooltip block 'How to get it:' - up to `limit` refiner recipes and up to `limit` Nutrient Processor
+        recipes (best yield first, the station the game needs) and the crafting recipe, from the game's recipe
+        table (recipes.RecipeBook via gamedata.recipes).
+
+        Cooking used to be left out here (``made_by`` answers refiner recipes unless asked for cooking), so a
+        dish or a cooking ingredient had no *How to get it* block at all - the one surface where the plugin shows
+        a recipe without being asked."""
         from . import recipes
         book = getattr(self.gamedata, "recipes", None)
         if book is None or not getattr(book, "recipes", None):
             return None
-        terms = getattr(self.gamedata, "terms", None)
-        refined = book.made_by(item_id)
-        lines = [recipes._line_in(self.gamedata.lookup, r, recipes.ENGLISH, terms) for r in refined[:limit]]
-        if len(refined) > limit:
-            more = len(refined) - limit
-            lines.append(f"… {more} more refiner recipe{'s' if more > 1 else ''} (Codex / ask the persona)")
+        gd = self.gamedata
+        lines = recipe_lines(gd, book, item_id, limit, cooking=False)
+        lines += recipe_lines(gd, book, item_id, limit, cooking=True)
         crafted = book.crafting.get(item_id)
         if crafted:
             lines.append("Crafted from " + " + ".join(f"{a} {recipes.name_in(self.gamedata.lookup, i, recipes.ENGLISH)}"
@@ -300,6 +330,9 @@ class Context:
         self.sentinel_index = COMBAT_TIMERS.get(combat_timer or "Normal", 2)
         self.recorded = history.systems()
         self.bases = bases or []
+        self._keys: set[int] | None = None                  # built by keys(), reused for the whole build
+        self._bases_by_system: dict[int, list[str]] | None = None   # built by bases_in()
+        self._planet_rows: dict[int, list] = {}             # built by planet_row(), kept for the build
         # Where distances are measured from: the system you are in, else where you were at the last save.
         self.origin = live.current_system if getattr(live, "current_system", None) is not None else origin
         self.system_names = getattr(history, "system_names", {}) or {}
@@ -478,7 +511,34 @@ class Context:
         ]
 
     def keys(self) -> set[int]:
-        return set(self.visits) | set(self.recorded)
+        """Every system the save knows. Built once: the galaxy map asks per system (7,446 times on a real
+        save), and rebuilding the union each time is quadratic in how much you have explored."""
+        if self._keys is None:
+            self._keys = set(self.visits) | set(self.recorded)
+        return self._keys
+
+    def planet_row(self, planet: dict, visit: dict | None) -> list:
+        """A planet's cells *without* the System column, built once for this build.
+
+        The Planets table and the search index behind the planet search both need every recorded planet's
+        cells, and each used to build its own: 4,017 builds for 2,006 planets, every one of them looking
+        up names, icons and tooltips again. The table inserts its System cell into a copy.
+        """
+        row = self._planet_rows.get(id(planet))
+        if row is None:
+            row = self._planet_rows[id(planet)] = _planet_row(self.texts, planet, visit, self.sentinel_index)
+        return row
+
+    def bases_in(self, key: int) -> list[str]:
+        """The names of your bases in one system, from an index built once rather than by scanning the
+        whole list of bases for every system the map draws."""
+        if self._bases_by_system is None:
+            index: dict[int, list[str]] = {}
+            for base in self.bases:
+                if base.get("system") is not None:
+                    index.setdefault(base["system"], []).append(base.get("name"))
+            self._bases_by_system = index
+        return [name for name in self._bases_by_system.get(key, []) if name]
 
     def visit(self, key: int) -> dict | None:
         """What the save says about a system, plus its generated name when the game's memory showed it."""
@@ -771,8 +831,13 @@ def guild_sections(ctx: Context, shown: int | None) -> list[dict]:
 
 
 def planet_index(ctx: Context) -> planet_search.PlanetIndex:
-    """The recorded planets, searchable by their texts (planet_search)."""
-    return planet_search.PlanetIndex(ctx, _planet_row, _system_label)
+    """The recorded planets, searchable by their texts (planet_search).
+
+    The cells come from the Context, which builds each planet's once (`Context.planet_row`), so the
+    index and the Planets table share them instead of building every row twice.
+    """
+    return planet_search.PlanetIndex(ctx, lambda _texts, planet, visit, _sentinels: ctx.planet_row(planet, visit),
+                                     _system_label)
 
 
 def planet_search_form(ctx: Context, query, index: planet_search.PlanetIndex) -> dict:
@@ -834,7 +899,8 @@ def visited_planets_section(ctx: Context) -> dict:
         visit = ctx.visit(key)
         label = _system_label(key, visit)
         for planet in planets:
-            planet_rows.append(_planet_row(ctx.texts, planet, visit, ctx.sentinel_index, system_cell=label))
+            cells = ctx.planet_row(planet, visit)
+            planet_rows.append(cells[:1] + [label] + cells[1:])      # the name, then System, then the rest
     planet_rows.sort(key=lambda r: (str(r[1]), str(r[0])))      # grouped by system, then by planet
     # The planet first (System second): on a phone the app shows each row as a card titled by its first cell.
     return {"type": "table", "title": f"Visited planets with resources ({len(planet_rows)})",
@@ -848,8 +914,9 @@ def _galaxy_point(key: int, ctx: Context, color_by: str = "kind") -> dict:
     visit = ctx.visit(key) or {}
     planets = ctx.recorded.get(key, [])
     addr = unpack_address(key) or {}
-    bases = [b["name"] for b in ctx.bases if b.get("system") == key]
+    bases = ctx.bases_in(key)
     x, y, z = galaxy.map_position(key)
+    at_star = galaxy.exact(key)             # looked up once: it used to be read again for every mention
     dist = galaxy.distance_ly(ctx.origin, key) if ctx.origin is not None else None
     point = {"key": system_key_text(key), "label": _system_label(key, visit), "sublabel": address_portal(addr),
              "x": round(x, 3), "y": round(y, 3), "z": round(z, 3),
@@ -857,8 +924,8 @@ def _galaxy_point(key: int, ctx: Context, color_by: str = "kind") -> dict:
                  {"label": "Portal address", "value": address_portal(addr)},
                  {"label": "Region (voxel X, Y, Z)", "value": ", ".join(str(v) for v in galaxy.region(key))},
                  {"label": "Distance from you", "value": galaxy.distance_text(dist, key == ctx.origin) if ctx.origin is not None else "unknown"},
-                 {"label": "Position", "value": ("exact (star fix, prototype): " + ", ".join(f"{v:.4f}" for v in galaxy.exact(key)))
-                  if galaxy.exact(key) else "region only (exact once you name a star fix for it - Star positions)"},
+                 {"label": "Position", "value": ("exact (star fix, prototype): " + ", ".join(f"{v:.4f}" for v in at_star))
+                  if at_star else "region only (exact once you name a star fix for it - Star positions)"},
                  {"label": "Economy", "value": ctx.economy_display(key) or "not read yet"},
                  {"label": "Planets with resources", "value": len(planets) or None},
                  {"label": "Named by", "value": visit.get("named_by")},
@@ -1074,13 +1141,22 @@ def galaxy_sections(ctx: Context, selected: int | None, color_by: str = "kind",
 
 def trade_sections(ctx: Context) -> list[dict]:
     """The Trade tab: the economies of your systems and, per kind of trade goods, where to buy and where to sell."""
-    known = sorted(ctx.economies, key=lambda k: (k != ctx.origin, galaxy.distance_ly(ctx.origin, k) if ctx.origin is not None
-                                                  and galaxy.distance_ly(ctx.origin, k) is not None else 1e12, k))
+    # The distance is measured once per system here: the sort key used to call it twice for each
+    # comparison, and the table holds every economy the save knows (7,524 on a real one).
+    # One measurement per system, reused by the sort and by the rows (7,647 economies on a real save).
+    from_origin = galaxy.position_of(ctx.origin) if ctx.origin is not None else None
+    far_of = {key: (galaxy.distance_of(from_origin, galaxy.position_of(key)) if from_origin is not None else None)
+              for key in ctx.economies}
+
+    def _away(key):
+        return 1e12 if far_of.get(key) is None else far_of[key]
+
+    known = sorted(ctx.economies, key=lambda k: (k != ctx.origin, _away(k), k))
     rows, keys = [], []
     for key in known:
         e = ctx.economies[key]
         t = ctx.trading.get(e.get("economy"), {})
-        dist = galaxy.distance_ly(ctx.origin, key) if ctx.origin is not None else None
+        dist = far_of.get(key)
         rows.append([_system_label(key, ctx.visit(key)),
                      ctx.economy_name(e.get("economy")) + (" (predicted)" if e.get("predicted") else ""),
                      ctx.wealth_cell(e.get("wealth")), ctx.conflict_cell(e.get("conflict")), e.get("race"),

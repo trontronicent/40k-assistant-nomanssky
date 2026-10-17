@@ -68,16 +68,48 @@
     return out;
   }
 
+  const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+  /** "2 d 3 h", "1 h 33 min", "4 min 05 s", "45 s" - the app's `pluginModel.formatDuration`, so a timer
+   *  reads the same in the plugin page and here. */
   function formatRemaining(timer, now) {
     const endsAt = timer.ends_at;
     if (typeof endsAt !== "number") return "";
-    const left = Math.floor(endsAt - now);
+    const left = Math.max(0, Math.round(endsAt - now));
     if (left <= 0) return "done";
-    const hours = Math.floor(left / 3600);
+    const pad = (n) => String(n).padStart(2, "0");
+    const days = Math.floor(left / 86400);
+    const hours = Math.floor((left % 86400) / 3600);
     const minutes = Math.floor((left % 3600) / 60);
     const seconds = left % 60;
+    if (days) return hours ? days + " d " + hours + " h" : days + " d";
+    if (hours) return minutes ? hours + " h " + minutes + " min" : hours + " h";
+    if (minutes) return minutes + " min " + pad(seconds) + " s";
+    return seconds + " s";
+  }
+
+  /** When a timer ends, in this browser's time zone: "13:21" today, "tomorrow 05:00", "Mon 19:26",
+   *  "12.10. 08:00" - the app's `pluginModel.formatEndTime`. */
+  function formatEnd(endSec, now) {
+    if (typeof endSec !== "number") return "";
+    const end = new Date(endSec * 1000);
+    const today = new Date(now * 1000);
     const pad = (n) => String(n).padStart(2, "0");
-    return hours ? hours + " h " + pad(minutes) + ":" + pad(seconds) : pad(minutes) + ":" + pad(seconds);
+    const time = pad(end.getHours()) + ":" + pad(end.getMinutes());
+    const dayOf = (d) => Math.floor(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() / 86400000);
+    const days = dayOf(end) - dayOf(today);
+    if (days === 0) return time;
+    if (days === 1) return "tomorrow " + time;
+    if (days === -1) return "yesterday " + time;
+    if (days > 1 && days < 7) return WEEKDAYS[end.getDay()] + " " + time;
+    return pad(end.getDate()) + "." + pad(end.getMonth() + 1) + ". " + time;
+  }
+
+  /** The line under the countdown: when it ends, or when it ended. */
+  function endLabel(timer, now) {
+    const when = formatEnd(timer.ends_at, now);
+    if (!when) return "";
+    return (timer.ends_at - now > 0 ? "ends " : "ended ") + when;
   }
 
   function progress(timer, now) {
@@ -108,8 +140,18 @@
       for (const row of rows) {
         const timer = { key: row.dataset.timerKey, ends_at: Number(row.dataset.endsAt),
                         started_at: row.dataset.startedAt ? Number(row.dataset.startedAt) : undefined };
+        const left = timer.ends_at - now;
         const remaining = row.querySelector(".stc-timer-remaining");
-        if (remaining) remaining.textContent = formatRemaining(timer, now);
+        if (remaining) {
+          remaining.textContent = formatRemaining(timer, now);
+          // "done" is the app's green; a running countdown is gold. One class, flipped as it ends.
+          remaining.classList.toggle("stc-timer-done", left <= 0);
+        }
+        const at = row.querySelector(".stc-timer-at");
+        if (at) at.textContent = endLabel(timer, now);
+        const bar = row.querySelector(".stc-timer-bar");
+        // The app draws the bar only while the timer runs and only when it knows where it started.
+        if (bar) bar.hidden = !(left > 0 && typeof timer.started_at === "number");
         const fill = row.querySelector(".stc-timer-fill");
         if (fill) fill.style.width = (progress(timer, now) * 100).toFixed(1) + "%";
       }
@@ -150,7 +192,8 @@
     }
   }
 
-  const exported = { newState, collect, collectSections, due, formatRemaining, progress, attach,
+  const exported = { newState, collect, collectSections, due, formatRemaining, formatEnd, endLabel,
+                     progress, attach,
                      check, notify, requestPermission, GRACE_S };
   if (typeof module !== "undefined" && module.exports) module.exports = exported;
   if (typeof window !== "undefined") window.Timers = exported;

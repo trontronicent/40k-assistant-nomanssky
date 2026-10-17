@@ -68,6 +68,18 @@ def _gibberish(word: str) -> bool:
 WRAPPER_RE = re.compile(r"\(follow-up to the user's previous messages?(?:, oldest first)?: ?")
 
 
+def current_message(question: str) -> str:
+    """Only the message the player just sent, without the earlier questions the host appended.
+
+    Both hosts give a *short* message the user's previous questions ("<message>\n\n(follow-up to the user's
+    previous messages, oldest first: ...)", up to four of them) so that a follow-up still matches items and
+    places. That is right for the data block and wrong for anything that answers *about* the named item: the
+    recipe diagrams under the reply were drawn for every item of the chain, so three recipe questions in one
+    conversation ended with the third reply carrying all twelve diagrams of all three (measured in the browser,
+    2026-10-17)."""
+    return FOLLOW_UP_RE.split(question or "", maxsplit=1)[0].strip()
+
+
 def plain_question(question: str) -> str:
     """The question without the app's follow-up label. The app appends "(follow-up to the user's previous message:
     <earlier question>)" to a short message so the plugin sees what it is about; the label's own words matched items

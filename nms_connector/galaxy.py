@@ -91,6 +91,28 @@ def distance_ly(a: int, b: int) -> float | None:
     return REGION_LY * math.sqrt((ax - bx) ** 2 + (ay - by) ** 2 + (az - bz) ** 2)
 
 
+def position_of(key: int) -> tuple[int, tuple[float, float, float], bool]:
+    """(galaxy, position, exact?) of a packed address, decoded once.
+
+    `distance_ly` decodes both of its addresses on every call, which is right for a handful of
+    comparisons and ruinous for many: the trade routes compared every seller with every buyer and spent
+    16 million decodes on one page build (measured 2026-10-16). Code that compares many systems decodes
+    each one once with this and then calls `distance_of`.
+    """
+    known = exact(key)
+    return (galaxy_of(key), known, True) if known else (galaxy_of(key), region(key), False)
+
+
+def distance_of(a: tuple, b: tuple) -> float | None:
+    """The distance between two `position_of` results - the same value `distance_ly` gives."""
+    (ga, pa, ea), (gb, pb, eb) = a, b
+    if ga != gb:
+        return None
+    if ea and eb:
+        return ExactLy(math.floor(REGION_LY * math.dist(pa, pb)))
+    return REGION_LY * math.dist(pa, pb)
+
+
 def distance_text(ly: float | None, same_system: bool = False) -> str:
     if same_system:
         return "this system"

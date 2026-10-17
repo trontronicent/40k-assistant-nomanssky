@@ -12,7 +12,10 @@ build 25625620) and is used when the file cannot be read or its layout changed.
 
 from __future__ import annotations
 
+import bisect
 import struct
+
+import math
 
 from . import galaxy
 
@@ -131,9 +134,14 @@ def routes(economies: dict[int, dict], table: dict, origin: int | None) -> list[
     still listed with the missing half as None, so you see which economy to look for.
     Returns [{category, buy: key|None, sell: key|None, buy_distance, sell_distance, between}].
     """
+    # Every address is decoded once here. Decoding inside the comparisons cost 16 million decodes and
+    # about 19 s per page build on a real save (measured 2026-10-16); the page rebuilds on every poll.
+    at = {key: galaxy.position_of(key) for key in economies}
+    from_origin = galaxy.position_of(origin) if origin is not None else None
+
     def nearest(keys):
         def rank(k):
-            d = galaxy.distance_ly(origin, k) if origin is not None else None
+            d = galaxy.distance_of(from_origin, at[k]) if from_origin is not None else None
             return (d is None, k != origin, d or 0.0, k)
         return min(keys, key=rank) if keys else None
 
@@ -143,12 +151,92 @@ def routes(economies: dict[int, dict], table: dict, origin: int | None) -> list[
         buyers = [k for k, e in economies.items() if table.get(e.get("economy"), {}).get("needs") == category]
         buy, sell = nearest(sellers), nearest(buyers)
         if buy is not None and sell is not None and origin is None:
-            # Without a position, prefer the closest pair to each other.
-            pairs = [(galaxy.distance_ly(a, b), a, b) for a in sellers for b in buyers if galaxy.distance_ly(a, b) is not None]
-            if pairs:
-                _, buy, sell = min(pairs)
+            closest = _closest_pair(sellers, buyers, at)
+            if closest is not None:              # no comparable pair: keep what `nearest` chose
+                buy, sell = closest
         out.append({"category": category, "buy": buy, "sell": sell,
-                    "buy_distance": galaxy.distance_ly(origin, buy) if origin is not None and buy is not None else None,
-                    "sell_distance": galaxy.distance_ly(origin, sell) if origin is not None and sell is not None else None,
-                    "between": galaxy.distance_ly(buy, sell) if buy is not None and sell is not None else None})
+                    "buy_distance": galaxy.distance_of(from_origin, at[buy]) if from_origin is not None and buy is not None else None,
+                    "sell_distance": galaxy.distance_of(from_origin, at[sell]) if from_origin is not None and sell is not None else None,
+                    "between": galaxy.distance_of(at[buy], at[sell]) if buy is not None and sell is not None else None})
     return out
+
+
+def _lowest_per_place(keys: list[int], at: dict) -> dict[tuple, int]:
+    """One key per distinct position - the lowest, which is the one a tie used to pick."""
+    places: dict[tuple, int] = {}
+    for key in keys:
+        place = at[key]
+        if place not in places or key < places[place]:
+            places[place] = key
+    return places
+
+
+def _voxel_best(sell_at: dict, buy_at: dict) -> tuple | None:
+    """The closest (distance, seller, buyer) over the pairs that are both plain voxel positions.
+
+    Inside one galaxy the distance is `REGION_LY * euclid`, so pairs are ranked by the squared distance in
+    plain arithmetic - no function call and no square root in the inner loop.
+
+    The buyers are sorted by X and each seller only looks outwards from its own X, stopping as soon as the
+    X gap alone is wider than the best pair found: everything further out can only be further away. That
+    turns the full cross product (1.75 million pairs per build on a real save) into a few thousand
+    comparisons. The gap is compared with `>`, never `>=`, so a pair that *ties* with the best is still
+    examined and the lowest (seller, buyer) still wins the tie, as `min` over (distance, seller, buyer)
+    did before.
+    """
+    by_galaxy: dict[int, list] = {}
+    for (number, (x, y, z), is_exact), key in sell_at.items():
+        if not is_exact:
+            by_galaxy.setdefault(number, [[], []])[0].append((x, y, z, key))
+    for (number, (x, y, z), is_exact), key in buy_at.items():
+        if not is_exact and number in by_galaxy:
+            by_galaxy[number][1].append((x, y, z, key))
+
+    best = None
+    for sell_side, buy_side in by_galaxy.values():
+        buy_side.sort()
+        buy_x = [b[0] for b in buy_side]
+        for ax, ay, az, a_key in sell_side:
+            start = bisect.bisect_left(buy_x, ax)
+            for step in (range(start, len(buy_side)), range(start - 1, -1, -1)):
+                for j in step:
+                    bx, by, bz, b_key = buy_side[j]
+                    gap = (bx - ax) ** 2
+                    if best is not None and gap > best[0]:
+                        break
+                    far = gap + (by - ay) ** 2 + (bz - az) ** 2
+                    if best is None or (far, a_key, b_key) <= best:
+                        best = (far, a_key, b_key)
+    return None if best is None else (galaxy.REGION_LY * math.sqrt(best[0]), best[1], best[2])
+
+
+def _star_fix_best(sell_at: dict, buy_at: dict, best: tuple | None) -> tuple | None:
+    """`best` improved by the pairs where a named star position is involved - a handful, so one by one.
+
+    Those do not follow the voxel formula (an exact pair is floored to whole light years), so they are
+    measured with `galaxy.distance_of` and compared against the best voxel pair.
+    """
+    exact_sell = [(place, key) for place, key in sell_at.items() if place[2]]
+    exact_buy = [(place, key) for place, key in buy_at.items() if place[2]]
+    if not exact_sell and not exact_buy:
+        return best
+    for side_a, side_b in ((exact_sell, list(buy_at.items())), (list(sell_at.items()), exact_buy)):
+        for a_place, a_key in side_a:
+            for b_place, b_key in side_b:
+                far = galaxy.distance_of(a_place, b_place)
+                if far is not None and (best is None or (far, a_key, b_key) < best):
+                    best = (far, a_key, b_key)
+    return best
+
+
+def _closest_pair(sellers: list[int], buyers: list[int], at: dict) -> tuple[int, int] | None:
+    """The closest (seller, buyer) pair, or None when none of them can be compared (another galaxy).
+
+    Used when no position is known, so there is nothing to be near. Systems in the same voxel are in the
+    same place, and a save holds thousands of them in a few hundred voxels, so pairs are compared per
+    distinct position rather than per system: on a real save (7,524 economies) 1.75 million comparisons
+    instead of 16 million, and the comparison itself is arithmetic rather than a decode.
+    """
+    sell_at, buy_at = _lowest_per_place(sellers, at), _lowest_per_place(buyers, at)
+    best = _star_fix_best(sell_at, buy_at, _voxel_best(sell_at, buy_at))
+    return None if best is None else (best[1], best[2])

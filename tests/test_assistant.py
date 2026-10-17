@@ -483,3 +483,18 @@ def test_an_own_name_that_is_also_an_item_word_still_finds_the_item_elsewhere():
                                    ["STATUS"], [])
     assert "Copper [YELLOW2]: 700 in total" in text
 
+
+
+def test_a_hyphenated_question_word_still_names_its_item():
+    """German compounds with a hyphen: "alle Donut-Rezepte mit Grundwerten" used to produce the single word
+    `donut-rezepte`, which matches no name, so the question named no item at all and the persona answered with
+    no game data behind it (2026-10-17). Both sides are split the same way, so a hyphenated *name* still matches
+    as a whole."""
+    names = {"FOOD_DNUT_FCUST": ["Salty Doughnut", "Salziger Donut"],
+             "FOOD_V_BLOB": ["Gooey ProtoDoughnut", "Klebriger Proto-Donut"],
+             "YELLOW2": ["Copper", "Kupfer"]}
+    # Both donuts: the hyphen now separates words on either side, so "Proto-Donut" is found by "Donut" too.
+    assert assistant.match_items("alle Donut-Rezepte mit Grundwerten", names) == ["FOOD_DNUT_FCUST", "FOOD_V_BLOB"]
+    # A name that carries the hyphen is still found as a whole name, which is what `whole_only` picks out.
+    assert assistant.match_items("wie koche ich Klebriger Proto-Donut?", names, whole_only=True) == ["FOOD_V_BLOB"]
+    assert assistant.match_items("how much Copper do I have?", names, whole_only=True) == ["YELLOW2"]

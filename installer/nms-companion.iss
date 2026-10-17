@@ -1,9 +1,14 @@
-; No Man's Sky Companion - standalone installer (Inno Setup 6.3+).
+﻿; No Man's Sky Companion - standalone installer (Inno Setup 6.3+).
 ;
 ; Per-user by design: the in-app updater replaces the install folder, which needs no elevation here.
 ; The two optional parts (the AI assistant and spoken replies) are a wizard page; postinstall.ps1
-; fetches whatever was ticked. Nothing of the game's and nothing LGPL is packaged - mapping.json is
-; downloaded at runtime and item names and icons are read from the user's own installation.
+; fetches whatever was ticked. Nothing of the game's is packaged - mapping.json (LGPL-3.0) is downloaded
+; at runtime and item names and icons are read from the user's own installation.
+;
+; What IS packaged, and therefore credited: the embeddable Python and the five wheels the host imports,
+; one of which (pystray) is LGPL-3.0. It is shipped unmodified and dynamically imported, and its own
+; licence text travels with it in vendor\python\Lib\site-packages\pystray-*.dist-info. The full list is
+; THIRD-PARTY-NOTICES.md, which is installed beside the program and shown on the wizard's info page.
 
 #define MyAppName "NMS Companion"
 #ifndef MyAppVersion
@@ -14,7 +19,7 @@
 AppId={{8D4D5B4E-6F2A-4C5D-9E1B-NMSCOMPANION}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
-AppPublisher=Reto Kummer alias Reat Kay
+AppPublisher=Reto Kummer alias Reat Kay, Shorthand Dev / TronTronic Entertainment
 AppPublisherURL=https://github.com/trontronicent/40k-assistant-nomanssky
 DefaultDirName={localappdata}\Programs\NMS Companion
 DefaultGroupName={#MyAppName}
@@ -28,6 +33,11 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 WizardStyle=modern
 LicenseFile=..\LICENSE
+; Shown after the licence page, so the third-party notices are read before anything is copied.
+InfoBeforeFile=..\THIRD-PARTY-NOTICES.md
+AppSupportURL=https://github.com/trontronicent/40k-assistant-nomanssky/issues
+AppUpdatesURL=https://github.com/trontronicent/40k-assistant-nomanssky/releases
+AppCopyright=Copyright (c) 2026 Reto Kummer alias Reat Kay, Shorthand Dev / TronTronic Entertainment
 
 [Files]
 Source: "..\nms_connector\*"; DestDir: "{app}\nms_connector"; Flags: recursesubdirs ignoreversion
@@ -38,6 +48,7 @@ Source: "..\strategicum-plugin.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\HELP.md";         DestDir: "{app}"; Flags: ignoreversion
 Source: "..\CHANGELOG.md";    DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LICENSE";         DestDir: "{app}"; Flags: ignoreversion
+Source: "..\THIRD-PARTY-NOTICES.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "postinstall.ps1";    DestDir: "{app}"; Flags: ignoreversion
 Source: "40k-12b-companion.Modelfile"; DestDir: "{app}"; Flags: ignoreversion
 
@@ -46,6 +57,7 @@ Name: "{group}\{#MyAppName}"; Filename: "{app}\vendor\python\pythonw.exe"; \
   Parameters: "-m standalone"; WorkingDir: "{app}"; \
   IconFilename: "{app}\standalone\web\favicon.ico"
 Name: "{group}\{#MyAppName} help"; Filename: "{app}\HELP.md"
+Name: "{group}\{#MyAppName} credits"; Filename: "{app}\THIRD-PARTY-NOTICES.md"
 Name: "{userdesktop}\{#MyAppName}"; Filename: "{app}\vendor\python\pythonw.exe"; \
   Parameters: "-m standalone"; WorkingDir: "{app}"; \
   IconFilename: "{app}\standalone\web\favicon.ico"; Tasks: desktopicon

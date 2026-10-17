@@ -5,8 +5,9 @@ runs - the game's memory, and shows what you have, where you are and every
 system you visited. It only reads: nothing in the game or its folders is ever
 changed, and the game process is never modified.
 
-Made by **Reto Kummer alias Reat Kay**. The credits for the work this plugin builds on are
-listed at the end of this section.
+Made by **Reto Kummer alias Reat Kay, Shorthand Dev / TronTronic Entertainment** (https://github.com/trontronicent/40k-assistant-nomanssky). The **About** tab of the page
+names everything this builds on, ships or downloads, with its licence; the same list is in the app's
+manual at the end of this section and in `THIRD-PARTY-NOTICES.md` beside the program.
 
 ## The page
 
@@ -29,6 +30,7 @@ The tabs:
 - **Settlements** - the economy of each settlement you run: see *Settlements* below.
 - **Saves & source** - *Save files & source* (how often the game saves, the recent save writes, where the data comes from and the last memory scans) and *Transfer* (export your recorded data as one zip and import it again - see *Moving your data* below).
 - **Settings** - the plugin persona's **codeword** and **Single Context Per Question**: see *Settings and the overlay* below.
+- **About** - who made this and the credits: every project, data source, library, font and model this builds on, ships or downloads, each with its licence and a link. The same list is in `THIRD-PARTY-NOTICES.md` beside the program, and in the app's manual under *Plugin Help*.
 
 ## Discoveries
 
@@ -87,6 +89,14 @@ and ask about your game:
   files, the ingredient combinations folded into a few lines, the dishes you can cook
   with what you hold (best first, with how often) and the most valuable dishes with what
   you still lack.
+- *All donut recipes with base values* / *alle Donut-Rezepte mit Grundwerten* / *all pie
+  recipes* - a whole **kind** of dish: **every** dish of that kind, most valuable first,
+  each with its base value, its simplest recipe and what that recipe's ingredients are
+  worth, so you can see what cooking it gains. The kind is the game's own grouping, which
+  is why *The Stellarator* and *Pollen Puffball* are listed among the doughnuts although
+  their names say neither. It works in English and in the game's language, hyphenated or
+  compounded (*Donut-Rezepte*, *Donutrezepte*, *Kuchenrezepte*). Naming one dish in full
+  still answers about that dish alone - say *all* when you want the kind.
 - *Which items are in several storage containers and could be one stack?* / *Welche Items
   liegen in mehr als einem Lagerbehälter?* / *Can I merge my Aronium?* - the stacks that
   would shrink when put together (up to each item's stack limit), found by the plugin:
@@ -125,7 +135,8 @@ While linking it, the card also asks two things (app 3.10.0):
 
 **Recipes in the tooltips.** Hover an item on the plugin page (inventories, storage,
 planets): besides its category and description the tooltip shows **How to get it** - its
-best refiner recipes with the refiner they need, and its crafting recipe.
+best refiner recipes with the refiner they need, its **Nutrient Processor** recipes (so a
+dish or a cooking ingredient has its recipe here too) and its crafting recipe.
 
 **Recipes from the game itself.** Ask how to get an item - *Wie bekomme ich
 Ammoniak?*, *how do I make Sulphurine?*, *where do I find copper?* - and the persona
@@ -171,7 +182,8 @@ match. The planet search (*Systems → Planets*) understands inflected words too
 `tools/codex_recipes.py` in the plugin's folder) writes one document per item into the Codex folder's *No Man's Sky* library, **once in
 English and once in the game's language**: *English/Raw Materials*, *Products*, *Food*
 and *Deutsch/Rohstoffe*, *Produkte*, *Nahrung* - where the item comes from, every
-refiner, cooking and crafting recipe that makes it, and what it is used for, with every
+refiner, cooking and crafting recipe that makes it, its **base value** (what the game says
+one of it is worth, or that the game gives it none), and what it is used for, with every
 name and term as the game writes it in that language (*Mittlere Raffinerie oder
 größer*, *Nährstoffprozessor*, *Verwendet für*; read from the installed game: 1,182
 items, 1,684 recipes on 2026-10-06). Each document names the item once in the other

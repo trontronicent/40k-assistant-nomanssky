@@ -2,8 +2,8 @@
 
 ``ConnectorPage.view()`` returns ``{title, subtitle, updated_at, actions, sections}``: notices about what is
 missing (saves, key mapping, game files), then one ``tabs`` section - Overview / Systems / Inventory / Ships & bases /
-Settlements / Saves & source. The system, planet and route sections come from ``planets_view``; ships, equipment,
-frigates, settlements and timers from their own modules. Item cells carry the game's icon and a tooltip
+Settlements / Saves & source / Settings / About (the credits, from ``credits.py``). The system, planet and route
+sections come from ``planets_view``; ships, equipment, frigates, settlements and timers from their own modules. Item cells carry the game's icon and a tooltip
 (``planets_view.Texts.item``: category, description in English and the game's language, what a technology does,
 where a trade good sells). The page reads the state on every call (every 5 s poll) and keeps none of its own.
 """
@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import time
 
-from . import (companions_view, discoveries_view, equipment, frigates, inventory_search, planets_view, save_search,
-               settlements, ships, timers, transfer)
+from . import (companions_view, credits, discoveries_view, equipment, frigates, inventory_search, planets_view,
+               save_search, settlements, ships, timers, transfer)
 
 EXPORT_DATA = "export_data"              # action: write the plugin's data as one zip
 IMPORT_DATA = "import_data"              # action: look into a zip, or merge/replace from it
@@ -529,6 +529,8 @@ class ConnectorPage:
         c = self.connector
         snap = c.snapshot
         ctx = c.context()
+        ctx_version = getattr(c.ctx, "version", "")
+        host = getattr(c.ctx, "host", "plugin")
         sections = self.notices()
         tabs = [
             {"id": "systems", "label": "Systems", "badge": len(ctx.keys()) or None,
@@ -550,6 +552,11 @@ class ConnectorPage:
         # The Overview's one search box searches the tables the other tabs have just been built from, so
         # nothing is indexed twice and a hit keeps its own columns and click target (save_search.py).
         overview = self.overview(snap, ctx) + self.save_search_sections(tabs)
+        # After the search was built: the credits are not your save data, and a search for "six" or
+        # "Hello Games" must not answer with a licence row. Built by the connector, not by a host, so the
+        # app's plugin page and the standalone page show the identical tab (credits.py is the one list the
+        # manifest and THIRD-PARTY-NOTICES.md follow).
+        tabs.append({"id": "about", "label": "About", "sections": credits.sections(ctx_version, host)})
         sections.append({"type": "tabs", "id": "main",
                          "tabs": [{"id": "overview", "label": "Overview", "sections": overview}] + tabs})
         return {

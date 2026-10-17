@@ -157,7 +157,11 @@ def clear_predictions() -> None:
     """Forget the predicted economies (recomputed on demand)."""
     _predictions.clear()
 
-MAX_PREDICTIONS = 5000        # a map of a few hundred systems is shown at a time; never let this grow without bound
+# One page build predicts for every system the save knows - 7,044 of them on a real save - so a cap of
+# 5,000 cleared the cache in the middle of a build and every single lookup missed (0.52 s per build,
+# measured 2026-10-16). The cap is a guard against unbounded growth, not a working size: keep it well
+# above the number of systems one save can hold.
+MAX_PREDICTIONS = 20000
 
 
 def predicted(key: int) -> dict:

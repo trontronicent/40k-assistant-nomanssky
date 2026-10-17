@@ -61,13 +61,21 @@ if ($LASTEXITCODE -ne 0) { throw "installing the wheels failed" }
 & (Join-Path $python "python.exe") -c "import numpy, zstandard, PIL, pystray; print('ok')"
 if ($LASTEXITCODE -ne 0) { throw "the packaged interpreter cannot import the dependencies" }
 
-# Nothing of Hello Games' and nothing LGPL may be packaged: mapping.json is downloaded at runtime, and
-# the item database and icons are built from the user's own installation.
+# Nothing of Hello Games' may be packaged: mapping.json (LGPL-3.0, from MBINCompiler) is downloaded at
+# runtime, and the item database and icons are built from the user's own installation.
+#
+# The wheels above are packaged, so they are credited: pystray is LGPL-3.0, shipped unmodified and
+# dynamically imported, with its own licence text in its .dist-info folder. THIRD-PARTY-NOTICES.md is the
+# full list and is generated from nms_connector/credits.py - this refuses to compile a stale one, because
+# the installer shows that file on its info page and installs it beside the program.
 foreach ($forbidden in @("mapping.json", "gamedata", ".data")) {
     $hits = Get-ChildItem -Path $root -Recurse -Force -Filter $forbidden -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -notlike "*\.git\*" -and $_.FullName -notlike "*\tests\*" }
     if ($hits) { throw "the tree contains $forbidden; it must not be packaged" }
 }
+
+& $BuildPython (Join-Path $root "tools\write_notices.py") --check
+if ($LASTEXITCODE -ne 0) { throw "THIRD-PARTY-NOTICES.md or the manifest's credits are out of date" }
 
 $manifest = Get-Content (Join-Path $root "strategicum-plugin.json") -Raw | ConvertFrom-Json
 $version = $manifest.version

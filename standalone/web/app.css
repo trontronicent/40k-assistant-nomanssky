@@ -10,7 +10,7 @@
 
 /* The app's fonts, from Google Fonts as in the app's own index.css. Offline the stacks below fall back to
    the system fonts and only the lettering differs. */
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Chakra+Petch:wght@300;400;700&family=Inter:wght@300;400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Chakra+Petch:wght@300;400;700&family=Inter:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap');
 
 :root {
   /* Core void and panels (frontend/src/index.css) */
@@ -217,6 +217,31 @@ h3 {
 .stc-kv dd { margin: 0; color: var(--text-primary); min-width: 0; overflow-wrap: break-word; font-variant-numeric: tabular-nums; }
 
 .stc-table-box { overflow-x: auto; max-height: min(72vh, 760px); overflow-y: auto; }
+
+/* The gold hairline scrollbars of the app's `.strategic-scroll-both`, which its plugin tables use: a
+   default Windows scrollbar inside a dark gold panel is the most visible difference of all. */
+.stc-table-box, .stc-cards, .stc-copy-block {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--gold-rgb), 0.35) transparent;
+  color-scheme: dark;
+}
+.stc-table-box::-webkit-scrollbar, .stc-cards::-webkit-scrollbar, .stc-copy-block::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.stc-table-box::-webkit-scrollbar-track, .stc-cards::-webkit-scrollbar-track,
+.stc-copy-block::-webkit-scrollbar-track, .stc-table-box::-webkit-scrollbar-corner {
+  background: transparent;
+}
+.stc-table-box::-webkit-scrollbar-thumb, .stc-cards::-webkit-scrollbar-thumb,
+.stc-copy-block::-webkit-scrollbar-thumb {
+  background: rgba(var(--gold-rgb), 0.3);
+  border-radius: 3px;
+}
+.stc-table-box::-webkit-scrollbar-thumb:hover, .stc-cards::-webkit-scrollbar-thumb:hover,
+.stc-copy-block::-webkit-scrollbar-thumb:hover {
+  background: rgba(var(--gold-rgb), 0.55);
+}
 .stc-table { border-collapse: collapse; width: 100%; font-size: 12px; }
 .stc-table th {
   position: sticky;
@@ -227,9 +252,18 @@ h3 {
   white-space: nowrap;
   padding: 6px 10px;
   border-bottom: 1px solid rgba(var(--gold-rgb), 0.15);
+  font-family: var(--font-head);
+  font-weight: 500;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
 }
+.stc-table th.stc-sorted, .stc-table th.stc-sorted .stc-sort { color: var(--gold-bright); }
 .stc-table td {
   padding: 5px 10px;
+  /* A wrapping cell is at least this wide, as in the app: narrower columns wrap after every word. */
+  min-width: 20ch;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   color: var(--text-primary);
   vertical-align: middle;
@@ -239,23 +273,35 @@ h3 {
   word-break: normal;
   hyphens: manual;
 }
-.stc-table td span { min-width: 14ch; display: inline-block; }
-.stc-nowrap { white-space: nowrap; min-width: 0 !important; }
+/* A short cell never wraps and claims no minimum - the app decides this per cell (cellNoWrap). */
+.stc-table td.stc-nowrap { white-space: nowrap; min-width: 0; }
 .stc-hinted { border-bottom: 1px dotted rgba(var(--gold-rgb), 0.45); cursor: help; }
 .stc-icon { width: 28px; height: 28px; object-fit: contain; vertical-align: middle; margin-right: 8px; flex-shrink: 0; }
 
 /* A column header is a sort button, in the head's own lettering. */
 .stc-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   background: none;
   border: none;
   padding: 0;
-  font-family: var(--font-head);
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: var(--text-dim);
+  font-family: inherit;
+  font-size: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  white-space: nowrap;
 }
 .stc-sort:hover { background: none; border: none; color: var(--text-gold); }
+/* The app's chevron: faint until the column is the one being sorted. */
+.stc-sort-mark { font-size: 11px; line-height: 1; }
+.stc-sort-mark-off { opacity: 0.35; }
+
+/* The line above a clickable table that says what a click does, and the line under one the connector
+   cut short. Both are the app's. */
+.stc-hint { font-size: 11px; color: var(--text-dim); margin-bottom: 6px; }
+.stc-truncated { font-size: 12px; color: var(--text-dim); padding: 6px 8px; }
 
 .stc-clickable { cursor: pointer; }
 .stc-clickable:hover td { background: rgba(var(--gold-rgb), 0.06); }
@@ -263,7 +309,7 @@ h3 {
 tr[data-selected] td { background: rgba(var(--gold-rgb), 0.08); box-shadow: inset 2px 0 0 var(--gold-bright); }
 
 .stc-list { margin: 0; padding-left: 18px; font-size: 12px; color: var(--text-secondary); line-height: 1.6; }
-.stc-text { margin: 0; font-size: 12px; color: var(--text-secondary); white-space: pre-line; line-height: 1.6; }
+.stc-text { margin: 0; font-size: 12px; color: var(--text-secondary); white-space: pre-wrap; line-height: 1.6; }
 .stc-muted { font-size: 12px; color: var(--text-dim); }
 
 /* A form is a grid of fields, as in the app, so two short fields share a row on a wide page. */
@@ -285,22 +331,83 @@ tr[data-selected] td { background: rgba(var(--gold-rgb), 0.08); box-shadow: inse
 .stc-field-hint { display: block; font-size: 11px; color: var(--text-dim); margin-top: 4px; line-height: 1.45; }
 .stc-submit { align-self: end; justify-self: start; }
 
-.stc-timers { display: grid; gap: 10px; }
+/* Timers, as the app draws them (TimersSection): not cards but rows with a hairline between them, what
+   it is on the left, the countdown and the end time on the right, the bar across the bottom. */
+.stc-timers { display: block; }
 .stc-timer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 4px 14px;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.stc-timer-label { font-size: 13px; color: var(--text-primary); }
+.stc-timer-detail { font-size: 11px; color: var(--text-dim); margin-top: 2px; }
+.stc-timer-when { text-align: right; font-variant-numeric: tabular-nums; }
+.stc-timer-remaining { font-size: 14px; color: var(--gold-bright); }
+.stc-timer-done { font-size: 13px; color: var(--neon-green); }
+.stc-timer-at { font-size: 11px; color: var(--text-dim); }
+.stc-timer-bar {
+  grid-column: 1 / -1;
+  height: 3px;
+  background: rgba(var(--gold-rgb), 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.stc-timer-fill { height: 100%; width: 0; background: var(--gold-bright); }
+
+/* A table shown as cards (the phone layout, and any table that would mostly hide behind a sideways
+   scroll): one card per row, the first column as its title. The app's `tableAsCards` decides. */
+.stc-card-sort { display: flex; align-items: flex-end; gap: 8px; margin-bottom: 8px; }
+.stc-card-sort .stc-field { flex: 1; min-width: 0; max-width: 360px; }
+.stc-card-sort select {
+  width: 100%;
+  background: var(--void-surface);
+  border: 1px solid rgba(var(--gold-rgb), 0.25);
+  border-radius: 2px;
+  color: var(--text-primary);
+  padding: 6px 8px;
+  font-size: 12px;
+  font-family: inherit;
+}
+.stc-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  align-items: start;
+  gap: 6px;
+  max-height: min(72vh, 760px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.stc-card {
   background: var(--void-surface);
   border: 1px solid rgba(var(--gold-rgb), 0.12);
-  border-radius: 2px;
+  border-radius: 3px;
   padding: 8px 10px;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 3px 10px;
   font-size: 12px;
+  color: var(--text-primary);
 }
-.stc-timer-remaining { color: var(--gold-bright); font-variant-numeric: tabular-nums; }
-.stc-timer-detail, .stc-timer-bar { grid-column: 1 / -1; }
-.stc-timer-detail { color: var(--text-dim); font-size: 11px; }
-.stc-timer-bar { height: 4px; background: rgba(var(--gold-rgb), 0.12); border-radius: 2px; overflow: hidden; }
-.stc-timer-fill { height: 100%; width: 0; background: var(--gold); }
+.stc-card.stc-clickable:hover { background: rgba(var(--gold-rgb), 0.06); }
+.stc-card[data-selected] { border-color: var(--gold-bright); background: rgba(var(--gold-rgb), 0.08); }
+.stc-card-title { font-size: 13px; font-weight: 600; color: var(--text-primary); overflow-wrap: break-word; }
+.stc-card-fields {
+  display: grid;
+  grid-template-columns: minmax(84px, 38%) 1fr;
+  gap: 3px 10px;
+  margin: 6px 0 0;
+  font-variant-numeric: tabular-nums;
+}
+.stc-card-fields dt {
+  margin: 0;
+  color: var(--text-dim);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding-top: 2px;
+  overflow-wrap: break-word;
+}
+.stc-card-fields dd { margin: 0; min-width: 0; overflow-wrap: break-word; }
 
 /* Top-level tabs: an underlined strip. Nested tabs: bordered chips (the app's sub-tabs). */
 .stc-tabstrip {
@@ -498,13 +605,14 @@ tr[data-selected] td { background: rgba(var(--gold-rgb), 0.08); box-shadow: inse
   .stc-kv { grid-template-columns: 1fr; row-gap: 0; }
   .stc-kv dt { font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; margin-top: 6px; }
   .stc-kv dd { margin-bottom: 8px; }
-  .stc-table td span { min-width: 0; }
+  /* On a phone a table that is still a table gives up the 20ch minimum rather than scroll. */
+  .stc-table td { min-width: 0; }
   .stc-form { grid-template-columns: 1fr; }
 }
 
 /* A text section long enough to be data: a Copy button over a selectable monospace block. */
 .stc-copy-row { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-bottom: 6px; }
-.stc-copy-said { font-size: 11px; color: var(--text-muted); }
+.stc-copy-said { font-size: 11px; color: var(--text-dim); }
 .stc-copy-button {
   background: transparent; border: 1px solid rgba(var(--gold-rgb), 0.35); border-radius: 2px;
   color: var(--gold-bright); cursor: pointer; font-family: inherit; font-size: 11px; padding: 3px 10px;

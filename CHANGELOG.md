@@ -1,5 +1,107 @@
 # Changelog
 
+## 0.15.0-beta.6 (beta; needs app 3.17.0)
+
+- **The recipe diagrams no longer repeat the previous questions' recipes.** Asking for three recipes in a
+  row in one conversation ended with the third reply carrying twelve diagrams: its own four plus all eight of
+  the two questions before it (reproduced in a headless browser against the running app, 2026-10-17 - the
+  replies carried 4, then 10, then 12 diagrams). Both hosts append the user's earlier questions to a short
+  message so a follow-up still matches items and places; the diagrams were built from that whole text, so
+  every item of the chain was drawn again - and with `MAX_DIAGRAMS` at twelve the current answer's own recipes
+  were beginning to be pushed out. They are now built from the message the player just sent, while the data
+  block keeps the chain. The trigger still reads the whole text, so "und Natrium?" after a recipe question
+  keeps its diagrams. Same three questions after the fix: 4, 6 and 4 diagrams, each only its own.
+
+- **"Alle Donut-Rezepte mit Grundwerten" is answered properly now.** That question listed a few doughnuts
+  and claimed there were no base values; three separate faults, each measured against the real game data
+  (build 25732212, 2026-10-17):
+
+  * **A hyphen ended the question.** `Donut-Rezepte` was one word to the item matcher, and it matches no item
+    name - so the question named nothing at all, no game data was attached to it, and the persona answered
+    from Codex excerpts alone. A hyphen now separates words, on both sides, so a hyphenated *name*
+    (*Proto-Donut*, *Multi-tool*) still matches as a whole. This affects every German question, not only
+    cooking.
+  * **A kind of dish is now answered as a whole.** Asked for *all* of something - *all donut recipes*,
+    *alle Donut-Rezepte*, *alle Donutrezepte*, *all pie recipes* - the persona lists **every** dish of that
+    kind, most valuable first, each with its base value, its simplest recipe and what that recipe's
+    ingredients are worth (so the answer says what cooking it gains). Matching names alone finds 13 of the
+    game's 15 doughnuts in English and 6 in German, because German compounds them (*Puddingdonut*) and two
+    of them are called neither (*The Stellarator*, *Pollen Puffball*): the dishes are therefore grouped by
+    the game's own id family, and the family is answered in full. A question that spells out one dish
+    (*How do I make Fibrous Stew?*) still gets that dish alone.
+  * **The Codex item documents carried no base value at all.** Every one of them now states what the game
+    says one of the item is worth - or that the game gives it none - in its first passage, which is what a
+    search snippet shows. Press **Write Codex documents** and then **Sync now** to refresh the documents you
+    already have.
+
+  Also fixed while in there: the page's item tooltip left cooking out of **How to get it** (`made_by`
+  answers refiner recipes unless asked for cooking), so hovering a dish or a cooking ingredient showed no
+  recipe at all. It now lists the Nutrient Processor recipes too.
+
+- **Credits, properly, in all three places.** The page has a new **About** tab: who made the plugin
+  (Reto Kummer alias Reat Kay, Shorthand Dev / TronTronic Entertainment), the repository, the licence, and
+  every project, data source, library, font and model this builds on, bundles or downloads - each with what
+  it is used for, its licence and a link. The tab is built by the connector, so the plugin page in the app
+  and the standalone page show exactly the same thing. The same list is now in `THIRD-PARTY-NOTICES.md`,
+  which the installer shows on its own page before it copies anything, installs beside the program and puts
+  in the Start menu, and in the manifest's credits, which the app's manual shows under *Plugin Help*. It is
+  one list in `nms_connector/credits.py`; `tools/write_notices.py` generates the other two and
+  `installer/build.ps1` refuses to compile while they disagree.
+
+  What the credits had been missing: everything the standalone installer actually packages. It carries its
+  own Python (PSF-2.0) plus numpy, python-zstandard, Pillow, six and **pystray, which is LGPL-3.0** - while
+  the installer script claimed in a comment that nothing LGPL was packaged. pystray ships unmodified, is
+  imported dynamically and its licence text travels with it, which is what the LGPL asks for; the comment,
+  the installer's own notes and the build script now say so. Also newly credited: Inno Setup, the four fonts
+  the page loads (Cinzel, Chakra Petch, Inter, Roboto Mono), Ollama, Gemma, nomic-embed-text, Piper and the
+  Cori voice.
+
+- **The standalone page looks like the plugin page again.** Everything below was a visible difference
+  between the two hosts, found by comparing this page's CSS and renderer against the app's `PluginView`:
+
+  * **Tables become cards on a narrow page**, as in the app, with the same thresholds (3+ columns under
+    560 px, or a table needing 25 % more room than it has - 10 % under 1024 px) and the same *Sort by*
+    control above them. Until now a phone got a table to scroll sideways.
+  * **A column header shows how it sorts**: a faint arrow in every header, up or down in gold on the
+    sorted column, and the tooltip says what the next click does.
+  * A table says **"No entries."** instead of showing nothing, and names how many rows are shown when the
+    connector cut the list short. A clickable table explains the click **above** the table, not only as a
+    tooltip on the first cell.
+  * **Column widths match the app's**: a cell of at most 30 characters never wraps, a longer one wraps in a
+    20-character-wide column - decided per cell, as the app does it. The old rule held every piece of text
+    at 14 characters, which also stretched the key/value lists.
+  * **Timers are rows, not cards**: what it is on the left, the countdown and *ends tomorrow 05:00* on the
+    right, a thin progress bar below, and *done* in green when it ends. The countdown reads like the app's
+    too (*1 h 33 min*, *4 min 05 s*, *2 d 3 h*, where it used to say *33:20*).
+  * A **stat's explanation** is shown again (it was dropped), **Roboto Mono** is loaded for the copyable
+    text blocks that ask for it, and a text section keeps runs of spaces as the app does.
+  * Every box that scrolls - a table, the card grid, a copyable block - has the app's **thin gold
+    scrollbar** instead of the system's.
+
+- **The page is about sixty times faster.** Building the plugin page took about 20 seconds on a real save
+  and it is rebuilt on every poll; it now takes 0.3 s, and the whole page it produces - 8.8 MB of it - is
+  byte-for-byte what it was before. The trade routes were comparing every seller with every
+  buyer and decoding both galactic addresses on each comparison - 16 million decodes per build - and now
+  decode once and compare per distinct position (21.9 s -> 1.18 s, with the same routes as before). The
+  search over the whole save went from 751 ms to about 230 ms: each row's words are kept while the page keeps
+  showing the same rows, folded once per row instead of once per search word, and folding text now uses a
+  translation table instead of walking every character (the economy stars made almost every row take the slow
+  path). Needs app 3.18.0 for the part of this that is in the app: a plugin's `view`, `personas`, `overlay`,
+  `item_icons` and `chat_context` ran on the event loop, so a page build held up every other request - the
+  plugin page's own Codex card timed out after 10 s waiting for one.
+
+  The rest, each measured on a real save: the closest seller/buyer pair is found by sorting the buyers and
+  stopping as soon as the gap in X alone is wider than the best pair, so the routes went 17 s -> 0.024 s;
+  the galaxy map's prediction cache held 5,000 systems while a build asks for 7,044, so it cleared itself
+  mid-build and every lookup missed; the map asked for the set of all known systems once per system, and
+  rescanned every base for every system; a tooltip is built once per item instead of once per cell (~16,000
+  of them per build); and the search keeps each row's words while the page shows the same rows.
+
+  Found by driving the page in a headless browser, which showed the request taking far longer than the
+  build: with your saves read in, the page asked the file system whether an icon existed for every cell
+  of every table - 16,804 questions per build - and built every planet's row twice, once for the table
+  and once for the planet search. 1.17 s -> 0.45 s on top of the rest, with the page unchanged.
+
 ## 0.15.0-beta.5 (beta; needs app 3.17.0)
 
 - **Right-click a ship to copy its data for a prompt.** *Ships & bases → Ships* has a menu per row:

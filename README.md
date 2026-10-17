@@ -4,8 +4,13 @@ A plugin (STC) for the [40k Assistant / Strategicum](https://github.com/trontron
 It reads your **No Man's Sky save files** and shows what a companion needs to
 know. Install it from the app's **Plugins → Manage plugins** page.
 
-Author: **Reto Kummer alias Reat Kay**. The plugin's help (`HELP.md`) and
-credits appear in the 40k Assistant's manual under *Plugin Help* (app 3.4.0+).
+Made by **Reto Kummer alias Reat Kay, Shorthand Dev / TronTronic Entertainment** — <https://github.com/trontronicent/40k-assistant-nomanssky>.
+The plugin's help (`HELP.md`) and its credits appear in the 40k Assistant's
+manual under *Plugin Help* (app 3.4.0+), and in the page's own **About** tab in
+both modes. Everything this builds on, bundles or downloads is listed in
+[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md) (generated from
+`nms_connector/credits.py` — the one list the manifest, the notices file and the
+About tab all follow).
 
 ## Standalone (Windows)
 
