@@ -4,11 +4,12 @@ import json
 from standalone import config, paths
 
 
-def test_data_dir_follows_localappdata():
+def test_data_dir_follows_localappdata(tmp_path):
     """`data_dir` must sit under LOCALAPPDATA, not in the install folder: the install folder is replaced
-    wholesale by an update, and the user's save-derived data must survive it."""
-    env = {"LOCALAPPDATA": r"C:\Users\X\AppData\Local"}
-    assert paths.data_dir(env) == paths.Path(r"C:\Users\X\AppData\Local\NMS Companion")
+    wholesale by an update, and the user's save-derived data must survive it. The folder is built with the
+    platform's own path type (a hard-coded `C:\\...` is one file name on Linux), so the test runs everywhere."""
+    local = tmp_path / "AppData" / "Local"
+    assert paths.data_dir({"LOCALAPPDATA": str(local)}) == local / "NMS Companion"
 
 
 def test_data_dir_falls_back_to_home(tmp_path):
