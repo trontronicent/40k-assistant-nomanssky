@@ -457,21 +457,25 @@ class Chunk(NamedTuple):
     length: int
 
 
-def _scan_chunk(reader, chunk: Chunk, anchor: bytes | None,
-                substances: set[str] | None) -> tuple[list[int], dict[int, str], list[tuple[int, dict]]]:
-    """Player-state copies, system names and (slot, planet) records in one chunk."""
+def _player_states(reader, chunk: Chunk, anchor: bytes) -> list[int]:
+    """Addresses of the player-state copies in one chunk: the anchor, with a valid universe address after it."""
     buf, valid, address, length = chunk
-    player_states: list[int] = []
-    if anchor:
-        for at in find_aligned(buf, anchor, valid, length, address):
-            ua = ua_from_bytes(bytes(buf[at + UA_AFTER_GAME_START:at + UA_AFTER_GAME_START + 24])) \
-                if at + UA_AFTER_GAME_START + 24 <= valid else None
-            if ua is None:
-                raw = reader.read(address + at + UA_AFTER_GAME_START, 24)
-                ua = ua_from_bytes(raw) if raw and len(raw) == 24 else None
-            if ua is not None:
-                player_states.append(address + at)
-    names = system_names_in(buf, length, valid, address)
+    found: list[int] = []
+    for at in find_aligned(buf, anchor, valid, length, address):
+        ua = ua_from_bytes(bytes(buf[at + UA_AFTER_GAME_START:at + UA_AFTER_GAME_START + 24])) \
+            if at + UA_AFTER_GAME_START + 24 <= valid else None
+        if ua is None:
+            raw = reader.read(address + at + UA_AFTER_GAME_START, 24)
+            ua = ua_from_bytes(raw) if raw and len(raw) == 24 else None
+        if ua is not None:
+            found.append(address + at)
+    return found
+
+
+def _planets_in(reader, chunk: Chunk, substances: set[str] | None) -> list[tuple[int, dict]]:
+    """(address, planet record) of the planet records starting in one chunk; a record running past the chunk is
+    read from the process."""
+    buf, valid, address, length = chunk
     planets: list[tuple[int, dict]] = []
     for row in candidate_rows(buf, valid):
         if row >= length:
@@ -481,12 +485,18 @@ def _scan_chunk(reader, chunk: Chunk, anchor: bytes | None,
             blob = bytes(buf[start:start + PLANET_SIZE])
         else:
             blob = reader.read(address + start, PLANET_SIZE)
-            if not blob:
-                continue
-        planet = parse_planet(blob, reader.read, substances)
+        planet = parse_planet(blob, reader.read, substances) if blob else None
         if planet:
             planets.append((address + start, planet))
-    return player_states, names, planets
+    return planets
+
+
+def _scan_chunk(reader, chunk: Chunk, anchor: bytes | None,
+                substances: set[str] | None) -> tuple[list[int], dict[int, str], list[tuple[int, dict]]]:
+    """Player-state copies, system names and (slot, planet) records in one chunk."""
+    player_states = _player_states(reader, chunk, anchor) if anchor else []
+    names = system_names_in(chunk.buf, chunk.length, chunk.valid, chunk.address)
+    return player_states, names, _planets_in(reader, chunk, substances)
 
 
 def _chunk_results(reader, anchor, substances, workers: int):

@@ -69,6 +69,31 @@ def load_research(path: Path | None = None) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def _two_ingredient_pools(recipes) -> list[tuple[str, tuple[tuple[str, ...], ...]]]:
+    """The "two" and "pair" entries of `pools`: the two-ingredient recipes, ingredients with the same partners
+    grouped into one pool."""
+    adjacency: dict[str, set[str]] = {}
+    for r in recipes:
+        if len(r.ingredients) == 2:
+            a, b = r.ingredients[0][0], r.ingredients[1][0]
+            adjacency.setdefault(a, set()).add(b)
+            adjacency.setdefault(b, set()).add(a)
+    groups: dict[frozenset, list[str]] = {}
+    for ingredient, partners in adjacency.items():
+        groups.setdefault(frozenset(partners), []).append(ingredient)
+    members = sorted(tuple(sorted(g)) for g in groups.values())
+    out: list[tuple[str, tuple[tuple[str, ...], ...]]] = []
+    done = set()
+    for pa in members:
+        for pb in members:
+            key = frozenset((pa, pb))
+            if key in done or not (set(pb) & adjacency[pa[0]]):
+                continue
+            done.add(key)
+            out.append(("two", (pa,)) if pa == pb else ("pair", (pa, pb)))
+    return out
+
+
 def pools(recipes) -> list[tuple[str, tuple[tuple[str, ...], ...]]]:
     """Fold the recipes of one dish into ingredient pools: [(kind, pools)], where kind is "one" (any one ingredient of
     the pool), "two" (any two ingredients out of the pool, the same one twice included where the game allows it),
@@ -78,25 +103,7 @@ def pools(recipes) -> list[tuple[str, tuple[tuple[str, ...], ...]]]:
     singles = sorted({r.ingredients[0][0] for r in recipes if len(r.ingredients) == 1})
     if singles:
         out.append(("one", (tuple(singles),)))
-    adjacency: dict[str, set[str]] = {}
-    for r in recipes:
-        if len(r.ingredients) == 2:
-            a, b = r.ingredients[0][0], r.ingredients[1][0]
-            adjacency.setdefault(a, set()).add(b)
-            adjacency.setdefault(b, set()).add(a)
-    if adjacency:
-        groups: dict[frozenset, list[str]] = {}
-        for ingredient, partners in adjacency.items():
-            groups.setdefault(frozenset(partners), []).append(ingredient)
-        members = sorted(tuple(sorted(g)) for g in groups.values())
-        done = set()
-        for pa in members:
-            for pb in members:
-                key = frozenset((pa, pb))
-                if key in done or not (set(pb) & adjacency[pa[0]]):
-                    continue
-                done.add(key)
-                out.append(("two", (pa,)) if pa == pb else ("pair", (pa, pb)))
+    out += _two_ingredient_pools(recipes)
     out += [("all", tuple((i,) for i, _ in r.ingredients)) for r in recipes if len(r.ingredients) >= 3]
     return out
 

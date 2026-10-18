@@ -213,6 +213,19 @@ def _list(data: bytes, pos: int) -> tuple[int, int]:
     return pos + offset, count
 
 
+def _fixed_line(s: StatRange, name: str) -> str | None:
+    """A fixed technology's stat as `modifiers` shows it: a range it adds, a known base value or an ability -
+    None for the other base values, which read wrongly as bonuses."""
+    stat = stat_name(s.stat)
+    if stat in DISTANCE:
+        return f"{name} {value_text(s.stat, s.low, s.high)}"
+    if stat in BASE_SHOWN:
+        return f"{name} {_num(s.low)}"
+    if stat in ABILITIES:
+        return name
+    return None
+
+
 @dataclass
 class TechStats:
     """The stat modifiers of every technology and procedural upgrade of one game build."""
@@ -255,23 +268,12 @@ class TechStats:
 
         def name(stat):
             return label(text_key(stat)) or words(stat)
-        lines = []
         rule = self.procedural.get(key)
         if rule:
-            for s in rule.stats:
-                value = value_text(s.stat, s.low, s.high)
-                if value:
-                    lines.append(f"{name(s.stat)} {value}" + (" (always)" if s.always else ""))
-            return lines
-        for s in self.fixed.get(key, ()):
-            stat = stat_name(s.stat)
-            if stat in DISTANCE and s.low > 0:
-                lines.append(f"{name(s.stat)} {value_text(s.stat, s.low, s.high)}")
-            elif stat in BASE_SHOWN and s.low > 0:
-                lines.append(f"{name(s.stat)} {_num(s.low)}")
-            elif stat in ABILITIES and s.low > 0:
-                lines.append(name(s.stat))
-        return lines
+            values = [(s, value_text(s.stat, s.low, s.high)) for s in rule.stats]
+            return [f"{name(s.stat)} {value}" + (" (always)" if s.always else "") for s, value in values if value]
+        lines = (_fixed_line(s, name(s.stat)) for s in self.fixed.get(key, ()) if s.low > 0)
+        return [line for line in lines if line]
 
     def note(self, item_id: str) -> str | None:
         """How a procedural upgrade's values are decided ('Gets 2-4 of these stats ...'), None for fixed tech."""
@@ -307,41 +309,54 @@ def procedural_texts(proc: bytes) -> dict[str, tuple[str, str]]:
     return out
 
 
+def _records(data: bytes, id_at: int):
+    """(record offset, id) of every record of a table's root list that carries an id at `id_at`."""
+    start, count = mbin.root_list(data)
+    size = mbin.record_size(data, start, count)
+    for k in range(count):
+        p = start + k * size
+        rid = mbin.fixed_str(data, p + id_at, 0x10)
+        if rid:
+            yield p, rid
+
+
+def _fixed_bonuses(tech: bytes) -> dict[str, tuple[StatRange, ...]]:
+    """{technology id: its StatBonuses} of the technology table."""
+    out = {}
+    for p, tid in _records(tech, TECH_ID_AT):
+        at, n = _list(tech, p + TECH_BONUSES_AT)
+        bonuses = []
+        for j in range(min(n, MAX_BONUSES)):
+            bonus, _level, stat = struct.unpack_from("<fiI", tech, at + j * BONUS_SIZE)
+            bonuses.append(StatRange(stat, round(bonus, 3), round(bonus, 3)))
+        out[tid] = tuple(bonuses)
+    return out
+
+
+def _procedural_rules(proc: bytes) -> dict[str, ProceduralRule]:
+    """{upgrade id: its StatLevels and how many of them it gets} of the procedural technology table."""
+    out = {}
+    for p, pid in _records(proc, PROC_ID_AT):
+        at, n = _list(proc, p + PROC_LEVELS_AT)
+        levels = []
+        for j in range(min(n, MAX_LEVELS)):
+            q = at + j * LEVEL_SIZE
+            stat, vmax, vmin = struct.unpack_from("<Iff", proc, q)
+            levels.append(StatRange(stat, round(min(vmin, vmax), 3), round(max(vmin, vmax), 3), proc[q + 0x10] == 1))
+        nmax, nmin = struct.unpack_from("<ii", proc, p + PROC_COUNTS_AT)
+        if not 0 <= nmin <= nmax <= MAX_LEVELS:
+            nmin, nmax = 0, len(levels)
+        out[pid] = ProceduralRule(tuple(levels), (nmin, nmax))
+    return out
+
+
 def parse(tech: bytes, proc: bytes) -> TechStats | None:
     """The stat modifiers of both tables; None when the layout is not the expected one (HYPERDRIVE must give
     Ship_Hyperdrive_JumpDistance 100 and some upgrade must have stat levels)."""
     stats = TechStats(source="game files")
     try:
-        start, count = mbin.root_list(tech)
-        size = mbin.record_size(tech, start, count)
-        for k in range(count):
-            p = start + k * size
-            tid = mbin.fixed_str(tech, p + TECH_ID_AT, 0x10)
-            if not tid:
-                continue
-            at, n = _list(tech, p + TECH_BONUSES_AT)
-            bonuses = []
-            for j in range(min(n, MAX_BONUSES)):
-                bonus, _level, stat = struct.unpack_from("<fiI", tech, at + j * BONUS_SIZE)
-                bonuses.append(StatRange(stat, round(bonus, 3), round(bonus, 3)))
-            stats.fixed[tid] = tuple(bonuses)
-        start, count = mbin.root_list(proc)
-        size = mbin.record_size(proc, start, count)
-        for k in range(count):
-            p = start + k * size
-            pid = mbin.fixed_str(proc, p + PROC_ID_AT, 0x10)
-            if not pid:
-                continue
-            at, n = _list(proc, p + PROC_LEVELS_AT)
-            levels = []
-            for j in range(min(n, MAX_LEVELS)):
-                q = at + j * LEVEL_SIZE
-                stat, vmax, vmin = struct.unpack_from("<Iff", proc, q)
-                levels.append(StatRange(stat, round(min(vmin, vmax), 3), round(max(vmin, vmax), 3), proc[q + 0x10] == 1))
-            nmax, nmin = struct.unpack_from("<ii", proc, p + PROC_COUNTS_AT)
-            if not 0 <= nmin <= nmax <= MAX_LEVELS:
-                nmin, nmax = 0, len(levels)
-            stats.procedural[pid] = ProceduralRule(tuple(levels), (nmin, nmax))
+        stats.fixed.update(_fixed_bonuses(tech))
+        stats.procedural.update(_procedural_rules(proc))
     except (struct.error, mbin.MbinError, IndexError):
         return None
     hyperdrive = {s.stat: s.low for s in stats.fixed.get("HYPERDRIVE", ())}

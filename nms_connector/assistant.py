@@ -286,27 +286,30 @@ WHOLE_WORDS = {"inventory", "inventories", "inventar", "everything", "all", "who
 MAX_WORTH_STACKS = 8
 
 
+def _valued_stacks(snap: dict, value_of) -> tuple[int, int, list, list]:
+    """(stacks, stacks without a value, [(place, subtotal)] for the places worth something, [(value, id, amount,
+    unit value)] per valued stack) over every inventory."""
+    stacks, unvalued, by_place, rows = 0, 0, [], []
+    for place, place_rows in places(snap):
+        valued = [(item_id, amount, value_of(item_id)) for item_id, amount, _maximum in place_rows
+                  if ITEM_ID_RE.match(str(item_id)) and isinstance(amount, int)]
+        stacks += len(valued)
+        unvalued += sum(1 for _i, _a, unit in valued if not unit)
+        place_rows_valued = [(unit * amount, item_id, amount, unit) for item_id, amount, unit in valued if unit]
+        rows += place_rows_valued
+        subtotal = sum(row[0] for row in place_rows_valued)
+        if subtotal:
+            by_place.append((place, subtotal))
+    return stacks, unvalued, by_place, rows
+
+
 def inventory_worth(snap: dict | None, value_of, name_of) -> list[str]:
     """What the player's inventories are worth at the game's base value (units, before any economy's price factor):
     the total, per place, the most valuable stacks and how many stacks the game gives no sell value."""
     if not snap:
         return []
-    total, stacks, unvalued, by_place, rows = 0, 0, 0, [], []
-    for place, place_rows in places(snap):
-        subtotal = 0
-        for item_id, amount, _maximum in place_rows:
-            if not ITEM_ID_RE.match(str(item_id)) or not isinstance(amount, int):
-                continue
-            stacks += 1
-            unit = value_of(item_id)
-            if unit:
-                subtotal += unit * amount
-                rows.append((unit * amount, item_id, amount, unit))
-            else:
-                unvalued += 1
-        if subtotal:
-            by_place.append((place, subtotal))
-        total += subtotal
+    stacks, unvalued, by_place, rows = _valued_stacks(snap, value_of)
+    total = sum(subtotal for _place, subtotal in by_place)
     if not stacks:
         return []
     out = ["Inventory worth at the game's base value (what the game says each unit is worth before an economy's "
@@ -572,6 +575,32 @@ def _merge_section(question: str, snap: dict, lookups: ItemLookups, asked: list[
     return out[:1] + notes + out[1:] if notes else out
 
 
+def _trade_goods(have: dict, matched: list[str]) -> list[str]:
+    """For a trade-goods question: every trade good held, then the matched ones, each once."""
+    return list(dict.fromkeys([i for i in have if i.startswith("TRA_")] + [m for m in matched if m.startswith("TRA_")]))
+
+
+def _kind_section(lookups: ItemLookups, asked) -> list[str]:
+    """The trade goods of the places asked (or all) summed per kind, after a blank line - nothing without any."""
+    lines = lookups.kind_lines(asked or None) if lookups.kind_lines else []
+    return [""] + lines if lines else []
+
+
+def _named_and_missing(item_question: str, have: dict, lookups: ItemLookups, matched: list[str],
+                       asked) -> tuple[list[str], list[str]]:
+    """(the held items the question names, the named ones not held), never a currency and - when the question
+    names a place - never an item whose name is also that place's."""
+    missing = _missing_unless_knowledge(item_question, _missing_items(item_question, have, lookups.all_names))
+    # Currencies are no inventory items: "how many units do I have?" said "UNITS: 0 - not in any inventory" beside
+    # the real balance of the status line (chat test 2026-10-09).
+    matched = [i for i in matched if i not in CURRENCY_IDS]
+    missing = [i for i in missing if i not in CURRENCY_IDS]
+    if asked:        # "Lagerbehälter" is the place and also the name of the Storage Container item: here, the place
+        matched = [i for i in matched if not _names_a_place(lookups.names_of(i))]
+        missing = [i for i in missing if not _names_a_place(lookups.all_names[i])]
+    return matched, missing
+
+
 def _question_sections(question: str, snap: dict, lookups: ItemLookups, rows: int = MAX_PLACE_ROWS) -> list[str]:
     """The part of the data that depends on the question: stacks to merge, or the trade goods by kind, the items the
     question names, the contents of a named inventory (<= `rows` stacks each), or the largest stacks."""
@@ -584,19 +613,9 @@ def _question_sections(question: str, snap: dict, lookups: ItemLookups, rows: in
     item_question = without_own_names(question, lookups.own_names)
     matched = match_items(item_question, {item_id: lookups.names_of(item_id) for item_id in have})
     if TRADE_GOODS_RE.search(question or ""):
-        matched = list(dict.fromkeys([i for i in have if i.startswith("TRA_")] + [m for m in matched if m.startswith("TRA_")]))
-        lines = lookups.kind_lines(asked or None) if lookups.kind_lines else []
-        if lines:
-            out += [""] + lines
-    missing = _missing_unless_knowledge(item_question, _missing_items(item_question, have, lookups.all_names))
-    # Currencies are no inventory items: "how many units do I have?" said "UNITS: 0 - not in any inventory" beside
-    # the real balance of the status line (chat test 2026-10-09).
-    matched = [i for i in matched if i not in CURRENCY_IDS]
-    missing = [i for i in missing if i not in CURRENCY_IDS]
-    if asked:        # "Lagerbehälter" is the place and also the name of the Storage Container item: here, the place
-        matched = [i for i in matched if not _names_a_place(lookups.names_of(i))]
-        missing = [i for i in missing if not _names_a_place(lookups.all_names[i])]
-    elif not (matched or missing):        # nothing named exactly: a misspelt item name ("Aroniun")
+        matched, out = _trade_goods(have, matched), _kind_section(lookups, asked)
+    matched, missing = _named_and_missing(item_question, have, lookups, matched, asked)
+    if not (asked or matched or missing):        # nothing named exactly: a misspelt item name ("Aroniun")
         notes, matched, missing = _near_miss_sections(item_question, have, lookups)
         out += [""] + notes if notes else []
     if matched or missing:

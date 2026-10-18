@@ -33,11 +33,16 @@
 - Searching also finds raw materials no recipe makes or uses (the substance table), because "where does Copper
   come from" is exactly what goes into that box.
 
-- Internal, nothing you can see: the code-shape limits went down (complexity 12 -> 10, branches 12 -> 10,
-  statements 50 -> 40, lines <= 140, pyupgrade/comprehension/bugbear rules), and the 14 functions above them
+- **Fix: new planets get their names and icons even when the galaxy map is read in the same moment.** The memory
+  round reused one variable for "new planets found" and "economies changed on the galaxy map", so a map read
+  that changed nothing hid the new planets' texts and icons until a later scan changed something.
+
+- Internal, nothing you can see: the code-shape limits went down (complexity 12 -> 8, branches 12 -> 8,
+  statements 50 -> 40, lines <= 140, pyupgrade/comprehension/bugbear rules), and the 31 functions above them
   were split into named steps - planet merging (`PlanetHistory.record`), the route planner, the trade pair
-  search, planet seeds, the Codex item documents and more. Planet seeds were compared on 20,000 systems and
-  the Codex documents byte for byte; two lines whose continuation had been flattened into one were restored.
+  search, planet seeds, the Codex item documents, the memory round, the technology tables and more. The page,
+  overlay and persona data (fake save), the Codex documents and planet seeds on 20,000 systems are identical
+  before and after; two lines whose continuation had been flattened into one were restored.
 
 ## 0.15.0-beta.6 (beta; needs app 3.17.0)
 

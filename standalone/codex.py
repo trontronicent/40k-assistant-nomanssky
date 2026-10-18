@@ -58,6 +58,16 @@ def document_problem(path: str) -> str | None:
     return None
 
 
+def _text_problem(path: str, text) -> str | None:
+    """Why one document's text is refused (not a string, too large), or None."""
+    if not isinstance(text, str):
+        return f"{path}: the text must be a string"
+    size = len(text.encode("utf-8"))
+    if size > MAX_DOC_BYTES:
+        return f"{path}: {size} bytes is over the {MAX_DOC_BYTES} limit"
+    return None
+
+
 def request_problem(documents: dict, owner: str) -> str | None:
     """Why the whole batch is refused, or None. Checked before anything is touched."""
     if not OWNER_RE.match(owner or ""):
@@ -68,15 +78,10 @@ def request_problem(documents: dict, owner: str) -> str | None:
         return f"too many documents ({len(documents)} > {MAX_DOCS})"
     total = 0
     for path, text in documents.items():
-        problem = document_problem(path)
+        problem = document_problem(path) or _text_problem(path, text)
         if problem:
             return problem
-        if not isinstance(text, str):
-            return f"{path}: the text must be a string"
-        size = len(text.encode("utf-8"))
-        if size > MAX_DOC_BYTES:
-            return f"{path}: {size} bytes is over the {MAX_DOC_BYTES} limit"
-        total += size
+        total += len(text.encode("utf-8"))
     if total > MAX_TOTAL_BYTES:
         return f"the write is {total} bytes, over the {MAX_TOTAL_BYTES} limit"
     return None

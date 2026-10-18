@@ -132,23 +132,31 @@ MIN_PORT = 1024
 MAX_PORT = 65535
 
 
+# What each setting type accepts, and the refusal when a value is not that (bool is an int in Python: refused).
+TYPE_CHECKS = {
+    "bool": (lambda v: isinstance(v, bool), "must be true or false"),
+    "int": (lambda v: isinstance(v, int) and not isinstance(v, bool), "must be a whole number"),
+    "str": (lambda v: isinstance(v, str), "must be text"),
+}
+
+
+def _check_type(key: str, value) -> None:
+    """HttpError 422 unless `key` is a setting and `value` has its type."""
+    if key not in config.FIELD_TYPES:
+        raise HttpError(422, f"unknown setting {key!r}")
+    accepts, refusal = TYPE_CHECKS.get(config.FIELD_TYPES[key], (lambda v: True, ""))
+    if not accepts(value):
+        raise HttpError(422, f"{key} {refusal}")
+
+
 def check_settings(changes: dict) -> dict:
     """Validate a settings change against the dataclass. Unknown keys and wrong types are refused, so a
     bad write cannot make the next start fall back to the defaults."""
     if not isinstance(changes, dict) or not changes:
         raise HttpError(422, "send at least one setting")
-    checked = {}
     for key, value in changes.items():
-        if key not in config.FIELD_TYPES:
-            raise HttpError(422, f"unknown setting {key!r}")
-        wanted = config.FIELD_TYPES[key]
-        if wanted == "bool" and not isinstance(value, bool):
-            raise HttpError(422, f"{key} must be true or false")
-        if wanted == "int" and (isinstance(value, bool) or not isinstance(value, int)):
-            raise HttpError(422, f"{key} must be a whole number")
-        if wanted == "str" and not isinstance(value, str):
-            raise HttpError(422, f"{key} must be text")
-        checked[key] = value
+        _check_type(key, value)
+    checked = dict(changes)
     port = checked.get("port")
     if port is not None and not MIN_PORT <= port <= MAX_PORT:
         raise HttpError(422, f"the port must be between {MIN_PORT} and {MAX_PORT}")

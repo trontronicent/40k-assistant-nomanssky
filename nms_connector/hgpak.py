@@ -116,7 +116,6 @@ class Pak:
             raise PakError(f"{self.path.name}: HGPAK version {version} is not supported (expected {FORMAT_VERSION})")
         if not files:
             raise PakError(f"{self.path.name} has no files")
-        size = self.path.stat().st_size
         index = self._f.read(ENTRY.size * files)
         if len(index) != ENTRY.size * files:
             raise PakError(f"{self.path.name}: file index is truncated")
@@ -129,21 +128,26 @@ class Pak:
         self._chunk_sizes: tuple[int, ...] = ()
         self._chunk_offsets: list[int] = []
         if self.compressed:
-            raw = self._f.read(8 * chunks)
-            if len(raw) != 8 * chunks:
-                raise PakError(f"{self.path.name}: chunk index is truncated")
-            self._chunk_sizes = struct.unpack(f"<{chunks}Q", raw)
-            pos = data_offset
-            for chunk in self._chunk_sizes:
-                self._chunk_offsets.append(pos)
-                pos += (chunk + 15) & ~15
-            if pos > size + 16:
-                raise PakError(f"{self.path.name}: chunks run past the end of the file")
-            self._decompress = _decompressor()
+            self._read_chunk_index(chunks, data_offset)
         self._cached_chunk = (-1, b"")
         manifest = self._read_entry(0).rstrip(b"\r\n").decode("utf-8", "replace").lower().split("\r\n")
         self.names = {name: i + 1 for i, name in enumerate(manifest) if name}
         del manifest
+
+    def _read_chunk_index(self, chunks: int, data_offset: int) -> None:
+        """A compressed pak's chunk sizes and where each chunk starts (16-aligned); PakError when they are cut
+        short or run past the end of the file."""
+        raw = self._f.read(8 * chunks)
+        if len(raw) != 8 * chunks:
+            raise PakError(f"{self.path.name}: chunk index is truncated")
+        self._chunk_sizes = struct.unpack(f"<{chunks}Q", raw)
+        pos = data_offset
+        for chunk in self._chunk_sizes:
+            self._chunk_offsets.append(pos)
+            pos += (chunk + 15) & ~15
+        if pos > self.path.stat().st_size + 16:
+            raise PakError(f"{self.path.name}: chunks run past the end of the file")
+        self._decompress = _decompressor()
 
     def _chunk(self, index: int) -> bytes:
         """One 64 KiB chunk, decompressed (a stored size of exactly 64 KiB is raw); the last one is cached."""

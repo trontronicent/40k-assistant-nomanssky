@@ -239,25 +239,44 @@ def _pct(value: float | None) -> str | None:
     return None if value is None else f"+{value:.1f} %"
 
 
+def _ship_row(s: dict, tables: dict, texts) -> list:
+    """One row of the ships table; the warp range cell's hint lists the drives it is summed from."""
+    est = warp_range(s, tables)
+    parts = "\n".join(f"{texts.name(p[0]) or p[0]}: " + (f"{p[1]:.0f} ly" if p[1] == p[2] else f"{p[1]:.0f}-{p[2]:.0f} ly")
+                      for p in est["parts"])
+    hint = (f"{parts}\nShip's own hyperdrive bonus: +{est['bonus']:.1f} %\nAdjacent and supercharged slots can add "
+            "more; procedural upgrades get their exact value from a seed the game keeps to itself.") if est["parts"] else None
+    return [ship_label(s) + (" (primary)" if s["primary"] else ""), s["type"], s["class"],
+            {"text": range_text(est), "hint": hint} if hint else range_text(est),
+            ", ".join(est["colours"]) or "yellow only",
+            _pct(s["stats"].get("damage")), _pct(s["stats"].get("shield")), _pct(s["stats"].get("hyperdrive")),
+            _pct(s["stats"].get("agility")),
+            f"{s['slots']} / {s['cargo_slots']} / {s['tech_slots']}"
+            + (f" ({damaged_slots(s)} damaged)" if damaged_slots(s) else "")]
+
+
+def _drive_adds(raw_id: str, tables: dict, texts) -> str | None:
+    """What the stat list does not say: the star colours a drive opens; the warp range when the technology
+    tables' stats are not available (texts without modifiers)."""
+    tid = tech_id(raw_id)
+    if tid in STAR_COLOURS:
+        return f"opens {STAR_COLOURS[tid]} star systems"
+    if hasattr(texts, "modifiers") and texts.modifiers(raw_id):
+        return None
+    if tid in tables["fixed"]:
+        return f"{tables['fixed'][tid]:.0f} ly warp range"
+    if tid in tables["procedural"]:
+        low, high = tables["procedural"][tid]
+        return f"{low:.0f}-{high:.0f} ly warp range"
+    return None
+
+
 def ship_sections(items: list[dict], tables: dict, texts) -> list[dict]:
     """The ships table (type, class, warp range, star colours, base stats, slots) and every ship's technology
     with what it does (one sub-tab per ship, the primary one first)."""
     if not items:
         return [{"type": "text", "text": "No ships in this save."}]
-    rows = []
-    for s in items:
-        est = warp_range(s, tables)
-        parts = "\n".join(f"{texts.name(p[0]) or p[0]}: " + (f"{p[1]:.0f} ly" if p[1] == p[2] else f"{p[1]:.0f}-{p[2]:.0f} ly")
-                          for p in est["parts"])
-        hint = (f"{parts}\nShip's own hyperdrive bonus: +{est['bonus']:.1f} %\nAdjacent and supercharged slots can add "
-                "more; procedural upgrades get their exact value from a seed the game keeps to itself.") if est["parts"] else None
-        rows.append([ship_label(s) + (" (primary)" if s["primary"] else ""), s["type"], s["class"],
-                     {"text": range_text(est), "hint": hint} if hint else range_text(est),
-                     ", ".join(est["colours"]) or "yellow only",
-                     _pct(s["stats"].get("damage")), _pct(s["stats"].get("shield")), _pct(s["stats"].get("hyperdrive")),
-                     _pct(s["stats"].get("agility")),
-                     f"{s['slots']} / {s['cargo_slots']} / {s['tech_slots']}"
-                     + (f" ({damaged_slots(s)} damaged)" if damaged_slots(s) else "")])
+    rows = [_ship_row(s, tables, texts) for s in items]
     out = [{"type": "table", "id": "ships", "title": f"Ships ({len(items)})",
             "columns": ["Ship", "Type", "Class", "Warp range (estimate)", "Star colours it can reach", "Damage",
                         "Shield", "Hyperdrive", "Maneuverability", "Slots (general / cargo / tech)"],
@@ -275,19 +294,7 @@ def ship_sections(items: list[dict], tables: dict, texts) -> list[dict]:
                           "description": "The same data as JSON, for a script rather than a prompt."}],
             "row_hint": "Right-click a ship to copy its data (left click copies it as TOON)."}]
     def adds(raw_id: str) -> str | None:
-        """What the stat list does not say: the star colours a drive opens; the warp range when the technology
-        tables' stats are not available (texts without modifiers)."""
-        tid = tech_id(raw_id)
-        if tid in STAR_COLOURS:
-            return f"opens {STAR_COLOURS[tid]} star systems"
-        if hasattr(texts, "modifiers") and texts.modifiers(raw_id):
-            return None
-        if tid in tables["fixed"]:
-            return f"{tables['fixed'][tid]:.0f} ly warp range"
-        if tid in tables["procedural"]:
-            low, high = tables["procedural"][tid]
-            return f"{low:.0f}-{high:.0f} ly warp range"
-        return None
+        return _drive_adds(raw_id, tables, texts)
 
     # One sub-tab per ship, the primary one first (its table keeps the id the page focused before 0.10.0).
     out.append({"type": "tabs", "id": "ship-tech", "tabs": [

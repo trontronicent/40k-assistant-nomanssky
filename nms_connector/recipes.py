@@ -100,14 +100,13 @@ def parse_recipes(data: bytes) -> list[Recipe]:
     return out
 
 
-def parse_requirements(data: bytes, known_ids: set[str]) -> dict[str, list[tuple[str, int]]]:
-    """{item id: [(ingredient id, amount), ...]} of a product/substance table: the item id is the record's
-    id-like field among known_ids, the requirements the list header whose elements name known ids."""
-    start, count, size = mbin._records(data)
-    sample = range(0, count, max(1, count // 300))
+def _requirement_layout(data: bytes, records: tuple[int, int, int], known_ids: set[str]) -> tuple[int, int]:
+    """(offset of the item id, offset of the requirement list) in a product/substance table's records, voted over
+    ~300 sampled records (`records` = start, count, size); MbinError when either is never found."""
+    start, count, size = records
     id_votes: dict[int, int] = {}
     list_votes: dict[int, int] = {}
-    for k in sample:
+    for k in range(0, count, max(1, count // 300)):
         base = start + k * size
         for o in range(0, size - 0x10 + 1, 4):
             if mbin.fixed_str(data, base + o, 0x10) in known_ids:
@@ -118,8 +117,14 @@ def parse_requirements(data: bytes, known_ids: set[str]) -> dict[str, list[tuple
                     list_votes[o] = list_votes.get(o, 0) + 1
     if not id_votes or not list_votes:
         raise mbin.MbinError("no item id or requirement list found")
-    id_at = max(id_votes, key=id_votes.get)
-    req_at = max(list_votes, key=list_votes.get)
+    return max(id_votes, key=id_votes.get), max(list_votes, key=list_votes.get)
+
+
+def parse_requirements(data: bytes, known_ids: set[str]) -> dict[str, list[tuple[str, int]]]:
+    """{item id: [(ingredient id, amount), ...]} of a product/substance table: the item id is the record's
+    id-like field among known_ids, the requirements the list header whose elements name known ids."""
+    start, count, size = mbin._records(data)
+    id_at, req_at = _requirement_layout(data, (start, count, size), known_ids)
     out: dict[str, list[tuple[str, int]]] = {}
     for k in range(count):
         base = start + k * size

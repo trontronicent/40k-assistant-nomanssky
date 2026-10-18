@@ -4,6 +4,7 @@ persona (logs.py, GameTables._guard, the tick stages, optional save sections, th
 import asyncio
 import json
 import logging
+from types import SimpleNamespace
 
 import pytest
 
@@ -160,3 +161,24 @@ def test_a_failing_block_costs_only_that_block_of_the_persona_data(tmp_path, mon
     whole = companion.chat_context("anything")
     assert "could not be built right now (ValueError: bad recipe)" in whole["text"] and "do not guess" in whole["text"]
     assert whole["instructions"] == [] and whole["single_context"] is False
+
+
+def test_new_planets_get_their_texts_when_a_galaxy_map_read_changes_nothing(tmp_path, monkeypatch):
+    """A memory round that finds new planets resolves their texts and icons even when the galaxy map is read in the
+    same round and changes no economy. The map read used to reuse the planets' `changed` variable, so its 0 hid the
+    new planets until the next scan that changed something."""
+    plugin = _plugin(tmp_path, monkeypatch)
+    plugin.install = SimpleNamespace(build_id="1")
+    plugin._planet_icons_ready = True
+    resolved = []
+    monkeypatch.setattr(plugin.live, "tick", lambda *args: 1)                # one new planet
+    monkeypatch.setattr(plugin.live, "reader", object())
+    monkeypatch.setattr(plugin.live, "status", "ok")
+    monkeypatch.setattr(plugin.live, "current_system", 0x1234)
+    monkeypatch.setattr(plugin.starmap, "due", lambda now: True)
+    monkeypatch.setattr(plugin.starmap, "scan", lambda reader, system: {})    # the map changes nothing
+    monkeypatch.setattr(type(plugin.gamedata), "ready", property(lambda self: True))
+    monkeypatch.setattr(plugin.gamedata, "resolve_texts", lambda install, keys: resolved.append("texts"))
+    monkeypatch.setattr(plugin.gamedata, "ensure_icons", lambda install, ids: resolved.append("icons"))
+    asyncio.run(plugin._read_memory(force=True))
+    assert resolved == ["texts", "icons"]

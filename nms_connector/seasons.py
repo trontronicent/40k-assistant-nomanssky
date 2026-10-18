@@ -63,6 +63,15 @@ def load_research(path: Path | None = None) -> dict:
     return data if isinstance(data, dict) else {}
 
 
+def _text_pair(english: dict[str, str], local: dict[str, str], key: str) -> dict | None:
+    """{en, local} of one language key (local only when it differs); None when the game has no English text."""
+    en = _clean(english.get(key))
+    if not en:
+        return None
+    lo = _clean(local.get(key))
+    return {"en": en, "local": lo if lo and lo != en else None}
+
+
 @dataclass
 class SeasonBook:
     """The expeditions of one game build: {number: {name, title, summary, detail, rewards}} (each text as
@@ -76,11 +85,7 @@ class SeasonBook:
         local = local or {}
 
         def pair(key: str) -> dict | None:
-            en = _clean(english.get(key))
-            if not en:
-                return None
-            lo = _clean(local.get(key))
-            return {"en": en, "local": lo if lo and lo != en else None}
+            return _text_pair(english, local, key)
 
         seasons: dict[int, dict] = {}
         for key in english:
@@ -93,10 +98,9 @@ class SeasonBook:
             s["detail"] = pair(f"UI_EXPED{n}_DETAIL_DESC")
         for key in sorted(english):
             m = _REWARD_RE.match(key)
-            if m and int(m.group("n")) in seasons:
-                name = pair(key)
-                if name:
-                    seasons[int(m.group("n"))]["rewards"].append(dict(name, kind=_kind_of(m)))
+            name = pair(key) if m and int(m.group("n")) in seasons else None
+            if name:
+                seasons[int(m.group("n"))]["rewards"].append(dict(name, kind=_kind_of(m)))
         return cls(seasons, language)
 
     @property

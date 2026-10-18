@@ -99,20 +99,27 @@ def find_records(reader, table: dict, chunker=None) -> dict[int, dict]:
         hit = seeds[pos] == vals
         for i, p in zip(cand[hit].tolist(), pos[hit].tolist(), strict=True):
             key = int(table.keys[p])
-            if key in found:
-                continue
-            start = i * 8 - memory.STAR_PLANET_SEEDS
-            blob = bytes(buf[start:start + memory.STAR_SIZE]) if start >= 0 and start + memory.STAR_SIZE <= valid \
-                else reader.read(address + start, memory.STAR_SIZE)
-            attrs = memory.parse_star_attributes(blob) if blob else None
-            if not attrs:
-                continue
-            if table.second[p]:     # a second planet's seed must sit in its slot too
-                second = int.from_bytes(blob[memory.STAR_PLANET_SEEDS + 0x10:memory.STAR_PLANET_SEEDS + 0x18], "little")
-                if second != int(table.second[p]):
-                    continue
-            found[key] = attrs
+            attrs = None if key in found else _record_at(reader, memory.Chunk(buf, valid, address, valid), i * 8,
+                                                         int(table.second[p]))
+            if attrs:
+                found[key] = attrs
     return found
+
+
+def _record_at(reader, chunk, seed_at: int, second: int) -> dict | None:
+    """The star attributes of the record whose first planet seed is at `seed_at` in the chunk (read from the
+    process when the record runs past it) - None when it is none, or when the second planet's seed (`second`,
+    0 = not known) is not in its slot."""
+    from . import memory
+    start = seed_at - memory.STAR_PLANET_SEEDS
+    blob = bytes(chunk.buf[start:start + memory.STAR_SIZE]) if start >= 0 and start + memory.STAR_SIZE <= chunk.valid \
+        else reader.read(chunk.address + start, memory.STAR_SIZE)
+    attrs = memory.parse_star_attributes(blob) if blob else None
+    if attrs and second:
+        found = int.from_bytes(blob[memory.STAR_PLANET_SEEDS + 0x10:memory.STAR_PLANET_SEEDS + 0x18], "little")
+        if found != second:
+            return None
+    return attrs
 
 
 class StarmapReader:

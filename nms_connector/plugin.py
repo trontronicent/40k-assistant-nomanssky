@@ -492,34 +492,36 @@ class NmsConnector:
         except (TypeError, ValueError):
             range_ly = 0.0
         request = {"target": target_text, "portal": portal, "range": range_ly if range_ly > 0 else None}
-        origin = self.here()
-        if origin is None:
-            result = {"ok": False, "reason": "where you are is not known yet"}
-        elif not 50 <= range_ly <= 20000:
-            result = {"ok": False, "reason": "the jump range must be between 50 and 20,000 light years"}
-        else:
-            if portal:
-                target = route.portal_to_key(portal, galaxy.galaxy_of(origin))
-                reason = "the portal address must be 12 hex digits (0-9, A-F)"
-            else:
-                target = planets_view.parse_system_key(target_text)
-                reason = "choose a target system"
-            if target is None:
-                result = {"ok": False, "reason": reason}
-            else:
-                target = memory.system_key(target)
-                ctx = self.context()
-                estimate = self.primary_range()
-                colours = planets_view.reachable_stars(estimate["colours"]) if estimate else None
-                result = route.plan_route(planets_view.route_nodes(ctx, colours), origin, target, range_ly)
-                if colours is not None:
-                    result["star_colours"] = sorted(colours)
+        result = self._route_result(request, range_ly)
         self.route_state = {"request": request, "result": result}
         self._save_route()
         if not result.get("ok"):
             return {"ok": False, "message": f"No route: {result['reason']}"}
         return {"ok": True, "focus": planets_view.ROUTE_RESULT_ID,
                 "message": f"Route planned: {result['jumps']} jump(s), {galaxy.distance_text(result['distance'])}."}
+
+    def _route_result(self, request: dict, range_ly: float) -> dict:
+        """route.plan_route for a checked plan_route request, or {ok: False, reason} when it cannot be planned."""
+        origin = self.here()
+        if origin is None:
+            return {"ok": False, "reason": "where you are is not known yet"}
+        if not 50 <= range_ly <= 20000:
+            return {"ok": False, "reason": "the jump range must be between 50 and 20,000 light years"}
+        if request["portal"]:
+            target = route.portal_to_key(request["portal"], galaxy.galaxy_of(origin))
+            reason = "the portal address must be 12 hex digits (0-9, A-F)"
+        else:
+            target = planets_view.parse_system_key(request["target"])
+            reason = "choose a target system"
+        if target is None:
+            return {"ok": False, "reason": reason}
+        ctx = self.context()
+        estimate = self.primary_range()
+        colours = planets_view.reachable_stars(estimate["colours"]) if estimate else None
+        result = route.plan_route(planets_view.route_nodes(ctx, colours), origin, memory.system_key(target), range_ly)
+        if colours is not None:
+            result["star_colours"] = sorted(colours)
+        return result
 
     def _load_events(self) -> list[dict]:
         events = logs.read_json(self.events_path, "The save-write log")
@@ -584,20 +586,9 @@ class NmsConnector:
         self._game_checked = now
         self.install = await self.ctx.run_blocking(find_game)
         if self.tables.needs_load(self.install):
-            self._heavy_load = True
-            for warning in await self.ctx.run_blocking(self.tables.load, self.install):
-                self.ctx.logger.warning("[NMS] %s", warning)
-            self.gamedata.tech = self.tables.tech       # Texts.modifiers: what each technology does
-            self.gamedata.recipes = self.tables.recipes     # Texts.how_to_get: an item tooltip's recipes
-            self.gamedata.terms = self.tables.terms
-            await self._ensure_texts()
+            await self._load_tables()
         if self.install is None:
-            # No game files (another drive, an offline library): the stored copy of the item database keeps names,
-            # values and categories; the tables came from tables.json above.
-            if not self.gamedata.ready and await self.ctx.run_blocking(self.gamedata.load_stored):
-                self.ctx.logger.warning("[NMS] Game files not found: item database of build %s taken from the "
-                                        "stored copy (%d items)", self.gamedata.build_id, len(self.gamedata.items))
-                await self.ctx.run_blocking(self.gamedata.load_stored_alt_names)
+            await self._load_stored_gamedata()
             return
         if self.gamedata.matches(self.install) and not force:
             await self._ensure_alt_names()
@@ -615,6 +606,24 @@ class NmsConnector:
                                  self.gamedata.language_label, self.gamedata.build_id, self.gamedata.build_seconds)
             await self._ensure_icons()
             await self._ensure_alt_names()
+
+    async def _load_tables(self) -> None:
+        """Read the game tables (GameTables) and hand the ones item texts need to the item database."""
+        self._heavy_load = True
+        for warning in await self.ctx.run_blocking(self.tables.load, self.install):
+            self.ctx.logger.warning("[NMS] %s", warning)
+        self.gamedata.tech = self.tables.tech       # Texts.modifiers: what each technology does
+        self.gamedata.recipes = self.tables.recipes     # Texts.how_to_get: an item tooltip's recipes
+        self.gamedata.terms = self.tables.terms
+        await self._ensure_texts()
+
+    async def _load_stored_gamedata(self) -> None:
+        """No game files (another drive, an offline library): the stored copy of the item database keeps names,
+        values and categories; the tables came from tables.json."""
+        if not self.gamedata.ready and await self.ctx.run_blocking(self.gamedata.load_stored):
+            self.ctx.logger.warning("[NMS] Game files not found: item database of build %s taken from the "
+                                    "stored copy (%d items)", self.gamedata.build_id, len(self.gamedata.items))
+            await self.ctx.run_blocking(self.gamedata.load_stored_alt_names)
 
     async def _ensure_alt_names(self) -> None:
         """The item names in French, Italian, Spanish, Portuguese and Dutch (once per game build; a cache file)."""
@@ -665,28 +674,45 @@ class NmsConnector:
             self.live.last_scan_at = None
         changed = await self.ctx.run_blocking(self.live.tick, self.anchor, self._substances(), now)
         await self.ctx.run_blocking(self._follow_route)
-        if self.live.reader is not None and self.live.status == "ok" and self.live.current_system is not None \
-                and self.starmap.due(now):
-            try:
-                found = await self.ctx.run_blocking(self.starmap.scan, self.live.reader, self.live.current_system)
-                changed = self.history.record_economies(found, datetime.now().isoformat(timespec="seconds"), "galaxy map")
-                if changed:
-                    await self.ctx.run_blocking(self.history.save)
-                self.ctx.logger.info("[NMS] Galaxy map: %d star records read (%d new or changed) in %s s",
-                                     len(found), changed, self.starmap.last_scan_seconds)
-            except OSError as exc:      # the game closed mid-read
-                self.ctx.logger.debug("[NMS] Galaxy map not read: %s", exc)
+        await self._read_starmap(now)
+        await self._read_settlement_screens()
+        await self._ensure_planet_texts(changed)
+
+    def _reading(self) -> bool:
+        """True while the game's memory is open and readable."""
+        return self.live.reader is not None and self.live.status == "ok"
+
+    async def _read_starmap(self, now: float) -> None:
+        """The galaxy map's star records around you, when due (starmap.StarmapReader), into the history."""
+        if not (self._reading() and self.live.current_system is not None and self.starmap.due(now)):
+            return
+        try:
+            found = await self.ctx.run_blocking(self.starmap.scan, self.live.reader, self.live.current_system)
+            changed = self.history.record_economies(found, datetime.now().isoformat(timespec="seconds"), "galaxy map")
+            if changed:
+                await self.ctx.run_blocking(self.history.save)
+            self.ctx.logger.info("[NMS] Galaxy map: %d star records read (%d new or changed) in %s s",
+                                 len(found), changed, self.starmap.last_scan_seconds)
+        except OSError as exc:      # the game closed mid-read
+            self.ctx.logger.debug("[NMS] Galaxy map not read: %s", exc)
+
+    async def _read_settlement_screens(self) -> None:
+        """The computed settlement values (settlements.LiveSettlements) - searched for in your system only, since
+        the settlement screen's values exist only while it is open."""
         seeds = [s["seed"] for s in self.settlements if s.get("seed")]
-        # The settlement screen's values exist only while it is open: search for them in your system only.
         here = self.live.current_system if self.live.current_system is not None else self.save_system
         nearby = [s["seed"] for s in self.settlements if s.get("seed") and s.get("system") == here]
-        if seeds and self.live.reader is not None and self.live.status == "ok":
-            try:
-                await self.ctx.run_blocking(self.settlement_live.tick, self.live.reader, seeds, nearby)
-            except OSError as exc:      # the game closed mid-read: the next tick reopens it
-                self.ctx.logger.debug("[NMS] Settlement stats not read: %s", exc)
-        # Also once after a start or item-database rebuild (icons are cleared then), so planets recorded
-        # earlier get their texts and icons - including the gas icons added in 0.4.0.
+        if not (seeds and self._reading()):
+            return
+        try:
+            await self.ctx.run_blocking(self.settlement_live.tick, self.live.reader, seeds, nearby)
+        except OSError as exc:      # the game closed mid-read: the next tick reopens it
+            self.ctx.logger.debug("[NMS] Settlement stats not read: %s", exc)
+
+    async def _ensure_planet_texts(self, changed: int) -> None:
+        """The texts and icons of the recorded planets, after a scan changed them - and once after a start or an
+        item-database rebuild (icons are cleared then), so planets recorded earlier get theirs too (including the
+        gas icons added in 0.4.0)."""
         if (changed or not self._planet_icons_ready) and self.install and self.gamedata.ready:
             self._planet_icons_ready = True
             planets = list(self.history.planets.values())

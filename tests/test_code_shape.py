@@ -21,7 +21,7 @@ def _ruff() -> list[str] | None:
 
 
 def test_the_plugin_keeps_its_code_shape():
-    """ruff (ruff.toml: complexity <= 10, <= 10 branches, <= 40 statements, <= 6 arguments, explicit zip strictness,
+    """ruff (ruff.toml: complexity <= 8, <= 8 branches, <= 40 statements, <= 6 arguments, explicit zip strictness,
     no unused names or arguments, lines <= 140) reports nothing for nms_connector, standalone, tools and tests. Keeps
     the refactors of 2026-10-08 and 2026-10-18 from rotting - and the standalone host is held to the same shape as
     the connector, since both are this codebase."""

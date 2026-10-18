@@ -834,31 +834,35 @@ class PluginCompanion:
         if not self._asked_about(words, SETTLEMENT_WORDS, (s["name"] for s in c.settlements)):
             return []
         rules = c.tables.settlement_rules
-        out = []
-        for s in c.settlements:
-            out.append(f"Settlement {s['name']}: population {s['population']} ({s['race'] or 'unknown race'})")
-            reading = c.settlement_live.values.get(s.get("seed"))
-            if reading:
-                shown = [f"{settlements.STAT_LABELS[st]} {settlements.shown(st, v, rules, s['population'])}"
-                         for st, v in zip(settlements.STATS, reading["stats"], strict=False) if st not in ("Sentinels", "Debt")]
-                out.append(f"  as its screen showed at {timers.clock(reading['at'])}: " + ", ".join(shown))
-            if s["production"]:
-                out.append("  production: " + "; ".join(
-                    f"{(c.gamedata.lookup(p['item']) or {}).get('en') or p['item']} {p['amount']} of {p['cap']}"
-                    for p in s["production"]))
-            if s["pending"] and s["pending"] != "None":
-                out.append(f"  a decision is waiting: {settlements._words(s['pending'])}")
-            elif s["last_judgement"]:
-                lo, hi = rules["judgement_wait"]
-                out.append(f"  next decision between {timers.clock(s['last_judgement'] + lo)} and "
-                           f"{timers.clock(s['last_judgement'] + hi)}")
-            build = next((t for t in c.timers if t["key"].startswith("settlement.") and s["name"] in t["label"]), None)
-            if build:
-                out.append(f"  construction: {build['label']} - " + (f"finished at {timers.clock(build['ends_at'])}"
-                           if build["ends_at"] <= now else f"ends {timers.clock(build['ends_at'])}"))
-            out.append(f"  perks: {len(s['perks'])} (details in the plugin's Settlements tab)")
+        out = [line for s in c.settlements for line in self._settlement_detail(s, rules, now)]
         if out:
             out.append(SENTENCE_NOTE)
+        return out
+
+    def _settlement_detail(self, s: dict, rules: dict, now: float) -> list[str]:
+        """settlement_lines for one settlement."""
+        c = self.connector
+        out = [f"Settlement {s['name']}: population {s['population']} ({s['race'] or 'unknown race'})"]
+        reading = c.settlement_live.values.get(s.get("seed"))
+        if reading:
+            shown = [f"{settlements.STAT_LABELS[st]} {settlements.shown(st, v, rules, s['population'])}"
+                     for st, v in zip(settlements.STATS, reading["stats"], strict=False) if st not in ("Sentinels", "Debt")]
+            out.append(f"  as its screen showed at {timers.clock(reading['at'])}: " + ", ".join(shown))
+        if s["production"]:
+            out.append("  production: " + "; ".join(
+                f"{(c.gamedata.lookup(p['item']) or {}).get('en') or p['item']} {p['amount']} of {p['cap']}"
+                for p in s["production"]))
+        if s["pending"] and s["pending"] != "None":
+            out.append(f"  a decision is waiting: {settlements._words(s['pending'])}")
+        elif s["last_judgement"]:
+            lo, hi = rules["judgement_wait"]
+            out.append(f"  next decision between {timers.clock(s['last_judgement'] + lo)} and "
+                       f"{timers.clock(s['last_judgement'] + hi)}")
+        build = next((t for t in c.timers if t["key"].startswith("settlement.") and s["name"] in t["label"]), None)
+        if build:
+            out.append(f"  construction: {build['label']} - " + (f"finished at {timers.clock(build['ends_at'])}"
+                       if build["ends_at"] <= now else f"ends {timers.clock(build['ends_at'])}"))
+        out.append(f"  perks: {len(s['perks'])} (details in the plugin's Settlements tab)")
         return out
 
     def economy_lines(self, question: str, ctx, here) -> list[str]:

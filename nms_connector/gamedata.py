@@ -656,13 +656,28 @@ class GameData:
         name = icon_file_name(texture) if texture else None
         return name if name and name in self.icon_files() else None
 
+    def _convert_icon(self, paks: PakSet, image_module, name: str, texture: str) -> bool:
+        """One DDS texture from the paks as a PNG icon in the assets folder; False (and `icon_error`) when it
+        cannot be read or converted."""
+        try:
+            dds = paks.read(texture.lower())
+            with image_module.open(io.BytesIO(dds)) as img:
+                icon = img.convert("RGBA")
+                icon.thumbnail((ICON_PX, ICON_PX), image_module.Resampling.LANCZOS)
+                buf = io.BytesIO()
+                icon.save(buf, "PNG", optimize=True)
+        except (KeyError, OSError, ValueError, PakError) as exc:
+            self.icon_error = f"{texture}: {type(exc).__name__}: {exc}"
+            return False
+        tmp = self.assets_dir / f".{name}.tmp"
+        tmp.write_bytes(buf.getvalue())
+        tmp.replace(self.assets_dir / name)
+        return True
+
     def ensure_icons(self, install: GameInstall, item_ids: list[str]) -> int:
         """Convert the icons of these items that are not converted yet; returns how many were added."""
         todo: dict[str, str] = {}
-        for item_id in item_ids:
-            texture = self.icon_texture(item_id)
-            if not texture:
-                continue
+        for texture in filter(None, map(self.icon_texture, item_ids)):
             name = icon_file_name(texture)
             if name and not (self.assets_dir / name).is_file():
                 todo[name] = texture
@@ -677,21 +692,7 @@ class GameData:
         added = 0
         try:
             with PakSet(install.pcbanks, PAK_HINTS) as paks:
-                for name, texture in todo.items():
-                    try:
-                        dds = paks.read(texture.lower())
-                        with Image.open(io.BytesIO(dds)) as img:
-                            icon = img.convert("RGBA")
-                            icon.thumbnail((ICON_PX, ICON_PX), Image.Resampling.LANCZOS)
-                            buf = io.BytesIO()
-                            icon.save(buf, "PNG", optimize=True)
-                    except (KeyError, OSError, ValueError, PakError) as exc:
-                        self.icon_error = f"{texture}: {type(exc).__name__}: {exc}"
-                        continue
-                    tmp = self.assets_dir / f".{name}.tmp"
-                    tmp.write_bytes(buf.getvalue())
-                    tmp.replace(self.assets_dir / name)
-                    added += 1
+                added = sum(self._convert_icon(paks, Image, name, texture) for name, texture in todo.items())
         except (OSError, PakError, ZstdUnavailable) as exc:
             self.icon_error = f"{type(exc).__name__}: {exc}"
         if added:
