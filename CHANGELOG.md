@@ -23,6 +23,13 @@
 - The overlay's *Recipes* area is **shown at first** (untick it in the right-click menu if you want the room
   back): an area that is off by default also hides its own search box, which is the whole feature.
 
+- **A hyphenated German name is found as one word.** The game writes many German compounds with a hyphen
+  ("Warp-Zelle"), and a player types them as one ("Warpzelle"). Measured on the real item database: "Warpzelle"
+  found nothing at all, while "warp zelle" and "warp cell" both worked - the one spelling a German player would
+  use was the one that failed. `recipe_view.name_words` now indexes each name's words *and* the whole name
+  without its separators, and the language switch reads the same words, so "Warpzelle" is also recognised as
+  German.
+
 - Searching also finds raw materials no recipe makes or uses (the substance table), because "where does Copper
   come from" is exactly what goes into that box.
 

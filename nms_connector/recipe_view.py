@@ -52,10 +52,25 @@ def heading(key: str, language: str, **values) -> str:
     return texts.get(key, HEADINGS[recipes.ENGLISH][key]).format(**values)
 
 
+def name_words(name: str | None) -> set[str]:
+    """The words one name is found by, plus the whole name as a single word when the game writes it with
+    separators: 'Warp-Zelle' -> {'warp', 'zelle', 'warpzelle'}.
+
+    A German compound is one word to the player, and the game hyphenates a great many of them. Without this a
+    search for "Warpzelle" matched nothing at all, while "warp zelle" and "warp cell" both worked (measured on
+    the real item database, 2026-10-18).
+    """
+    parts = planet_search.words(name)
+    joined = "".join(parts)
+    return set(parts) | ({joined} if len(parts) > 1 else set())
+
+
 def item_words(item_id: str, entry: dict, alt: list[str]) -> set[str]:
     """The words an item is found by: its id and its names in English, the game's language and ALT_LANGUAGES."""
-    parts = [item_id, entry.get("en") or "", entry.get("local") or ""] + [str(n) for n in alt]
-    return set(planet_search.words(" ".join(parts)))
+    found = set(planet_search.words(item_id))
+    for name in [entry.get("en"), entry.get("local"), *alt]:
+        found |= name_words(str(name) if name else "")
+    return found
 
 
 def _rank(item: str, entry: dict, folded: str) -> tuple:
@@ -108,8 +123,12 @@ def _votes(query: str, hits: list[str], lookup, exact: bool) -> tuple[int, int]:
 
 
 def _has(term: str, name: str | None, exact: bool) -> bool:
-    """Whether `name` holds the search word - as a whole word, or (not `exact`) as the start of one."""
-    words = set(planet_search.words(name or ""))
+    """Whether `name` holds the search word - as a whole word, or (not `exact`) as the start of one.
+
+    The same words the search matches (`name_words`), so a hyphenated compound typed as one word decides the
+    language too: "Warpzelle" is German, although the game writes it "Warp-Zelle".
+    """
+    words = name_words(name or "")
     return term in words if exact else planet_search.term_matches(term, words)
 
 

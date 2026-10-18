@@ -258,3 +258,25 @@ def test_every_section_the_viewer_builds_is_one_the_app_accepts(query):
     normalized = views.normalize_view({"title": "t", "sections": out}, "t")
     assert len(normalized["sections"]) == len(out)
     assert recipe_view.SECTION_TYPE in views.SECTION_TYPES
+
+
+HYPHENATED = {**ITEMS, "HYPERFUEL1": {"en": "Warp Cell", "local": "Warp-Zelle"}}
+
+
+def test_a_hyphenated_german_name_is_found_as_one_word():
+    """The game writes many German compounds with a hyphen ("Warp-Zelle"), and a player types them as one word.
+    Measured against the real item database (2026-10-18): "Warpzelle" found nothing at all, while "warp zelle"
+    and "warp cell" both worked - the one spelling a German player would use was the one that failed."""
+    gd = FakeGameData(HYPHENATED, alt={})
+    book_with_cell = recipes.RecipeBook(book().recipes + [recipes.Recipe("r", "HYPERFUEL1", 1, (("TOXIC1", 2),), False)],
+                                        book().crafting, book().substances)
+    for query in ("Warpzelle", "warpzelle", "warp zelle", "warp cell", "Warp-Zelle"):
+        assert recipe_view.search(book_with_cell, gd.lookup, query, gd.alt_of) == ["HYPERFUEL1"], query
+
+
+def test_a_compound_typed_as_one_word_still_decides_the_language():
+    """"Warpzelle" names the item in German only, so the answer is German - the language switch reads the same
+    words the search does, or a hyphenated name would silently fall through to the default."""
+    gd = FakeGameData(HYPHENATED, alt={})
+    assert recipe_view.language_of("Warpzelle", ["HYPERFUEL1"], gd.lookup, "german") == "german"
+    assert recipe_view.language_of("warp cell", ["HYPERFUEL1"], gd.lookup, "german") == recipes.ENGLISH
