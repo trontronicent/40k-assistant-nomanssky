@@ -165,7 +165,8 @@ def test_the_overlay_area_carries_the_diagrams_and_the_same_lines():
     """The overlay gets the identical recipe data (so it draws the same diagrams as the page and the chat) plus
     `lines` for an overlay that cannot draw them, and asks for its own search box."""
     area = recipe_view.overlay_area(book(), FakeGameData(), terms(), "ammonia")
-    assert area["id"] == "recipes" and area["search"] is True and area["default_on"] is False
+    # Shown at first: an area that is off by default hides its own search box, and the box is the feature.
+    assert area["id"] == "recipes" and area["search"] is True and area["default_on"] is True
     assert area["query"] == "ammonia"
     assert area["recipes"][0]["result"]["name"] == "Ammonia"
     assert len(area["recipes"]) <= recipe_view.MAX_OVERLAY_RECIPES

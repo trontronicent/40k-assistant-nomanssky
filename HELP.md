@@ -287,10 +287,11 @@ Nanites, Quicksilver), **Ships** (primary ship with its warp range, freighter) a
 timers, where you are and settlements in one block). The area **Codex search** finds
 words in the Codex libraries attached to the plugin persona (the *No Man's Sky* library,
 for example): click the box, type - *warp cell*, *"antimatter housing"*, *Hyperantrieb*
-- and press Enter. No AI: it finds exactly the words, instantly, while you play. The area **Recipes** (tick it on)
+- and press Enter. No AI: it finds exactly the words, instantly, while you play. The area **Recipes**
 is the Recipes tab in the overlay: type an item into its box, press Enter, and the recipes that make it are drawn
 as the same diagrams with the same icons, in the language you typed in - a recipe looked up without leaving the
-game. Escape empties the box. The page and the overlay share this one search, so what you look up in one is what
+game. Click the box before typing - a window without a title bar does not take the keyboard by itself - and press
+Escape to empty it. The page and the overlay share this one search, so what you look up in one is what
 the other shows. The buttons
 **Codeword** (with the codeword from the Settings tab) and **Live call** switch the
 open app tab to the plugin persona and start Live Comms, so you can ask by voice

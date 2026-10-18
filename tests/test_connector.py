@@ -489,7 +489,7 @@ def test_the_overlay_offers_areas_the_user_switches_in_the_app(tmp_path, monkeyp
     overlay = plugin.overlay()
     areas = {a["id"]: a for a in overlay["areas"]}
     assert [a["id"] for a in overlay["areas"]] == [i for i, _, _ in OVERLAY_AREAS] + ["recipes"]
-    assert [a["id"] for a in overlay["areas"] if a["default_on"]] == ["timers", "location", "settlements"]
+    assert [a["id"] for a in overlay["areas"] if a["default_on"]] == ["timers", "location", "settlements", "recipes"]
     assert [t["key"] for t in areas["timers"]["timers"]] == ["frigate.1"] and areas["timers"]["lines"] == []
     kay, = areas["settlements"]["lines"]
     assert kay.startswith("Kay City: 21 inhabitants, next decision ")

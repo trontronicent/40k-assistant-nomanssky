@@ -279,7 +279,9 @@ def overlay_area(book, gamedata, terms, query: str) -> dict:
     `search: True` asks the overlay for its own query box; what it types runs SEARCH_RECIPES, so the page and the
     overlay share one query and one language decision.
     """
-    area = {"id": OVERLAY_AREA, "title": "Recipes", "default_on": False, "search": True,
+    # Shown at first (2026-10-18: it shipped off, and the search box was then nowhere to be found). The user
+    # can untick it in the overlay's right-click menu, and the overlay remembers that.
+    area = {"id": OVERLAY_AREA, "title": "Recipes", "default_on": True, "search": True,
             "query": query, "timers": [], "lines": [], "recipes": []}
     if book is None or not book.recipes:
         return {**area, "lines": ["The recipes could not be read from the game files."]}

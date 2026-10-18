@@ -20,6 +20,9 @@
   the plugin's assets folder. An overlay that cannot draw them still gets the recipes as `lines`, which is what
   the area showed before, so nothing is lost on an older app.
 
+- The overlay's *Recipes* area is **shown at first** (untick it in the right-click menu if you want the room
+  back): an area that is off by default also hides its own search box, which is the whole feature.
+
 - Searching also finds raw materials no recipe makes or uses (the substance table), because "where does Copper
   come from" is exactly what goes into that box.
 
