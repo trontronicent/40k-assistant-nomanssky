@@ -22,7 +22,7 @@ def test_command_names_the_model_and_the_output(tmp_path):
 def test_text_is_sent_as_utf8(tmp_path):
     """`text=True` would use the locale encoding (cp1252 on this machine) and Piper does not expect it -
     the app hit exactly this with German replies."""
-    assert voice(tmp_path).encode("Nährstoffprozessor") == "Nährstoffprozessor".encode("utf-8")
+    assert voice(tmp_path).encode("Nährstoffprozessor") == "Nährstoffprozessor".encode()
 
 
 def test_is_installed_is_false_without_the_files(tmp_path):

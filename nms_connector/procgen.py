@@ -155,7 +155,7 @@ def voxel_attributes(code: int) -> dict:
     return out
 
 
-def _system_rng(key: int) -> tuple[int, dict, int, "PRNG"]:
+def _system_rng(key: int) -> tuple[int, dict, int, PRNG]:
     """(the system's index in its region minus one, its voxel's attributes, the seed, the generator seeded from it)."""
     code, galaxy = portal_code(key)
     code &= 0xFFFFFFFFFFF
@@ -169,7 +169,7 @@ def _system_rng(key: int) -> tuple[int, dict, int, "PRNG"]:
     return system_id - 1, va, seed, PRNG(seed)
 
 
-def _star_and_planets(system_id: int, va: dict, seed: int, rng: "PRNG") -> tuple[int, int, int, int]:
+def _star_and_planets(system_id: int, va: dict, seed: int, rng: PRNG) -> tuple[int, int, int, int]:
     """(star type, planet count, safe start planet, anomaly): a guide star, a black hole, an Atlas station or an
     ordinary system, in the order the game draws them."""
     star_type, anomaly = 0, 0
@@ -189,7 +189,7 @@ def _star_and_planets(system_id: int, va: dict, seed: int, rng: "PRNG") -> tuple
     return star_type, planet_count, safe_start, anomaly
 
 
-def _economy_traits(rng: "PRNG") -> tuple[int, int, int, int]:
+def _economy_traits(rng: PRNG) -> tuple[int, int, int, int]:
     """(economy, wealth, conflict, race) indexes: one generator step and one draw each, in the game's order."""
     rng.update()
     economy = {0: 4, 1: 6, 2: 1, 3: 5, 4: 2, 5: 3, 6: 7}[((rng.seed & 0xFFFFFFFF) * 7) >> 32]
@@ -203,7 +203,7 @@ def _economy_traits(rng: "PRNG") -> tuple[int, int, int, int]:
     return economy, wealth, conflict, race
 
 
-def _prime_planets(rng: "PRNG", planet_count: int, star_type: int) -> tuple[int, int, bool]:
+def _prime_planets(rng: PRNG, planet_count: int, star_type: int) -> tuple[int, int, bool]:
     """(planet count, prime planet count, gas giant): how many of the six body slots are prime planets, and whether an
     exotic-star system is a gas giant (which has no planets of its own)."""
     prime = 2
@@ -263,9 +263,8 @@ def _body_seed(rng: PRNG) -> int:
     return (r >> 33) ^ r
 
 
-def planet_seeds(key: int, attrs: dict | None = None) -> list[int]:
-    """The GenerationData.Seed of every body of the system, in the game's order (= planet index)."""
-    attrs = attrs or system_attributes(key)
+def _bodies_rng(key: int) -> PRNG:
+    """The generator a system's bodies are drawn from, seeded by its portal code and galaxy."""
     code, galaxy = portal_code(key)
     coords = code & 0xFFFFFFFF
     index = ((code & 0x0FFF00000000) >> 24) | galaxy
@@ -274,13 +273,11 @@ def planet_seeds(key: int, attrs: dict | None = None) -> list[int]:
     r = (((r >> 33) ^ r) * CONST_B) & MASK64
     r = (r >> 33) ^ r
     seed_h = ((((r & 0xFFFF0000) >> 16) | ((r & 0x0000FFFF) << 16)) ^ (r & 0xFFFFFFFF) ^ (r >> 32)) or 1
-    rng = PRNG((seed_h << 32) | (r & 0xFFFFFFFF))
-    primary = attrs["planet_count"]
-    total = primary + attrs["prime_planet_count"]
-    stop = attrs["safe_start_planet"] - 1
-    seeds: list[int] = []
-    if attrs["gas_giant"]:
-        return [_body_seed(rng) for _ in range(total)]
+    return PRNG((seed_h << 32) | (r & 0xFFFFFFFF))
+
+
+def _skip_layout(rng: PRNG, primary: int, stop: int) -> None:
+    """Advance `rng` past the draws the game spends laying out the primary planets and their moons."""
     i = 0
     while i < primary:
         i += 1
@@ -292,10 +289,12 @@ def planet_seeds(key: int, attrs: dict | None = None) -> list[int]:
                     moons -= 1
                     if moons <= 0:
                         break
-    i = 0
-    while i < primary:
-        seeds.append(_body_seed(rng))
-        i += 1
+
+
+def _prime_seeds(rng: PRNG, first: int, total: int, stop: int) -> list[int]:
+    """The seeds of the bodies from index `first` up to `total`: each prime planet, then maybe its moons."""
+    seeds: list[int] = []
+    i = first
     while i < total:
         size = rng.random(3)
         seeds.append(_body_seed(rng))
@@ -307,3 +306,17 @@ def planet_seeds(key: int, attrs: dict | None = None) -> list[int]:
                 moons -= 1
                 i += 1
     return seeds
+
+
+def planet_seeds(key: int, attrs: dict | None = None) -> list[int]:
+    """The GenerationData.Seed of every body of the system, in the game's order (= planet index)."""
+    attrs = attrs or system_attributes(key)
+    rng = _bodies_rng(key)
+    primary = attrs["planet_count"]
+    total = primary + attrs["prime_planet_count"]
+    stop = attrs["safe_start_planet"] - 1
+    if attrs["gas_giant"]:
+        return [_body_seed(rng) for _ in range(total)]
+    _skip_layout(rng, primary, stop)
+    seeds = [_body_seed(rng) for _ in range(primary)]
+    return seeds + _prime_seeds(rng, max(primary, 0), total, stop)

@@ -33,6 +33,12 @@
 - Searching also finds raw materials no recipe makes or uses (the substance table), because "where does Copper
   come from" is exactly what goes into that box.
 
+- Internal, nothing you can see: the code-shape limits went down (complexity 12 -> 10, branches 12 -> 10,
+  statements 50 -> 40, lines <= 140, pyupgrade/comprehension/bugbear rules), and the 14 functions above them
+  were split into named steps - planet merging (`PlanetHistory.record`), the route planner, the trade pair
+  search, planet seeds, the Codex item documents and more. Planet seeds were compared on 20,000 systems and
+  the Codex documents byte for byte; two lines whose continuation had been flattened into one were restored.
+
 ## 0.15.0-beta.6 (beta; needs app 3.17.0)
 
 - **The recipe diagrams no longer repeat the previous questions' recipes.** Asking for three recipes in a

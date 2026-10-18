@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-from typing import Iterator
+from collections.abc import Iterator
 
 log = logging.getLogger("nms-standalone.chat")
 

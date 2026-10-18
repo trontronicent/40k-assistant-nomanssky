@@ -171,6 +171,34 @@ def _lowest_per_place(keys: list[int], at: dict) -> dict[tuple, int]:
     return places
 
 
+def _voxel_sides(sell_at: dict, buy_at: dict) -> dict[int, list]:
+    """{galaxy: [sellers, buyers]} as (x, y, z, key) over the plain voxel positions; a galaxy without a seller
+    is left out."""
+    by_galaxy: dict[int, list] = {}
+    for (number, (x, y, z), is_exact), key in sell_at.items():
+        if not is_exact:
+            by_galaxy.setdefault(number, [[], []])[0].append((x, y, z, key))
+    for (number, (x, y, z), is_exact), key in buy_at.items():
+        if not is_exact and number in by_galaxy:
+            by_galaxy[number][1].append((x, y, z, key))
+    return by_galaxy
+
+
+def _nearest_along(seller: tuple, buy_side: list, step: range, best: tuple | None) -> tuple | None:
+    """`best` (squared distance, seller, buyer) improved by the buyers at the indices of `step`, walked away from
+    the seller's X until the X gap alone is wider than the best pair (`>`: a tie is still examined)."""
+    ax, ay, az, a_key = seller
+    for j in step:
+        bx, by, bz, b_key = buy_side[j]
+        gap = (bx - ax) ** 2
+        if best is not None and gap > best[0]:
+            break
+        far = gap + (by - ay) ** 2 + (bz - az) ** 2
+        if best is None or (far, a_key, b_key) <= best:
+            best = (far, a_key, b_key)
+    return best
+
+
 def _voxel_best(sell_at: dict, buy_at: dict) -> tuple | None:
     """The closest (distance, seller, buyer) over the pairs that are both plain voxel positions.
 
@@ -184,29 +212,14 @@ def _voxel_best(sell_at: dict, buy_at: dict) -> tuple | None:
     examined and the lowest (seller, buyer) still wins the tie, as `min` over (distance, seller, buyer)
     did before.
     """
-    by_galaxy: dict[int, list] = {}
-    for (number, (x, y, z), is_exact), key in sell_at.items():
-        if not is_exact:
-            by_galaxy.setdefault(number, [[], []])[0].append((x, y, z, key))
-    for (number, (x, y, z), is_exact), key in buy_at.items():
-        if not is_exact and number in by_galaxy:
-            by_galaxy[number][1].append((x, y, z, key))
-
     best = None
-    for sell_side, buy_side in by_galaxy.values():
+    for sell_side, buy_side in _voxel_sides(sell_at, buy_at).values():
         buy_side.sort()
         buy_x = [b[0] for b in buy_side]
-        for ax, ay, az, a_key in sell_side:
-            start = bisect.bisect_left(buy_x, ax)
+        for seller in sell_side:
+            start = bisect.bisect_left(buy_x, seller[0])
             for step in (range(start, len(buy_side)), range(start - 1, -1, -1)):
-                for j in step:
-                    bx, by, bz, b_key = buy_side[j]
-                    gap = (bx - ax) ** 2
-                    if best is not None and gap > best[0]:
-                        break
-                    far = gap + (by - ay) ** 2 + (bz - az) ** 2
-                    if best is None or (far, a_key, b_key) <= best:
-                        best = (far, a_key, b_key)
+                best = _nearest_along(seller, buy_side, step, best)
     return None if best is None else (galaxy.REGION_LY * math.sqrt(best[0]), best[1], best[2])
 
 

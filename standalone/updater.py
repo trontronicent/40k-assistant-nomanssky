@@ -63,10 +63,7 @@ class UpdateError(RuntimeError):
 
 def _pre_key(pre: str) -> tuple:
     """SemVer pre-release ordering: numeric parts compare as numbers (`beta.10` > `beta.2`)."""
-    parts = []
-    for part in (pre or "").split("."):
-        parts.append((0, int(part), "") if part.isdigit() else (1, 0, part))
-    return tuple(parts)
+    return tuple((0, int(part), "") if part.isdigit() else (1, 0, part) for part in (pre or "").split("."))
 
 
 def version_key(version: str) -> tuple:

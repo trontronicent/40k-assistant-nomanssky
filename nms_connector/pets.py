@@ -123,7 +123,7 @@ class PetBook:
         self.type_names: dict[str, str] = {}
 
     @classmethod
-    def from_texts(cls, english: dict, local: dict | None, language: str | None) -> "PetBook":
+    def from_texts(cls, english: dict, local: dict | None, language: str | None) -> PetBook:
         """Build from the language texts (``local`` = the game language, None when it is English)."""
         book = cls()
         local = local or {}
@@ -272,19 +272,19 @@ def personality(pet: dict) -> list[tuple[str, int]]:
     return [(axis[0] if v >= 0 else axis[1], round(abs(v) * 100)) for axis, v in zip(TRAIT_AXES, pet["traits"], strict=False)]
 
 
-def personality_text(pet: dict, book: "PetBook") -> str:
+def personality_text(pet: dict, book: PetBook) -> str:
     """'Playfulness 23% / Gentleness 77% / Devotion 16%' in the game's language (English when it was not read)."""
     if not pet["traits"]:
         return "–"
     return " / ".join(f"{book.trait_short.get(k) or TRAIT_FALLBACK[k]} {p}%" for k, p in personality(pet))
 
 
-def trait_names(book: "PetBook") -> list[str]:
+def trait_names(book: PetBook) -> list[str]:
     """The six personality words, in the game's language where the game files were read, else the English fallback."""
     return [book.trait_names.get(k) or TRAIT_FALLBACK[k] for k in TRAIT_ORDER]
 
 
-def type_note(creature_type: str, book: "PetBook") -> str:
+def type_note(creature_type: str, book: PetBook) -> str:
     """One line for the Type tooltip: what the type means, or an honest 'not documented' for an unknown value."""
     key = (creature_type or "").upper()
     note = TYPE_NOTES.get(key)

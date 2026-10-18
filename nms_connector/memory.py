@@ -178,6 +178,19 @@ def ua_from_bytes(raw: bytes) -> dict | None:
                                                          "VoxelX": x, "VoxelY": y, "VoxelZ": z}}
 
 
+def _extra_hints(blob: bytes, read) -> list[str]:
+    """The ids of a planet record's extra resource hints: an array of 0x20-byte ids behind a pointer (<= 16),
+    read through ``read`` - none without one."""
+    pointer, count = struct.unpack_from("<QI", blob, P_EXTRA_HINTS)
+    if read is None or not 0 < count <= 16 or not pointer:
+        return []
+    hints = read(pointer, count * 0x20)
+    if not hints or len(hints) != count * 0x20:
+        return []
+    ids = (fixed(hints, i * 0x20, 16) for i in range(count))
+    return [i.decode() for i in ids if i and ID_RE.match(i)]
+
+
 def parse_planet(blob: bytes, read=None, substances: set[str] | None = None) -> dict | None:
     """A validated planet record from a GcPlanetData blob, or None when the blob is not one."""
     if len(blob) < PLANET_SIZE:
@@ -193,25 +206,13 @@ def parse_planet(blob: bytes, read=None, substances: set[str] | None = None) -> 
     ua = struct.unpack_from("<Q", blob, P_PLANET_UA)[0]
     if not name or not 0 <= index < 16 or ua >> 56 or (ua >> 52) & 0xF != index + 1:
         return None
-    info = {}
-    for key, off in INFO_FIELDS.items():
-        if isinstance(off, list):
-            info[key] = [text(blob, P_INFO + o, 0x80) for o in off]
-        else:
-            info[key] = text(blob, P_INFO + off, 0x80)
+    info = {key: [text(blob, P_INFO + o, 0x80) for o in off] if isinstance(off, list) else text(blob, P_INFO + off, 0x80)
+            for key, off in INFO_FIELDS.items()}
     if not info["type"] or not info["weather"]:
         return None
     biome, subtype, _class, size = struct.unpack_from("<4i", blob, P_GENERATION + 0x138)
     seed = struct.unpack_from("<Q", blob, P_SEED)[0]
-    extra: list[str] = []
-    pointer, count = struct.unpack_from("<QI", blob, P_EXTRA_HINTS)
-    if read is not None and 0 < count <= 16 and pointer:
-        hints = read(pointer, count * 0x20)
-        if hints and len(hints) == count * 0x20:
-            for i in range(count):
-                hint = fixed(hints, i * 0x20, 16)
-                if hint and ID_RE.match(hint):
-                    extra.append(hint.decode())
+    extra = _extra_hints(blob, read)
     return {
         "ua": ua, "system": system_key(ua), "index": index, "name": name,
         "seed": f"{seed:016x}" if seed else None,     # the planet's identity; its name can change
@@ -620,11 +621,9 @@ def find_star_attributes(reader, planets_by_system: dict[int, list[dict]], prefe
     cache - the star records live beside it) are searched first, and the pass stops once every system is found.
     Measured 2026-10-04 for 3 systems: 9.6 s with one ``bytes.find`` per seed over all memory.
     """
-    needles: dict[int, tuple[int, int]] = {}
-    for system, planets in planets_by_system.items():
-        for planet in planets:
-            if planet.get("seed") and isinstance(planet.get("index"), int):
-                needles[int(planet["seed"], 16)] = (system, planet["index"])
+    needles = {int(planet["seed"], 16): (system, planet["index"])
+               for system, planets in planets_by_system.items() for planet in planets
+               if planet.get("seed") and isinstance(planet.get("index"), int)}
     found: dict[int, dict] = {}
     if not needles:
         return found
@@ -643,14 +642,13 @@ def find_star_attributes(reader, planets_by_system: dict[int, list[dict]], prefe
         values = arr.view(np.uint64)
         for i in candidates[np.isin(values[candidates], seeds)].tolist():
             system, index = needles[int(values[i])]
-            if system in found:
-                continue
-            start = i * 8 - STAR_PLANET_SEEDS - index * 0x10
-            blob = bytes(buf[start:start + STAR_SIZE]) if start >= 0 and start + STAR_SIZE <= valid \
-                else reader.read(address + start, STAR_SIZE)
-            attrs = parse_star_attributes(blob) if blob else None
-            if attrs and _star_matches(blob, planets_by_system[system]):
-                found[system] = attrs
+            if system not in found:
+                start = i * 8 - STAR_PLANET_SEEDS - index * 0x10
+                blob = bytes(buf[start:start + STAR_SIZE]) if start >= 0 and start + STAR_SIZE <= valid \
+                    else reader.read(address + start, STAR_SIZE)
+                attrs = parse_star_attributes(blob) if blob else None
+                if attrs and _star_matches(blob, planets_by_system[system]):
+                    found[system] = attrs
         if wanted <= found.keys():
             return found
     return found

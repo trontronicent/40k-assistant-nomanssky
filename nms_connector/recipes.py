@@ -319,37 +319,56 @@ def item_markdown(book: RecipeBook, lookup, item: str, language: str = ENGLISH, 
     out += [h("base_value", value=value_text(value, language)) if value else h("value_unknown"), ""]
     if other and other != name:
         out += [h("other_name", lang_name=game_terms.language_name(other_lang, language), name=other), ""]
+    out += _making_part(book, lookup, item, language, terms, name)
+    out += _uses_part(book, lookup, item, language, terms)
+    # Id and category last: a search snippet comes from the first passage, which should say where it comes from.
+    category = entry.get("cat_local" if local_lang else "cat_en") or entry.get("cat_en")
+    out += [f"## {h('game_data')}", "", f"{h('item_id')} `{item}`" + (f" · {category}" if category else ""), ""]
+    return _loose_lists("\n".join(out)).rstrip() + "\n"
+
+
+def _making_part(book: RecipeBook, lookup, item: str, language: str, terms, name: str) -> list[str]:
+    """item_markdown's recipe headings: refined from, cooked from, crafted from - or that it is gathered."""
+    out: list[str] = []
     refined = book.made_by(item)
     if refined:
-        out += [f"## {h('refined')}: {name}", ""] + [f"- {_line_in(lookup, r, language, terms)}" for r in refined] + [""]
+        out += [f"## {game_terms.heading('refined', language)}: {name}", ""] \
+            + [f"- {_line_in(lookup, r, language, terms)}" for r in refined] + [""]
     cooked = book.made_by(item, cooking=True)
     if cooked:
-        out += [f"## {h('cooked')}: {name}", ""] + [f"- {_line_in(lookup, r, language, terms)}" for r in cooked] + [""]
+        out += [f"## {game_terms.heading('cooked', language)}: {name}", ""] \
+            + [f"- {_line_in(lookup, r, language, terms)}" for r in cooked] + [""]
     crafted = book.crafting.get(item)
     if crafted:
         out += [f"## {terms.get('crafting', language)}: {name}", "",
                 "- " + " + ".join(f"{a} {name_in(lookup, i, language)}" for i, a in crafted) + f" → 1 {name}", ""]
     if not (refined or cooked or crafted) and kind_of(book, item) == "substance":
-        out += [f"## {terms.get('recipes', language)}", "", h("gathered", name=name), ""]
+        out += [f"## {terms.get('recipes', language)}", "", game_terms.heading("gathered", language, name=name), ""]
+    return out
+
+
+USE_KINDS = (("refiner", "uses_refiner"), ("crafting", "uses_crafting"), ("cooking", "uses_cooking"))
+
+
+def _uses_part(book: RecipeBook, lookup, item: str, language: str, terms) -> list[str]:
+    """item_markdown's "used for" heading: per kind of recipe the ones the item goes into (<= MAX_USES)."""
     uses = book.used_in(item)
-    if any(uses.values()):
-        out += [f"## {terms.get('used_for', language).rstrip(':')}", ""]
-        for kind, key in (("refiner", "uses_refiner"), ("crafting", "uses_crafting"), ("cooking", "uses_cooking")):
-            entries = uses[kind]
-            if not entries:
-                continue
-            lines = ([_line_in(lookup, r, language, terms) for r in entries] if kind != "crafting" else
-                     [name_in(lookup, p, language) + ": " + " + ".join(f"{a} {name_in(lookup, i, language)}"
-                                                                     for i, a in book.crafting[p]) for p in entries])
-            out.append(f"{h(key)} ({len(lines)}):")
-            out += [f"- {line}" for line in lines[:MAX_USES]]
-            if len(lines) > MAX_USES:
-                out.append(f"- {h('and_more', n=len(lines) - MAX_USES)}")
-            out.append("")
-    # Id and category last: a search snippet comes from the first passage, which should say where it comes from.
-    category = entry.get("cat_local" if local_lang else "cat_en") or entry.get("cat_en")
-    out += [f"## {h('game_data')}", "", f"{h('item_id')} `{item}`" + (f" · {category}" if category else ""), ""]
-    return _loose_lists("\n".join(out)).rstrip() + "\n"
+    if not any(uses.values()):
+        return []
+    out = [f"## {terms.get('used_for', language).rstrip(':')}", ""]
+    for kind, key in USE_KINDS:
+        entries = uses[kind]
+        if not entries:
+            continue
+        lines = ([_line_in(lookup, r, language, terms) for r in entries] if kind != "crafting" else
+                 [name_in(lookup, p, language) + ": " + " + ".join(f"{a} {name_in(lookup, i, language)}"
+                                                                 for i, a in book.crafting[p]) for p in entries])
+        out.append(f"{game_terms.heading(key, language)} ({len(lines)}):")
+        out += [f"- {line}" for line in lines[:MAX_USES]]
+        if len(lines) > MAX_USES:
+            out.append(f"- {game_terms.heading('and_more', language, n=len(lines) - MAX_USES)}")
+        out.append("")
+    return out
 
 
 def _label(language: str) -> str:
@@ -405,33 +424,42 @@ def write_documents(folder: Path, docs: dict[str, str], mark: str = GENERATED_MA
     folder = Path(folder)
     counts = {"written": 0, "unchanged": 0, "removed": 0, "kept_handwritten": 0}
     for rel, text in docs.items():
-        path = folder / rel
-        if path.exists():
-            old = path.read_text(encoding="utf-8")
-            if old == text:
-                counts["unchanged"] += 1
-                continue
-            if mark not in old:
-                counts["kept_handwritten"] += 1
-                continue
-        path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(".tmp")
-        tmp.write_text(text, encoding="utf-8", newline="\n")
-        tmp.replace(path)
-        counts["written"] += 1
+        counts[_write_document(folder / rel, text, mark)] += 1
     wanted = {(folder / rel).resolve() for rel in docs}
     for subdir in ([subdirs] if isinstance(subdirs, str) else subdirs):
-        root = folder / subdir
-        if not root.exists():
-            continue
-        for path in root.rglob("*.md"):
-            if path.resolve() not in wanted and mark in path.read_text(encoding="utf-8", errors="replace"):
-                path.unlink()
-                counts["removed"] += 1
-        for d in sorted((p for p in root.rglob("*") if p.is_dir()), key=lambda p: -len(p.parts)) + [root]:
-            if d.is_dir() and not any(d.iterdir()):
-                d.rmdir()
+        counts["removed"] += _remove_stale(folder / subdir, wanted, mark)
     return counts
+
+
+def _write_document(path: Path, text: str, mark: str) -> str:
+    """Write one document unless it is unchanged or not the generator's own; returns which count it adds to."""
+    if path.exists():
+        old = path.read_text(encoding="utf-8")
+        if old == text:
+            return "unchanged"
+        if mark not in old:
+            return "kept_handwritten"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(text, encoding="utf-8", newline="\n")
+    tmp.replace(path)
+    return "written"
+
+
+def _remove_stale(root: Path, wanted: set[Path], mark: str) -> int:
+    """Remove the generated documents under `root` that are no longer `wanted`, then the folders left empty;
+    returns how many documents went."""
+    if not root.exists():
+        return 0
+    removed = 0
+    for path in root.rglob("*.md"):
+        if path.resolve() not in wanted and mark in path.read_text(encoding="utf-8", errors="replace"):
+            path.unlink()
+            removed += 1
+    for d in sorted((p for p in root.rglob("*") if p.is_dir()), key=lambda p: -len(p.parts)) + [root]:
+        if d.is_dir() and not any(d.iterdir()):
+            d.rmdir()
+    return removed
 
 
 # Folders of the mixed-language documents written before 2026-10-06 (removed when the split ones are written).

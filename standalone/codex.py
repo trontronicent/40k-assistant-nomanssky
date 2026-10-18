@@ -53,7 +53,7 @@ def document_problem(path: str) -> str | None:
     for part in path.split("/"):
         if part in ("", ".", ".."):
             return f"{path}: bad path segment"
-        if part.startswith(".") or part.startswith("_"):
+        if part.startswith((".", "_")):
             return f"{path}: a part starting with . or _ is skipped by the Codex scan"
     return None
 

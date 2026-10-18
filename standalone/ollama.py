@@ -9,7 +9,7 @@ import json
 import logging
 import urllib.error
 import urllib.request
-from typing import Callable, Iterator
+from collections.abc import Callable, Iterator
 
 log = logging.getLogger("nms-standalone.ollama")
 

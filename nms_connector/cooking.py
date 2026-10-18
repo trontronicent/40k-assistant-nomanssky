@@ -239,7 +239,7 @@ def _is_kind_of(word: str, names: list[str]) -> bool:
     return len(word) >= GROUP_INSIDE_WORD and word in text
 
 
-def dish_group(view: "CookingView", question: str) -> list[str]:
+def dish_group(view: CookingView, question: str) -> list[str]:
     """Every dish of the one kind the question names, most valuable first - [] when it names no kind.
 
     A word of the question is matched *inside* the folded names of every dish, because German compounds
@@ -263,7 +263,7 @@ def dish_group(view: "CookingView", question: str) -> list[str]:
     return sorted(group, key=lambda d: (-view.value(d), view.label(d)))
 
 
-def named_in_full(view: "CookingView", item: str, question: str) -> bool:
+def named_in_full(view: CookingView, item: str, question: str) -> bool:
     """Whether the question spells out one of the item's names ("How do I make Fibrous Stew?")."""
     text = " " + " ".join(re.findall(r"[\w']+", _spelling(question))) + " "
     for name in view.names(item) or []:
@@ -273,7 +273,7 @@ def named_in_full(view: "CookingView", item: str, question: str) -> bool:
     return False
 
 
-def _group_dish_line(view: "CookingView", dish: str) -> str:
+def _group_dish_line(view: CookingView, dish: str) -> str:
     """One dish of a group: what it is worth, its simplest recipe, and what that recipe's ingredients cost."""
     recs = dish_recipes(view.book, dish)
     value = view.value(dish)
@@ -292,7 +292,7 @@ def _group_dish_line(view: "CookingView", dish: str) -> str:
     return line
 
 
-def _group_lines(view: "CookingView", group: list[str]) -> list[str]:
+def _group_lines(view: CookingView, group: list[str]) -> list[str]:
     """The whole kind of dish: every one of them with its base value, most valuable first."""
     shown = group[:MAX_GROUP_DISHES]
     out = [f"  Every dish of the kind the question asks about ({len(group)} in the game"

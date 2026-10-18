@@ -60,7 +60,7 @@ def member_problem(name: str, size: int) -> str | None:
         return f"{name} is larger than {MAX_MEMBER_BYTES // (1024 * 1024)} MB"
     if name.endswith("/"):
         return f"{name} is a directory entry"
-    if name.startswith("/") or name.startswith("\\") or ":" in name or "\\" in name:
+    if name.startswith(("/", "\\")) or ":" in name or "\\" in name:
         return f"{name} is not a plain relative path"
     parts = name.split("/")
     if any(p in ("", ".", "..") for p in parts):
@@ -130,7 +130,7 @@ def plan(manifest: dict, mode: str, *, local_build: str | None, local_has_cache:
     """What an import would do to each group of files, as plain words for the page.
 
     Pure: the page shows this before anything is written, and the import follows exactly it."""
-    names = list((manifest.get("files") or {}))
+    names = list(manifest.get("files") or {})
     caches = [n for n in names if n.split("/")[0] in CACHE_DIRS]
     out = {}
     for name in (*RECORD_FILES, *SETTING_FILES, *MAPPING_FILES):
@@ -249,6 +249,21 @@ def merge_events(local: list, incoming: list) -> list:
     return out[-MAX_EVENTS:]
 
 
+def _check_members(infos: list[zipfile.ZipInfo]) -> None:
+    """Raise ValueError when the archive holds too many files, unpacks too large or holds a member that may not
+    be unpacked (`member_problem`) - checked before a single member is read."""
+    if len(infos) > MAX_MEMBERS:
+        raise ValueError(f"the archive holds {len(infos)} files, more than {MAX_MEMBERS}")
+    total = sum(i.file_size for i in infos)
+    if total > MAX_TOTAL_BYTES:
+        raise ValueError(f"the archive unpacks to {total // (1024 * 1024)} MB, "
+                         f"more than {MAX_TOTAL_BYTES // (1024 * 1024)} MB")
+    for info in infos:
+        problem = member_problem(info.filename, info.file_size)
+        if problem:
+            raise ValueError(problem)
+
+
 def read_archive(path: Path) -> tuple[dict, dict]:
     """(manifest, {name: bytes}) of every member that may be unpacked. Raises ValueError otherwise.
 
@@ -260,16 +275,7 @@ def read_archive(path: Path) -> tuple[dict, dict]:
     try:
         with zipfile.ZipFile(path) as archive:
             infos = archive.infolist()
-            if len(infos) > MAX_MEMBERS:
-                raise ValueError(f"the archive holds {len(infos)} files, more than {MAX_MEMBERS}")
-            total = sum(i.file_size for i in infos)
-            if total > MAX_TOTAL_BYTES:
-                raise ValueError(f"the archive unpacks to {total // (1024 * 1024)} MB, "
-                                 f"more than {MAX_TOTAL_BYTES // (1024 * 1024)} MB")
-            for info in infos:
-                problem = member_problem(info.filename, info.file_size)
-                if problem:
-                    raise ValueError(problem)
+            _check_members(infos)
             files = {i.filename: archive.read(i.filename) for i in infos}
     except zipfile.BadZipFile as exc:
         raise ValueError(f"{path.name} is not a readable zip file ({exc})") from exc

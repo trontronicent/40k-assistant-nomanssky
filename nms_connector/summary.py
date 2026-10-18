@@ -6,7 +6,7 @@ an empty list instead of an exception, so one renamed key never blanks the view.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, UTC
 
 from . import discoveries, galaxies, pets
 
@@ -193,7 +193,7 @@ def summarize(save: dict) -> dict:
     return {
         "save_version": save.get("Version"),
         "save_name": common.get("SaveName") or None,
-        "saved_at": datetime.fromtimestamp(stamp, timezone.utc).isoformat() if isinstance(stamp, int) and stamp > 0 else None,
+        "saved_at": datetime.fromtimestamp(stamp, UTC).isoformat() if isinstance(stamp, int) and stamp > 0 else None,
         "play_time_s": common.get("TotalPlayTime"),
         "units": ps.get("Units"), "nanites": ps.get("Nanites"), "quicksilver": ps.get("Specials"),
         "health": ps.get("Health"), "shield": ps.get("Shield"), "ship_health": ps.get("ShipHealth"),

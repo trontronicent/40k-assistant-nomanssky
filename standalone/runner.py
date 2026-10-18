@@ -4,7 +4,8 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
-from typing import Any, Callable, Coroutine
+from typing import Any
+from collections.abc import Callable, Coroutine
 
 log = logging.getLogger("nms-standalone.runner")
 
@@ -61,7 +62,7 @@ class Runner:
         process must exit either way."""
         try:
             await asyncio.wait_for(self.plugin.stop(), STOP_TIMEOUT_S)
-        except (asyncio.TimeoutError, Exception):      # noqa: B014 - logged; the exit must proceed
+        except (TimeoutError, Exception):      # noqa: B014 - logged; the exit must proceed
             log.warning("the connector's stop() failed; continuing shutdown", exc_info=True)
         finally:
             self.started = False

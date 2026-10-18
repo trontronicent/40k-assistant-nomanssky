@@ -50,21 +50,9 @@ def _waypoints(a: int, b: int, jumps: int) -> list[tuple[int, int, int]]:
             for k in range(1, jumps)]
 
 
-def plan_route(nodes, origin: int, target: int, range_ly: float) -> dict:
-    """The route with the fewest jumps from origin to target, via known systems in `nodes`.
-
-    Returns {ok, reason?, legs: [{from, to, distance, jumps, waypoints}], jumps, distance, direct_jumps,
-    direct_distance}. A leg with more than one jump crosses unknown space (waypoints = regions to aim for).
-    """
-    if range_ly is None or not range_ly > 0:
-        return {"ok": False, "reason": "the jump range must be a positive number of light years"}
-    if origin == target:
-        return {"ok": False, "reason": "you are already in that system"}
-    direct = galaxy.distance_ly(origin, target)
-    if direct is None:
-        return {"ok": False, "reason": "the target is in another galaxy - routes stay inside one galaxy"}
-    here = galaxy.galaxy_of(origin)
-    stops = sorted({k for k in nodes if galaxy.galaxy_of(k) == here} | {origin, target})
+def _fewest_jumps(stops: list[int], origin: int, target: int, range_ly: float) -> list[int]:
+    """Dijkstra over `stops` (every stop reaches every other): the path from origin to target with the fewest
+    jumps, then the fewest through unknown space, then the shortest distance."""
     worst = (math.inf, math.inf, math.inf)
     best = {origin: (0, 0, 0.0)}
     previous: dict[int, int] = {}
@@ -88,7 +76,25 @@ def plan_route(nodes, origin: int, target: int, range_ly: float) -> dict:
     path = [target]
     while path[-1] != origin:
         path.append(previous[path[-1]])
-    path.reverse()
+    return path[::-1]
+
+
+def plan_route(nodes, origin: int, target: int, range_ly: float) -> dict:
+    """The route with the fewest jumps from origin to target, via known systems in `nodes`.
+
+    Returns {ok, reason?, legs: [{from, to, distance, jumps, waypoints}], jumps, distance, direct_jumps,
+    direct_distance}. A leg with more than one jump crosses unknown space (waypoints = regions to aim for).
+    """
+    if range_ly is None or not range_ly > 0:
+        return {"ok": False, "reason": "the jump range must be a positive number of light years"}
+    if origin == target:
+        return {"ok": False, "reason": "you are already in that system"}
+    direct = galaxy.distance_ly(origin, target)
+    if direct is None:
+        return {"ok": False, "reason": "the target is in another galaxy - routes stay inside one galaxy"}
+    here = galaxy.galaxy_of(origin)
+    stops = sorted({k for k in nodes if galaxy.galaxy_of(k) == here} | {origin, target})
+    path = _fewest_jumps(stops, origin, target, range_ly)
     legs = []
     for a, b in zip(path, path[1:], strict=False):
         d = galaxy.distance_ly(a, b)

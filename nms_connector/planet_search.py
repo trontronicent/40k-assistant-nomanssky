@@ -88,7 +88,7 @@ def terms(query: str, drop_question_words: bool = False) -> list[str]:
 def term_matches(term: str, text_words: set[str]) -> bool:
     """A search word matches a word that starts with it or with its stem ('heiss' -> 'heisser')."""
     base = stem(term)
-    return any(w.startswith(term) or w.startswith(base) for w in text_words)
+    return any(w.startswith((term, base)) for w in text_words)
 
 
 def cell_text(cell) -> str:

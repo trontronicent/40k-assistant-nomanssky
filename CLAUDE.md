@@ -138,10 +138,11 @@ page, a tray icon and a game overlay. `standalone/` is a **second host**, not a 
   author's name is one string (`credits.AUTHOR`) and `tests/test_credits.py` asserts it in every file that
   repeats it.
 - **Code shape - the full guide is `J:\40k-assistant\docs\architecture\code-shape.md` (read it before writing or changing a
-  long function; new backend plugins copy this repo's `ruff.toml` and `tests/test_code_shape.py`).** (`ruff.toml`: complexity <= 12, <= 50 statements, <= 6 arguments, explicit `zip` strictness, no unused
-  names or arguments; `tests/test_code_shape.py` runs it and fails with the findings - zero today, and the single
+  long function; new backend plugins copy this repo's `ruff.toml` and `tests/test_code_shape.py`).** (`ruff.toml`: complexity <= 10, <= 10 branches, <= 40 statements, <= 6 arguments, explicit `zip` strictness, no
+  unused names or arguments, lines <= 140 outside tests, plus pyupgrade/comprehension/bugbear rules (lowered from
+  12/12/50 on 2026-10-18); `tests/test_code_shape.py` runs it and fails with the findings - zero today, and the single
   `noqa` is `planets_view.Context.__init__`, the one dependency-injection constructor): a function does one thing
-  and stays under ~50 statements; more than five parameters means a small dataclass (`assistant.ItemLookups`,
+  and stays under ~40 statements; more than five parameters means a small dataclass (`assistant.ItemLookups`,
   `cooking.CookingView`) and not a longer signature; `NmsConnector.action` is a dispatch table (`_actions`, one
   `_act_*` method per action) and the persona's data is built by small `_*_lines` / `_block` methods, never one
   long function; a module reaches into another class through its public methods (`GameData.release()`/`names()`,

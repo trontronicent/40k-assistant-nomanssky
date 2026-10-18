@@ -150,7 +150,8 @@ def test_merge_questions_get_the_stacks_to_merge_not_the_contents():
                                        "Which items are in several containers and could be merged?"]:
         text = build_merge(question)
         assert "Stacks that can be merged" in text, question
-        assert "- Copper [YELLOW2]: 700 in 2 stacks, stack limit 9,999 -> 1 stack after merging - "                "Storage Container 0: 581; Storage Container 7: 119" in text, question
+        assert "- Copper [YELLOW2]: 700 in 2 stacks, stack limit 9,999 -> 1 stack after merging - " \
+            "Storage Container 0: 581; Storage Container 7: 119" in text, question
         assert "Contents of" not in text and "Items the question names" not in text, question
         assert "[EX_YELLOW]" not in text and "[CAVE1]" not in text, question     # one stack in the asked inventories
 

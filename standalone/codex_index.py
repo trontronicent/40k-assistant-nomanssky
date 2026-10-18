@@ -113,8 +113,8 @@ class CodexIndex:
         texts, new_entries = self._prepare(changed)
         for start in range(0, len(texts), BATCH):
             batch = texts[start:start + BATCH]
-            for vector in self.client.embed(self.model, [DOC_PREFIX + text for text in batch]):
-                vectors.append(_normalise(np.asarray(vector, dtype=np.float32)))
+            vectors += [_normalise(np.asarray(vector, dtype=np.float32))
+                        for vector in self.client.embed(self.model, [DOC_PREFIX + text for text in batch])]
         self._entries = entries + new_entries
         self._matrix = (np.vstack(vectors) if vectors else np.zeros((0, 1), dtype=np.float32))
         self._queries.clear()

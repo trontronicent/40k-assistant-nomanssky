@@ -18,7 +18,8 @@ from collections.abc import Callable
 MERGE_RE = re.compile(
     r"zusammen(?:ge)?(?:f[üu]e?h|leg|fass|pack|werf)|stapel|doppelt|duplikat|mehrfach|mehr als ein|"
     r"\bmerg|consolidat|duplicate|more than one|(?:single|one|same) stack|einzigen? stack|einen stack|"
-    r"(?:in|across) (?:different|several|multiple|various) (?:storage|container|inventor)|verschiedenen? (?:storage|container|lager|invent)",
+    r"(?:in|across) (?:different|several|multiple|various) (?:storage|container|inventor)|"
+    r"verschiedenen? (?:storage|container|lager|invent)",
     re.I)
 MAX_LINES = 25                    # a vague question must not dump every inventory (6,000 characters, 70 s)
 RULE = ("The player asks which stacks could be merged into fewer stacks (not for crafting or recipes). Answer only "

@@ -177,7 +177,7 @@ class WorldBook:
         """{folded word of a type name, weather or climate word (both languages): {world ids}}."""
         out: dict[str, set[str]] = {}
         for wid, w in self.worlds.items():
-            texts = [n for n in w["names"]] + [x for x in w["weathers"]] + ([w["climate"]] if w["climate"] else [])
+            texts = list(w["names"]) + list(w["weathers"]) + ([w["climate"]] if w["climate"] else [])
             for t in texts:
                 for text in (t["en"], t["local"]):
                     for word in re.findall(r"[a-z0-9]+", fold(text)):

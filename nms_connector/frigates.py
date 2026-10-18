@@ -112,7 +112,8 @@ def frigates_from_save(readable: dict) -> list[dict]:
         out.append({
             "index": i, "name": f.get("CustomName") or "", "class": _enum(f.get("FrigateClass"), "FrigateClass"),
             "race": _enum(f.get("Race"), "AlienRace"), "grade": _enum(f.get("InventoryClass"), "InventoryClass") or "?",
-            "stats": dict(zip(STATS, stats, strict=False)), "traits": [str(t).lstrip("^") for t in f.get("TraitIDs") or [] if str(t).lstrip("^")],
+            "stats": dict(zip(STATS, stats, strict=False)),
+            "traits": [str(t).lstrip("^") for t in f.get("TraitIDs") or [] if str(t).lstrip("^")],
             "expeditions": int(f.get("TotalNumberOfExpeditions") or 0),
             "successes": int(f.get("TotalNumberOfSuccessfulEvents") or 0),
             "failures": int(f.get("TotalNumberOfFailedEvents") or 0),

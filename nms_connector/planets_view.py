@@ -682,10 +682,7 @@ def _body(planet: dict | None, index: int, saved: dict, visit: dict, ctx: Contex
     planet = planet or {}
     info = planet.get("info") or {}
     biome = planet.get("biome")
-    if planet:
-        label = _planet_name(planet, visit)
-    else:
-        label = saved.get("name") or f"Planet {index + 1}"
+    label = _planet_name(planet, visit) if planet else saved.get("name") or f"Planet {index + 1}"
     sublabel = " · ".join(v for v in (biome, planet.get("size")) if v) or "not scanned yet"
     gas = planet_gas(planet)
     items = []
@@ -700,8 +697,8 @@ def _body(planet: dict | None, index: int, saved: dict, visit: dict, ctx: Contex
             {"label": "Plants", "value": texts.items(planet.get("extra"))},
             {"label": "Gas (atmosphere harvester)", "value": texts.name(gas) or ("none" if biome == "Dead" else "unknown")},
             {"label": "Flora", "value": texts.key(info.get("flora"), info.get("fauna"))},
-            {"label": "Fauna", "value": texts.key(info.get("fauna"), info.get("flora")) + (" (special fauna)" if planet.get("special_fauna") else "")
-             if info.get("fauna") else None},
+            {"label": "Fauna", "value": texts.key(info.get("fauna"), info.get("flora"))
+             + (" (special fauna)" if planet.get("special_fauna") else "") if info.get("fauna") else None},
             {"label": "Sentinels", "value": texts.key(_sentinel(planet, ctx.sentinel_index))},
             {"label": "Resources last read", "value": planet.get("last_seen")},
         ]
@@ -711,7 +708,8 @@ def _body(planet: dict | None, index: int, saved: dict, visit: dict, ctx: Contex
     if counts:
         items.append({"label": "Your discoveries", "value": counts})
     if saved.get("name"):
-        items.append({"label": "Uploaded name", "value": f"{saved['name']}" + (f" by {saved['named_by']}" if saved.get("named_by") else "")})
+        by = f" by {saved['named_by']}" if saved.get("named_by") else ""
+        items.append({"label": "Uploaded name", "value": f"{saved['name']}{by}"})
     badges = [texts.item(planet.get(k)) for k in ("common", "uncommon", "rare")] + \
              [texts.item(i) for i in planet.get("extra") or []] + [texts.item(gas)]
     body = {"label": label, "sublabel": sublabel, "size": SIZE_SCALE.get(planet.get("size"), 1),
@@ -760,8 +758,7 @@ def _shown_system(ctx: Context, selected: int | None) -> int | None:
         return selected
     if ctx.live.current_system in keys:
         return ctx.live.current_system
-    newest = max(keys, key=lambda k: _last_seen(k, ctx), default=None)
-    return newest
+    return max(keys, key=lambda k: _last_seen(k, ctx), default=None)
 
 
 def _last_seen(key: int, ctx: Context) -> str:
@@ -909,6 +906,24 @@ def visited_planets_section(ctx: Context) -> dict:
                      "every system you visit from now on appears here."}
 
 
+# Colour modes of the galaxy map besides "kind": the economy field each one reads and its colours.
+COLOR_FIELDS = {"economy": ("economy", ECONOMY_COLORS), "conflict": ("conflict", CONFLICT_COLORS),
+               "star": ("star", STAR_COLORS)}
+
+
+def _point_color(economy: dict, color_by: str, bases: list, only_seen: bool, planets: list) -> str:
+    """A galaxy map point's colour: by the economy field `color_by` names, else by kind (bases, only seen on
+    the map, planets with resources, known from the save)."""
+    if color_by in COLOR_FIELDS:
+        field, colors = COLOR_FIELDS[color_by]
+        return colors.get(economy.get(field), UNKNOWN_COLOR)
+    if bases:
+        return POINT_COLORS["bases"]
+    if only_seen:
+        return UNKNOWN_COLOR
+    return POINT_COLORS["resources"] if planets else POINT_COLORS["save"]
+
+
 def _galaxy_point(key: int, ctx: Context, color_by: str = "kind") -> dict:
     """One system on the galaxy map: position, colour (by the chosen mode) and its details."""
     visit = ctx.visit(key) or {}
@@ -923,7 +938,8 @@ def _galaxy_point(key: int, ctx: Context, color_by: str = "kind") -> dict:
              "items": [
                  {"label": "Portal address", "value": address_portal(addr)},
                  {"label": "Region (voxel X, Y, Z)", "value": ", ".join(str(v) for v in galaxy.region(key))},
-                 {"label": "Distance from you", "value": galaxy.distance_text(dist, key == ctx.origin) if ctx.origin is not None else "unknown"},
+                 {"label": "Distance from you",
+                  "value": galaxy.distance_text(dist, key == ctx.origin) if ctx.origin is not None else "unknown"},
                  {"label": "Position", "value": ("exact (star fix, prototype): " + ", ".join(f"{v:.4f}" for v in at_star))
                   if at_star else "region only (exact once you name a star fix for it - Star positions)"},
                  {"label": "Economy", "value": ctx.economy_display(key) or "not read yet"},
@@ -935,23 +951,12 @@ def _galaxy_point(key: int, ctx: Context, color_by: str = "kind") -> dict:
     only_seen = key not in ctx.keys() and key not in ctx.recorded_economies
     if only_seen:
         point["items"].insert(0, {"label": "Known from", "value": "the game's galaxy map around you (not visited)"})
-    economy = ctx.economies.get(key) or {}
     if key == ctx.live.current_system:
         point["marker"] = "current"
     elif key == ctx.origin:
         point["marker"] = "target"
-    elif color_by == "economy":
-        point["color"] = ECONOMY_COLORS.get(economy.get("economy"), UNKNOWN_COLOR)
-    elif color_by == "conflict":
-        point["color"] = CONFLICT_COLORS.get(economy.get("conflict"), UNKNOWN_COLOR)
-    elif color_by == "star":
-        point["color"] = STAR_COLORS.get(economy.get("star"), UNKNOWN_COLOR)
-    elif bases:
-        point["color"] = POINT_COLORS["bases"]
-    elif only_seen:
-        point["color"] = UNKNOWN_COLOR
     else:
-        point["color"] = POINT_COLORS["resources"] if planets else POINT_COLORS["save"]
+        point["color"] = _point_color(ctx.economies.get(key) or {}, color_by, bases, only_seen, planets)
     if bases:
         point["size"] = 1.3
     elif only_seen:
@@ -1177,7 +1182,8 @@ def trade_sections(ctx: Context) -> list[dict]:
             if key is None:
                 return None
             e = ctx.economies[key]
-            return f"{_system_label(key, ctx.visit(key))} ({ctx.economy_name(e.get('economy'))}" + (", predicted)" if e.get("predicted") else ")")
+            predicted = ", predicted" if e.get("predicted") else ""
+            return f"{_system_label(key, ctx.visit(key))} ({ctx.economy_name(e.get('economy'))}{predicted})"
         sellers = [e for e, t in ctx.trading.items() if t.get("sells") == r["category"]]
         buyers = [e for e, t in ctx.trading.items() if t.get("needs") == r["category"]]
         route_rows.append([
@@ -1271,7 +1277,8 @@ def _route_summary(ctx: Context, result: dict, label) -> dict:
     return {"type": "kv", "id": ROUTE_RESULT_ID, "title": f"Route to {label(target)}", "items": [
         {"label": "From", "value": f"{label(legs[0]['from'])} (you)"},
         {"label": "To", "value": f"{label(target)} - portal {address_portal(unpack_address(target) or {})}"},
-        {"label": "Jumps", "value": f"{result['jumps']}" + (f" ({unknown} of them into unknown space)" if unknown else " (all to known systems)")},
+        {"label": "Jumps", "value": f"{result['jumps']}"
+         + (f" ({unknown} of them into unknown space)" if unknown else " (all to known systems)")},
         {"label": "Distance", "value": galaxy.distance_text(result["distance"])},
         {"label": "Straight line", "value": f"{galaxy.distance_text(result['direct_distance'])}, {result['direct_jumps']} jump(s)"},
         {"label": "Jump range used", "value": f"{result['range']:,.0f} ly"},
@@ -1357,7 +1364,8 @@ def route_sections(ctx: Context, state: dict | None, ship_range: dict | None = N
 
 STAR_FIX_HOWTO = (
     "PROTOTYPE - exact distances from the galaxy map. Open the galaxy map while the game runs and lock a star "
-    "(the camera flies to it) and leave the camera still for 2 seconds. Pan far away in another direction and lock the same star again (2 seconds still): where the two lines "
+    "(the camera flies to it) and leave the camera still for 2 seconds. Pan far away in another direction and lock "
+    "the same star again (2 seconds still): where the two lines "
     "of sight cross is the star's exact position, and a star fix appears below within a few seconds. Then tell the "
     "plugin which system it is (the form below) - it cannot read that reliably yet. Name the fix of the system you "
     "are in, too: distances from you need both. Named fixes make distances exact, as the map shows them (decimals "

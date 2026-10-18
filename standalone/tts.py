@@ -67,7 +67,7 @@ class PiperVoice:
         try:
             _out, err = await asyncio.wait_for(process.communicate(self.encode(payload)),
                                                PIPER_TIMEOUT_S)
-        except asyncio.TimeoutError as timeout:
+        except TimeoutError as timeout:
             process.kill()
             raise TtsError(f"piper did not answer within {PIPER_TIMEOUT_S:.0f} s") from timeout
         if process.returncode:

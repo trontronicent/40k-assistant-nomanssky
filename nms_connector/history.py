@@ -58,6 +58,24 @@ def _teleports(ps: dict) -> list[tuple[int, str]]:
     return out
 
 
+def _add_discovery(entry: dict, kind: str, planet_index: int, record: dict) -> None:
+    """One discovery record into its system's entry of visits_from_save: a system's name and date, a planet's
+    name, or one more counted flora/fauna/mineral on its planet (`planet_index` 1-based, 0 = the system)."""
+    name = (record.get("DM") or {}).get("CN")
+    owner = (record.get("OWS") or {}).get("USN")
+    stamp = (record.get("OWS") or {}).get("TS")
+    if kind == "SolarSystem":
+        when = datetime.fromtimestamp(stamp).isoformat(timespec="seconds") if isinstance(stamp, int) and stamp > 0 else None
+        entry["name"], entry["named_by"], entry["discovered_at"] = name or entry["name"], owner if name else entry["named_by"], when
+    elif kind == "Planet" and planet_index:
+        planet = entry["planets"].setdefault(planet_index - 1, {})
+        if name:
+            planet["name"], planet["named_by"] = name, owner
+    elif kind in DISCOVERY_COUNTED and planet_index:
+        planet = entry["planets"].setdefault(planet_index - 1, {})
+        planet[DISCOVERY_COUNTED[kind]] = planet.get(DISCOVERY_COUNTED[kind], 0) + 1
+
+
 def visits_from_save(save: dict) -> dict[int, dict]:
     """{system key: {"name", "named_by", "visited", "teleport", "discovered_at", "planets": {...}}} from a save.
 
@@ -83,24 +101,8 @@ def visits_from_save(save: dict) -> dict[int, dict]:
     for record in records:
         dd = record.get("DD") or {}
         packed = _packed(dd.get("UA"))
-        kind = dd.get("DT")
-        if packed is None or not kind:
-            continue
-        entry = system(system_key(packed))
-        planet_index = (packed >> 52) & 0xF
-        name = (record.get("DM") or {}).get("CN")
-        owner = (record.get("OWS") or {}).get("USN")
-        stamp = (record.get("OWS") or {}).get("TS")
-        when = datetime.fromtimestamp(stamp).isoformat(timespec="seconds") if isinstance(stamp, int) and stamp > 0 else None
-        if kind == "SolarSystem":
-            entry["name"], entry["named_by"], entry["discovered_at"] = name or entry["name"], owner if name else entry["named_by"], when
-        elif kind == "Planet" and planet_index:
-            planet = entry["planets"].setdefault(planet_index - 1, {})
-            if name:
-                planet["name"], planet["named_by"] = name, owner
-        elif kind in DISCOVERY_COUNTED and planet_index:
-            planet = entry["planets"].setdefault(planet_index - 1, {})
-            planet[DISCOVERY_COUNTED[kind]] = planet.get(DISCOVERY_COUNTED[kind], 0) + 1
+        if packed is not None and dd.get("DT"):
+            _add_discovery(system(system_key(packed)), dd["DT"], (packed >> 52) & 0xF, record)
     return systems
 
 
@@ -121,7 +123,8 @@ def is_renamed(old: dict, planet: dict, current_system: int | None) -> bool:
         return False
     if old.get("seed") and planet.get("seed"):
         return old["seed"] == planet["seed"]
-    return current_system is not None and planet.get("system") == current_system         and all(old.get(f) == planet.get(f) for f in SAME_PLANET_FIELDS)
+    return current_system is not None and planet.get("system") == current_system \
+        and all(old.get(f) == planet.get(f) for f in SAME_PLANET_FIELDS)
 
 
 def planet_id(planet: dict) -> str:
@@ -141,6 +144,20 @@ def _valid_fix(fix) -> bool:
     return (isinstance(fix, dict) and isinstance(fix.get("id"), int) and isinstance(fix.get("position"), list)
             and len(fix["position"]) == 3 and all(isinstance(c, (int, float)) for c in fix["position"])
             and (fix.get("system") is None or isinstance(fix.get("system"), str)))
+
+
+class _Scan:
+    """What PlanetHistory.record keeps while it merges one scan: the names recorded per address, the key per
+    (system, index, name), the names seen per system and the counts the scan log reports."""
+
+    def __init__(self, planets: dict[str, dict], current_system: int | None):
+        self.current_system = current_system
+        self.names_at: dict[int, set] = {}
+        for stored in planets.values():
+            self.names_at.setdefault(stored["ua"], set()).add(stored.get("name"))
+        self.by_place = {(v.get("system"), v.get("index"), v.get("name")): k for k, v in planets.items()}
+        self.seen: dict[int, list[str]] = {}
+        self.counts = {"new": 0, "changed": 0, "moved": 0, "renamed": 0}
 
 
 class PlanetHistory:
@@ -231,61 +248,71 @@ class PlanetHistory:
 
     def record(self, planets: list[dict], now: str, current_system: int | None = None) -> int:
         """Merge planets read from memory; returns how many are new or changed. Logs the scan."""
-        changed = new = moved = renamed = 0
-        names_at = {}                                   # address -> names already recorded there
-        for stored in self.planets.values():
-            names_at.setdefault(stored["ua"], set()).add(stored.get("name"))
-        by_place = {(v.get("system"), v.get("index"), v.get("name")): k for k, v in self.planets.items()}
-        seen: dict[int, list[str]] = {}
+        scan = _Scan(self.planets, current_system)
         for planet in planets:
-            stored = {k: v for k, v in planet.items()}
-            known = self.planets.get(planet_id(planet))
-            previous_name = None
-            if known is None:
-                # Renamed in the game (or an uploaded name arrived): the same planet under a new name. Its old
-                # entry is taken over - same filing, same first_seen - instead of staying behind as a duplicate.
-                old_key = next((k for k, v in self.planets.items() if is_renamed(v, planet, current_system)), None)
-                if old_key is not None:
-                    known = self.planets.pop(old_key)
-                    previous_name = known.get("name")
-                    names_at.get(planet["ua"], set()).discard(previous_name)
-                    by_place.pop((known.get("system"), known.get("index"), previous_name), None)
-                    renamed += 1
-            system = planet["system"]
-            if known is not None:
-                system = known.get("system", system)    # seen before: stays where it was filed
-            elif current_system is not None and system != current_system \
-                    and names_at.get(planet["ua"], set()) - {planet.get("name")}:
-                system = current_system                 # stale address: another planet owns it
-            stored["system"] = system
-            key = by_place.get((system, planet.get("index"), planet.get("name"))) or planet_id(planet)
-            old = self.planets.get(key)
-            if old is None and previous_name is not None:
-                old = known
-                stored["previous_names"] = list(dict.fromkeys((known.get("previous_names") or []) + [previous_name]))
-            elif old is not None and old.get("previous_names"):
-                stored["previous_names"] = old["previous_names"]
-            # Confirmed: read while you were in its system. Unconfirmed copies of the same planet filed
-            # elsewhere (an earlier stale address with nothing to contradict it) are then dropped.
-            stored["confirmed"] = (old or {}).get("confirmed", False) or system == current_system
-            if stored["confirmed"]:
-                self._drop_unconfirmed_copies(key, planet, system)
-            if old is None and previous_name is None:
-                new += 1
-                moved += system != planet["system"]
-            stored["first_seen"] = old.get("first_seen", now) if old else now
-            stored["last_seen"] = now
-            if old is None or _without_times(old) != _without_times(stored):
-                changed += 1
-            self.planets[key] = stored
-            names_at.setdefault(planet["ua"], set()).add(planet.get("name"))
-            by_place[(system, planet.get("index"), planet.get("name"))] = key
-            seen.setdefault(system, []).append(planet.get("name"))
-        self.scans.append({"at": now, "system": current_system, "planets": len(planets), "new": new,
-                           "changed": changed, "moved": moved, "renamed": renamed,
-                           "systems": {f"{k:x}": names for k, names in seen.items()}})
+            self._merge_planet(planet, now, scan)
+        self.scans.append({"at": now, "system": current_system, "planets": len(planets), **scan.counts,
+                           "systems": {f"{k:x}": names for k, names in scan.seen.items()}})
         del self.scans[:-self.MAX_SCANS]
-        return changed
+        return scan.counts["changed"]
+
+    def _take_over_renamed(self, planet: dict, scan: _Scan) -> tuple[dict | None, str | None]:
+        """(the recorded entry of `planet`, its previous name). Renamed in the game (or an uploaded name arrived):
+        the same planet under a new name. Its old entry is taken over - same filing, same first_seen - instead of
+        staying behind as a duplicate."""
+        known = self.planets.get(planet_id(planet))
+        if known is not None:
+            return known, None
+        old_key = next((k for k, v in self.planets.items() if is_renamed(v, planet, scan.current_system)), None)
+        if old_key is None:
+            return None, None
+        known = self.planets.pop(old_key)
+        previous_name = known.get("name")
+        scan.names_at.get(planet["ua"], set()).discard(previous_name)
+        scan.by_place.pop((known.get("system"), known.get("index"), previous_name), None)
+        scan.counts["renamed"] += 1
+        return known, previous_name
+
+    @staticmethod
+    def _filing(planet: dict, known: dict | None, scan: _Scan) -> int:
+        """The system a planet is filed under: where it was filed before, else its address's - unless another
+        planet owns that address, which makes it stale and the current system the right one."""
+        if known is not None:
+            return known.get("system", planet["system"])
+        if scan.current_system is not None and planet["system"] != scan.current_system \
+                and scan.names_at.get(planet["ua"], set()) - {planet.get("name")}:
+            return scan.current_system
+        return planet["system"]
+
+    def _merge_planet(self, planet: dict, now: str, scan: _Scan) -> None:
+        """record() for one planet: file it, carry its history over and count what changed."""
+        known, previous_name = self._take_over_renamed(planet, scan)
+        system = self._filing(planet, known, scan)
+        stored = dict(planet, system=system)
+        place = (system, planet.get("index"), planet.get("name"))
+        key = scan.by_place.get(place) or planet_id(planet)
+        old = self.planets.get(key)
+        if old is None and previous_name is not None:
+            old = known
+            stored["previous_names"] = list(dict.fromkeys((known.get("previous_names") or []) + [previous_name]))
+        elif old is not None and old.get("previous_names"):
+            stored["previous_names"] = old["previous_names"]
+        # Confirmed: read while you were in its system. Unconfirmed copies of the same planet filed
+        # elsewhere (an earlier stale address with nothing to contradict it) are then dropped.
+        stored["confirmed"] = (old or {}).get("confirmed", False) or system == scan.current_system
+        if stored["confirmed"]:
+            self._drop_unconfirmed_copies(key, planet, system)
+        if old is None and previous_name is None:
+            scan.counts["new"] += 1
+            scan.counts["moved"] += system != planet["system"]
+        stored["first_seen"] = old.get("first_seen", now) if old else now
+        stored["last_seen"] = now
+        if old is None or _without_times(old) != _without_times(stored):
+            scan.counts["changed"] += 1
+        self.planets[key] = stored
+        scan.names_at.setdefault(planet["ua"], set()).add(planet.get("name"))
+        scan.by_place[place] = key
+        scan.seen.setdefault(system, []).append(planet.get("name"))
 
     def record_economies(self, found: dict[int, dict], now: str, source: str | None = None) -> int:
         """Store star attributes read from memory; returns how many systems are new or changed. `source` says

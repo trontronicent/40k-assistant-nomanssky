@@ -9,7 +9,8 @@ from __future__ import annotations
 import asyncio
 import logging
 from pathlib import Path
-from typing import Any, Coroutine
+from typing import Any
+from collections.abc import Coroutine
 
 # Every section type the standalone page renders. The connector checks this to decide between a `timers`
 # section and a plain table, so it must list what `standalone/web/sections.js` actually draws

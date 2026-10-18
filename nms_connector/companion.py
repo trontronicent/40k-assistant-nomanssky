@@ -18,8 +18,9 @@ import re
 import time
 from datetime import date
 
-from . import (assistant, conversation, cooking, craftable, creature_lines, diagrams, discoveries_view, logs, galaxies, galaxy, merging, page as page_module, planet_search, planets_view, recipe_view, recipes, seasons,
-               settlements, timers, trade)
+from . import (assistant, conversation, cooking, craftable, creature_lines, diagrams, discoveries_view, galaxies, galaxy,
+               logs, merging, planet_search, planets_view, recipe_view, recipes, seasons, settlements, timers, trade)
+from . import page as page_module
 
 PERSONA_PROMPT = (
     "You are the No Man's Sky Plugin Persona, the player's companion for No Man's Sky. With every message you "
@@ -27,7 +28,8 @@ PERSONA_PROMPT = (
     "item and per place, currencies, location, ships and warp range, equipment and what it does, settlements, "
     "frigates and timers.\n\n"
     "Answer questions about their game from that block, every part of a question, in full sentences that repeat "
-    "what was asked - never as bare labels or a list of fields ('Location: ...', 'Portal Address: ...', 'Population: ... | Happiness: ...'): write "
+    "what was asked - never as bare labels or a list of fields ('Location: ...', 'Portal Address: ...', "
+    "'Population: ... | Happiness: ...'): write "
     "\"Kay City has 21 of 69 inhabitants and 62 % happiness; it produces 979,006 units a day and the next decision "
     "is due by 06:20.\" Asked "
     "where they are, begin with the block's position sentence as it stands, only translated into the player's "
@@ -178,8 +180,9 @@ ONLY_THESE = ("Use only the recipes above: ignore the Codex excerpts and web res
 CORRECTION_RE = re.compile(r"there (?:is|are|'s) (?:a |an |also |another |still |actually )*recipes?|"
                            r"es gibt (?:doch |aber |auch |noch |sehr wohl )*(?:ein |ein weiteres )?rezept|"
                            r"that(?:'s| is) (?:wrong|incorrect|not true)|das stimmt nicht|stimmt so nicht", re.I)
-ORDINAL_NOTE = ("  (The player means one of the numbered recipes above by its position - first = 1, second = 2 ..., last = the highest number - "
-                "answered earlier in the same order: give that recipe in full, without stock totals or locations.)")
+ORDINAL_NOTE = ("  (The player means one of the numbered recipes above by its position - first = 1, second = 2 ..., "
+                "last = the highest number - answered earlier in the same order: give that recipe in full, without "
+                "stock totals or locations.)")
 MAX_RECIPES_PER_ITEM = 6
 
 PLANET_WORDS = {"planet", "planets", "planeten", "welt", "welten", "world", "worlds", "mond", "monde", "moon", "moons"}
@@ -651,34 +654,38 @@ class PluginCompanion:
         book = c.tables.recipes
         if not (words & RECIPE_WORDS) or book is None or not book.recipes:
             return []
-        lookup = c.gamedata.lookup
-        out = []
         items = self._recipe_items(question)
         if not items and conversation.asks_recipe_without_item(words):
             return [conversation.NO_ITEM_NOTE]      # "there is a recipe too" in a fresh chat: ask, do not invent
-        for item in items[:MAX_RECIPE_ITEMS]:
-            refined = book.made_by(item)
-            crafted = book.crafting.get(item)
-            entry = lookup(item) or {}
-            cooked = book.made_by(item, cooking=True)
-            if not (refined or crafted or cooked or entry.get("desc_en")):
-                continue
-            out.append(f"How to get {recipes.item_label(lookup, item)} (from the game's files):")
-            if entry.get("desc_en"):
-                out.append("  where it comes from: " + " ".join(entry["desc_en"].split()))
-            for n, r in enumerate(refined[:MAX_RECIPES_PER_ITEM], 1):       # numbered: "the second one" can point at one
-                out.append(f"  refiner {n}: " + recipes.recipe_line(lookup, r, c.tables.terms))
-            if refined and words & ORDINAL_WORDS:
-                out.append(ORDINAL_NOTE)
-            if len(refined) > MAX_RECIPES_PER_ITEM:
-                out.append(f"  ... {len(refined) - MAX_RECIPES_PER_ITEM} more refiner recipes")
-            if crafted:
-                out.append("  crafted from: " + " + ".join(f"{a} {recipes.item_label(lookup, i)}" for i, a in crafted))
-            if cooked:
-                out.append(f"  cooked in the Nutrient Processor ({len(cooked)} ingredient combinations, see the "
-                           "Cooking block)")
-            elif not (refined or crafted):
-                out.append(self._no_recipe_line(item, book))
+        return [line for item in items[:MAX_RECIPE_ITEMS] for line in self._item_recipe_lines(item, book, words)]
+
+    def _item_recipe_lines(self, item: str, book, words: set[str]) -> list[str]:
+        """recipe_lines for one item: its origin, refiner recipes, crafting recipe and cooking note - nothing when
+        the game knows none of them."""
+        c = self.connector
+        lookup = c.gamedata.lookup
+        refined = book.made_by(item)
+        crafted = book.crafting.get(item)
+        desc = (lookup(item) or {}).get("desc_en")
+        cooked = book.made_by(item, cooking=True)
+        if not (refined or crafted or cooked or desc):
+            return []
+        out = [f"How to get {recipes.item_label(lookup, item)} (from the game's files):"]
+        if desc:
+            out.append("  where it comes from: " + " ".join(desc.split()))
+        out += [f"  refiner {n}: " + recipes.recipe_line(lookup, r, c.tables.terms)     # numbered: "the second one"
+                for n, r in enumerate(refined[:MAX_RECIPES_PER_ITEM], 1)]
+        if refined and words & ORDINAL_WORDS:
+            out.append(ORDINAL_NOTE)
+        if len(refined) > MAX_RECIPES_PER_ITEM:
+            out.append(f"  ... {len(refined) - MAX_RECIPES_PER_ITEM} more refiner recipes")
+        if crafted:
+            out.append("  crafted from: " + " + ".join(f"{a} {recipes.item_label(lookup, i)}" for i, a in crafted))
+        if cooked:
+            out.append(f"  cooked in the Nutrient Processor ({len(cooked)} ingredient combinations, see the "
+                       "Cooking block)")
+        elif not (refined or crafted):
+            out.append(self._no_recipe_line(item, book))
         return out
 
     def craft_lines(self, question: str, words: set[str], snap: dict | None) -> list[str]:

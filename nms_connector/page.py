@@ -3,7 +3,8 @@
 ``ConnectorPage.view()`` returns ``{title, subtitle, updated_at, actions, sections}``: notices about what is
 missing (saves, key mapping, game files), then one ``tabs`` section - Overview / Systems / Inventory / Ships & bases /
 Settlements / Saves & source / Settings / About (the credits, from ``credits.py``). The system, planet and route
-sections come from ``planets_view``; ships, equipment, frigates, settlements and timers from their own modules. Item cells carry the game's icon and a tooltip
+sections come from ``planets_view``; ships, equipment, frigates, settlements and timers from their own modules.
+Item cells carry the game's icon and a tooltip
 (``planets_view.Texts.item``: category, description in English and the game's language, what a technology does,
 where a trade good sells). The page reads the state on every call (every 5 s poll) and keeps none of its own.
 """
@@ -434,7 +435,8 @@ class ConnectorPage:
         sections.append({"type": "kv", "title": "How often the game saves (measured)", "items": [
             {"label": "Save writes recorded", "value": stats["writes"]},
             {"label": "Typical interval while playing", "value": fmt_duration(stats["median_interval_s"])},
-            {"label": "Shortest / longest", "value": f"{fmt_duration(stats['shortest_interval_s'])} / {fmt_duration(stats['longest_interval_s'])}"},
+            {"label": "Shortest / longest",
+             "value": f"{fmt_duration(stats['shortest_interval_s'])} / {fmt_duration(stats['longest_interval_s'])}"},
         ]})
         sections.append({"type": "table", "title": "Recent save writes", "columns": ["Time", "File", "Slot", "Size (kB)", "Since previous"],
                          "rows": [[e["at"], e["file"], e["slot"], round(e["size"] / 1024), fmt_duration(e["since_previous_s"])]

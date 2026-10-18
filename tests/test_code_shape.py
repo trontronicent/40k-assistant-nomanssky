@@ -21,12 +21,13 @@ def _ruff() -> list[str] | None:
 
 
 def test_the_plugin_keeps_its_code_shape():
-    """ruff (ruff.toml: complexity <= 12, <= 50 statements, <= 6 arguments, explicit zip strictness, no unused names
-    or arguments) reports nothing for nms_connector, standalone and tests. Keeps the refactors of 2026-10-08 from
-    rotting - and the standalone host is held to the same shape as the connector, since both are this codebase."""
+    """ruff (ruff.toml: complexity <= 10, <= 10 branches, <= 40 statements, <= 6 arguments, explicit zip strictness,
+    no unused names or arguments, lines <= 140) reports nothing for nms_connector, standalone, tools and tests. Keeps
+    the refactors of 2026-10-08 and 2026-10-18 from rotting - and the standalone host is held to the same shape as
+    the connector, since both are this codebase."""
     ruff = _ruff()
     if ruff is None:
         pytest.skip("ruff is not installed")
-    res = subprocess.run([*ruff, "check", "nms_connector", "standalone", "tests", "--output-format", "concise"],
+    res = subprocess.run([*ruff, "check", "nms_connector", "standalone", "tools", "tests", "--output-format", "concise"],
                          cwd=ROOT, capture_output=True, text=True)
     assert res.returncode == 0, "code shape findings:\n" + res.stdout

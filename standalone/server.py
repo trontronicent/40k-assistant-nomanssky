@@ -11,7 +11,8 @@ import json
 import logging
 import re
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from typing import Callable, ClassVar
+from typing import ClassVar
+from collections.abc import Callable
 from urllib.parse import parse_qsl
 
 log = logging.getLogger("nms-standalone.server")

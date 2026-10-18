@@ -163,12 +163,12 @@ def test_the_manifest_version_matches_the_installer_name():
 
 
 def test_the_build_script_puts_the_install_root_on_the_interpreters_path():
-    """Measured 2026-10-13: with an `._pth` file the embeddable interpreter's sys.path is exactly that
+    r"""Measured 2026-10-13: with an `._pth` file the embeddable interpreter's sys.path is exactly that
     file's entries, resolved against the interpreter's own folder - the current directory is **not**
     added. Without `..\..` the shortcut `pythonw.exe -m standalone` answers "No module named
     standalone", so the installed program could never start."""
     text = read("build.ps1")
-    assert '"..\.."' in text
+    assert r'"..\.."' in text
     assert "_pth" in text
 
 
@@ -181,7 +181,7 @@ def test_the_shortcut_runs_the_vendored_interpreter():
 
 
 def test_the_build_script_finds_the_compiler_where_it_is():
-    """Inno Setup installs per machine or per user - winget puts it in `%LOCALAPPDATA%\Programs`, which a
+    r"""Inno Setup installs per machine or per user - winget puts it in `%LOCALAPPDATA%\Programs`, which a
     hard-coded `Program Files (x86)` path misses (measured 2026-10-13: the first build could not find
     ISCC.exe). The script looks in all of them and says how to install it when there is none."""
     text = read("build.ps1")

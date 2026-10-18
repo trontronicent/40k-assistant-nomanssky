@@ -38,7 +38,7 @@ NAMING_WORDS = {"name", "names", "naming", "namen", "benenne", "benennen"}
 NAMING_CONTEXT = {"did", "have", "ever", "already", "habe", "jemals", "schon", "hab"}
 GENERIC = {"the", "and", "did", "have", "has", "what", "which", "how", "many", "much", "all", "any", "ever", "that",
            "this", "for", "with", "you", "your", "mine", "own", "wie", "viele", "habe", "ich", "meine", "meinen",
-           "welche", "hast", "alle", "gibt", "was", "ist", "are", "was", "were"}
+           "welche", "hast", "alle", "gibt", "was", "ist", "are", "were"}
 MAX_PET_LINES = 30
 MAX_PET_CHARS = 3600
 MAX_NAMED_LINES = 12
@@ -137,7 +137,7 @@ def discovery_lines(question: str, book: DiscoveryBook, label_of) -> list[str]:
     known = " ".join((r["n"] or "").casefold() for r in book.rows if r["n"])
     terms = [t for t in terms if t in known]
     found = matches(book, terms, kinds, MAX_NAMED_LINES) if (terms or kinds) else []
-    named_only = [r for r in book.named()][:MAX_NAMED_LINES]
+    named_only = list(book.named())[:MAX_NAMED_LINES]
     if kinds and not found:      # "which planets did I name?" with none named: say so, do not list other kinds
         wanted = ", ".join(sorted(KIND_PLURALS.get(k, k).lower() for k in kinds))
         out.append(f"None of your {wanted} records carries a name.")

@@ -173,5 +173,5 @@ def test_the_export_action_checks_its_input_and_answers_with_the_text(tmp_path, 
 def test_every_export_action_is_registered(action):
     """A menu entry naming an action the connector does not have would fail only when clicked."""
     from nms_connector.plugin import NmsConnector
-    assert callable(getattr(NmsConnector, "_export_ship"))
+    assert callable(NmsConnector._export_ship)
     assert action in ships.EXPORT_ACTIONS

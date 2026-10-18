@@ -26,7 +26,9 @@ from datetime import datetime
 from functools import cached_property
 from pathlib import Path
 
-from . import codex_sync, discoveries, equipment, frigates, galaxy, guilds, hgpak, inventory_search, logs, memory, planet_search, planets_view, positions, recipe_view, route, save_search, saves, settlements, ships, starmap, timers, toon, trade, transfer
+from . import (codex_sync, discoveries, equipment, frigates, galaxy, guilds, hgpak, inventory_search, logs, memory,
+               planet_search, planets_view, positions, recipe_view, route, save_search, saves, settlements, ships, starmap,
+               timers, toon, trade, transfer)
 from .companion import PluginCompanion
 from .describe import StateText
 from .game_install import GameInstall, find_game
@@ -102,22 +104,10 @@ class NmsConnector:
         logs.bind(ctx.logger)        # every module logs through the host's plugin logger (category tag)
         self.data_dir: Path = ctx.data_dir
         self._heavy_load = False                # set by a pass over the game files; the next collect resets it
-        self.mapping_path = self.data_dir / "mapping.json"
-        self.events_path = self.data_dir / "save_events.json"
-        self.watcher = SaveWatcher(events=self._load_events())
-        self.mapping: dict[str, str] | None = None
-        self.mapping_meta: dict = {}
-        self.mapping_error: str | None = None
-        self._last_mapping_attempt = 0.0
-        self.save_dir: Path | None = None
+        self._init_page_choices()
+        self._init_save_reading()
         self.tables = GameTables(TableStore(self.data_dir))                # timers, frigate traits, warp range, settlements, tech stats
         self.settlement_live = settlements.LiveSettlements(self.data_dir / "settlement_screen.json")  # screen values
-        self.galaxy_colors = "kind"               # how the galaxy map colours systems (planets_view.COLOR_MODES)
-        self.planet_query = planet_search.Query()   # Systems -> Planets search (planet_search.Query)
-        self.inventory_query = ""                 # Inventory -> search across all inventories (inventory_search)
-        self.save_query = ""                      # Overview -> one search over every tab's tables (save_search)
-        self.recipe_query = ""                    # Recipes tab + overlay -> the recipe viewer (recipe_view)
-        self.ship_export: dict | None = None      # the last ship export (ships.export_section; also copied)
         self.settings_path = self.data_dir / "settings.json"
         self.settings = PluginSettings.load(self.settings_path)   # Settings tab: single context, codeword
         self.error: str | None = None
@@ -132,7 +122,6 @@ class NmsConnector:
         # `ctx.host` names which host this is; the app's context has none, so it is the app ("plugin").
         self.transfer = transfer.DataTransfer(self.data_dir, host=getattr(ctx, "host", None) or "plugin",
                                               plugin_version=getattr(ctx, "version", "") or "")
-        self.transfer_state: dict | None = None   # what the last export/look/import did (page: transfer_sections)
         # PROTOTYPE: star positions from the galaxy map camera (positions.py), named by the user on the page.
         self.camera = positions.CameraReader()
         self.star_fixer = positions.StarFixer(self.history.star_fixes)
@@ -142,12 +131,33 @@ class NmsConnector:
         self.route_path = self.data_dir / "route.json"
         self.route_state: dict = self._load_route()
         self._live_checked = 0.0
-        self.selected_system: int | None = None   # clicked in the visited-systems table
         self._planet_icons_ready = False          # names/icons of the recorded planets ensured since the last build
         self._force = asyncio.Event()
         self.describe = StateText(self)
         self.page = ConnectorPage(self)
         self.companion = PluginCompanion(self)
+
+    def _init_save_reading(self) -> None:
+        """Where the saves are and how their keys are read: the save folder, its write log, mapping.json."""
+        self.mapping_path = self.data_dir / "mapping.json"
+        self.events_path = self.data_dir / "save_events.json"
+        self.watcher = SaveWatcher(events=self._load_events())
+        self.mapping: dict[str, str] | None = None
+        self.mapping_meta: dict = {}
+        self.mapping_error: str | None = None
+        self._last_mapping_attempt = 0.0
+        self.save_dir: Path | None = None
+
+    def _init_page_choices(self) -> None:
+        """What the user chose on the page: searches, map colouring, the clicked system, the last export."""
+        self.galaxy_colors = "kind"               # how the galaxy map colours systems (planets_view.COLOR_MODES)
+        self.planet_query = planet_search.Query()   # Systems -> Planets search (planet_search.Query)
+        self.inventory_query = ""                 # Inventory -> search across all inventories (inventory_search)
+        self.save_query = ""                      # Overview -> one search over every tab's tables (save_search)
+        self.recipe_query = ""                    # Recipes tab + overlay -> the recipe viewer (recipe_view)
+        self.ship_export: dict | None = None      # the last ship export (ships.export_section; also copied)
+        self.transfer_state: dict | None = None   # what the last export/look/import did (page: transfer_sections)
+        self.selected_system: int | None = None   # clicked in the visited-systems table
 
     def _reset_save_state(self) -> None:
         """Everything derived from the newest save, empty: at the start, and when the plugin lets go of its memory."""
@@ -655,7 +665,8 @@ class NmsConnector:
             self.live.last_scan_at = None
         changed = await self.ctx.run_blocking(self.live.tick, self.anchor, self._substances(), now)
         await self.ctx.run_blocking(self._follow_route)
-        if self.live.reader is not None and self.live.status == "ok" and self.live.current_system is not None                 and self.starmap.due(now):
+        if self.live.reader is not None and self.live.status == "ok" and self.live.current_system is not None \
+                and self.starmap.due(now):
             try:
                 found = await self.ctx.run_blocking(self.starmap.scan, self.live.reader, self.live.current_system)
                 changed = self.history.record_economies(found, datetime.now().isoformat(timespec="seconds"), "galaxy map")

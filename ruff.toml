@@ -3,17 +3,18 @@ line-length = 140
 target-version = "py311"
 
 [lint]
-select = ["F", "E9", "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915", "B905", "SIM105", "SIM109", "RUF012",
-          "ARG001", "PLW2901"]
+select = ["F", "E9", "E501", "W", "C901", "PLR0911", "PLR0912", "PLR0913", "PLR0915", "B", "SIM105", "SIM108", "SIM109",
+          "RUF012", "ARG001", "PLW2901", "UP", "C4", "PIE", "RET504"]
 
 [lint.mccabe]
-max-complexity = 12
+max-complexity = 10
 
 [lint.pylint]
 max-args = 6          # the game's hash rounds take its four words, two rotations or a key and a seed
-max-branches = 12
+max-branches = 10
 max-returns = 8
-max-statements = 50
+max-statements = 40
 
 [lint.per-file-ignores]
-"tests/*" = ["ARG001", "PLR0913", "PLR0915", "C901", "PLR0912", "RUF012", "B905"]    # fakes ignore arguments and keep class-level data; scenarios are long
+# fakes ignore arguments and keep class-level data; scenarios are long, and so are the expected texts they assert
+"tests/*" = ["ARG001", "PLR0913", "PLR0915", "C901", "PLR0912", "RUF012", "B905", "E501"]
