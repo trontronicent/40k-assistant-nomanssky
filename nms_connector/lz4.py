@@ -26,7 +26,10 @@ def _extended_length(src: bytes, i: int, base: int, what: str) -> tuple[int, int
 
 
 def _copy_match(dst: bytearray, offset: int, length: int) -> None:
-    """Append `length` bytes copied from `offset` bytes back; an overlapping copy repeats the last `offset` bytes."""
+    """Append `length` bytes copied from `offset` bytes back; an overlapping copy repeats the last `offset` bytes.
+    LZ4Error for an offset of 0 or one reaching before the output."""
+    if offset == 0 or offset > len(dst):
+        raise LZ4Error("invalid match offset")
     start = len(dst) - offset
     if length <= offset:
         dst += dst[start:start + length]
@@ -35,11 +38,11 @@ def _copy_match(dst: bytearray, offset: int, length: int) -> None:
             dst.append(dst[start + k])
 
 
-def decompress_block(src: bytes, out_size: int) -> bytes:  # noqa: C901 - the decoder's hot loop, see below
+def decompress_block(src: bytes, out_size: int) -> bytes:
     """Decompress one LZ4 block whose uncompressed size is known.
 
-    One loop on purpose: moving the match-offset check into a helper made every save decode 5-10 % slower
-    (measured 2026-10-18 on 200,000 sequences), for one point of complexity."""
+    The loop is the save decoder's hot path: no helper call is added per sequence (one cost 5-10 %, measured
+    2026-10-18 on 200,000 sequences), so the offset is checked inside `_copy_match`, which runs anyway."""
     dst = bytearray()
     i, n = 0, len(src)
     while i < n:
@@ -58,8 +61,6 @@ def decompress_block(src: bytes, out_size: int) -> bytes:  # noqa: C901 - the de
             raise LZ4Error("truncated match offset")
         offset = src[i] | (src[i + 1] << 8)
         i += 2
-        if offset == 0 or offset > len(dst):
-            raise LZ4Error("invalid match offset")
         length = token & 15
         if length == 15:
             length, i = _extended_length(src, i, length, "match")

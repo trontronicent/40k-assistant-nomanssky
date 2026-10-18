@@ -41,8 +41,8 @@
   statements 50 -> 40, lines <= 140, pyupgrade/comprehension/bugbear rules), and the 31 functions above them
   were split into named steps - planet merging (`PlanetHistory.record`), the route planner, the trade pair
   search, planet seeds, the Codex item documents, the memory round, the technology tables and more. The page,
-  overlay and persona data (fake save), the Codex documents and planet seeds on 20,000 systems are identical
-  before and after; two lines whose continuation had been flattened into one were restored.
+  overlay and persona data (fake save), the Codex documents, planet seeds on 20,000 systems and the LZ4 decoder
+  (same results on 100,000 corrupt blocks, same speed) are identical before and after; two lines whose continuation had been flattened into one were restored.
 
 ## 0.15.0-beta.6 (beta; needs app 3.17.0)
 

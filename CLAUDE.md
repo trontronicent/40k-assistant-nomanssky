@@ -140,9 +140,9 @@ page, a tray icon and a game overlay. `standalone/` is a **second host**, not a 
 - **Code shape - the full guide is `J:\40k-assistant\docs\architecture\code-shape.md` (read it before writing or changing a
   long function; new backend plugins copy this repo's `ruff.toml` and `tests/test_code_shape.py`).** (`ruff.toml`: complexity <= 8, <= 8 branches, <= 40 statements, <= 6 arguments, explicit `zip` strictness, no
   unused names or arguments, lines <= 140 outside tests, plus pyupgrade/comprehension/bugbear rules (lowered from
-  12/12/50 on 2026-10-18); `tests/test_code_shape.py` runs it and fails with the findings - zero today, and the shape
-  `noqa`s are two: `planets_view.Context.__init__`, the one dependency-injection constructor, and
-  `lz4.decompress_block`, whose one loop is the save decoder's hot path - a helper call per sequence cost 5-10 %): a function does one thing
+  12/12/50 on 2026-10-18); `tests/test_code_shape.py` runs it and fails with the findings - zero today, and the single
+  `noqa` is `planets_view.Context.__init__`, the one dependency-injection constructor; `lz4.decompress_block` is the
+  save decoder's hot loop - never add a helper call per sequence there, one cost 5-10 %): a function does one thing
   and stays under ~40 statements; more than five parameters means a small dataclass (`assistant.ItemLookups`,
   `cooking.CookingView`) and not a longer signature; `NmsConnector.action` is a dispatch table (`_actions`, one
   `_act_*` method per action) and the persona's data is built by small `_*_lines` / `_block` methods, never one
