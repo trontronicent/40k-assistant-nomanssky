@@ -223,6 +223,8 @@
 
   // --- codex --------------------------------------------------------------
 
+  const HIT_CHARS = 900;          // how much of a hit is shown (cut after a whole line)
+
   const CodexPage = {
     async draw() {
       const page = document.getElementById("page-codex");
@@ -258,11 +260,14 @@
             body: JSON.stringify({ query: input.value }),
           });
           if (!answer.hits.length) results.appendChild(el("p", null, "Nothing matched."));
+          const words = input.value.split(/\s+/).filter(Boolean);
           for (const hit of answer.hits) {
             const box = el("div", "codex-hit");
             box.appendChild(el("strong", null, hit.title));
             box.appendChild(el("small", null, hit.path));
-            box.appendChild(el("p", null, hit.text.slice(0, 600)));
+            // Markdown, drawn styled (markdown.js) with the searched words marked - not raw text
+            box.appendChild(window.Markdown.renderMarkdown(document, window.Markdown.leadingLines(hit.text, HIT_CHARS),
+              words));
             results.appendChild(box);
           }
         } catch (err) {

@@ -33,6 +33,13 @@
 - Searching also finds raw materials no recipe makes or uses (the substance table), because "where does Copper
   come from" is exactly what goes into that box.
 
+- **Codex hits are shown formatted, not as Markdown source.** The standalone page's *Codex* tab draws each hit
+  styled - headings, bold and italic, lists, tables, quotes, code - with the words you searched for marked, the
+  way the app draws its Codex (a new `web/markdown.js`, which builds the page's elements and never HTML from the
+  text; a long document is cut after a whole line, so a table row is never cut in half). In the 40k Assistant the
+  same is true of the Codex Editor's search and the overlay's *Codex search* area, where resting the pointer on a
+  hit for a second now pins it as its own window with the whole document until you click its ✕ (app side).
+
 - **Copy storage containers for a prompt.** *Inventory → Storage* opens with a **Containers** overview (stacks,
   items and base value per container). Right-click a container - in the overview, any item row of its table,
   or a hit in the Overview search - to copy **this container** or **all containers**, as TOON or JSON, the

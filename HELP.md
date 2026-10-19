@@ -231,7 +231,7 @@ inside the Strategicum - the same dark-and-gold panels, tabs, tables and forms -
 carries the same buttons: **Rescan**, **Scan game now**, **Update key mapping**, **Re-read item
 names**, **Write Codex documents** and **Clear save history** (which asks first). *Game data* is the
 plugin's own pages, *Chat* asks the companion persona about your save, *Codex* searches the generated
-documents, *Settings* holds the switches and *Updates* installs another version. The tray icon opens the page, turns
+documents (each hit shown formatted - headings, lists, tables - with your words marked), *Settings* holds the switches and *Updates* installs another version. The tray icon opens the page, turns
 the overlay on or off, reads the save again and alerts you when a timer ends - also when no page is open,
 which is what *Start with Windows* uses. The overlay is the same always-on-top window: drag it where you
 want it, right-click to choose which areas it shows.
@@ -287,7 +287,12 @@ Nanites, Quicksilver), **Ships** (primary ship with its warp range, freighter) a
 timers, where you are and settlements in one block). The area **Codex search** finds
 words in the Codex libraries attached to the plugin persona (the *No Man's Sky* library,
 for example): click the box, type - *warp cell*, *"antimatter housing"*, *Hyperantrieb*
-- and press Enter. No AI: it finds exactly the words, instantly, while you play. The area **Recipes**
+- and press Enter. No AI: it finds exactly the words, instantly, while you play. Each result is shown
+formatted (headings, bold, lists, tables, your words marked), and **resting the pointer on a result for a
+second** opens it in its own small window beside the overlay with the whole document - it stays there until you
+click its **✕**, so you can keep a recipe or a table in view while you play (drag its title bar to move it). This
+needs the 40k Assistant version that brings it; the standalone overlay links to the page's *Codex* tab instead.
+The area **Recipes**
 is the Recipes tab in the overlay: type an item into its box, press Enter, and the recipes that make it are drawn
 as the same diagrams with the same icons, in the language you typed in - a recipe looked up without leaving the
 game. Click the box before typing - a window without a title bar does not take the keyboard by itself - and press
