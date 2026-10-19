@@ -440,6 +440,22 @@ something you asked for. The block shown under the ships therefore has its own *
 copies as part of your click and works on a plain LAN address too; it says *Copied.* when it worked,
 and if even that is refused you can select the text and press Ctrl+C.
 
+### Copying storage container contents
+
+*Inventory → Storage* opens with a **Containers** overview: one row per container that holds something,
+with its number of stacks, items and what they are worth at the base value. **Right-click a container**
+there - or any item row in that container's own table, or a container's row in the *Overview* search -
+for a menu:
+
+- **Copy this container (TOON)** - every stack of that container with its name, id, amount, stack limit,
+  unit value and stack value, and the container's total, as TOON.
+- **Copy this container (JSON)** - the same data as JSON.
+- **Copy all containers (TOON)** / **(JSON)** - every container that holds something, one after another,
+  and the numbers of the empty ones.
+
+A left click on a row of the overview copies that container as TOON. As with ships, the text goes on
+your clipboard and is also shown on the page (under the overview) with its own **Copy** button.
+
 ## The galaxy map
 
 *Systems → Galaxy* shows every system you know in the galaxy you are in -

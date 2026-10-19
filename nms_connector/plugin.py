@@ -26,7 +26,7 @@ from datetime import datetime
 from functools import cached_property
 from pathlib import Path
 
-from . import (codex_sync, discoveries, equipment, frigates, galaxy, guilds, hgpak, inventory_search, logs, memory,
+from . import (codex_sync, container_export, discoveries, equipment, frigates, galaxy, guilds, hgpak, inventory_search, logs, memory,
                planet_search, planets_view, positions, recipe_view, route, save_search, saves, settlements, ships, starmap,
                timers, toon, trade, transfer)
 from .companion import PluginCompanion
@@ -156,6 +156,7 @@ class NmsConnector:
         self.save_query = ""                      # Overview -> one search over every tab's tables (save_search)
         self.recipe_query = ""                    # Recipes tab + overlay -> the recipe viewer (recipe_view)
         self.ship_export: dict | None = None      # the last ship export (ships.export_section; also copied)
+        self.container_export: dict | None = None   # the last container export (container_export.export_section)
         self.transfer_state: dict | None = None   # what the last export/look/import did (page: transfer_sections)
         self.selected_system: int | None = None   # clicked in the visited-systems table
 
@@ -418,6 +419,33 @@ class NmsConnector:
         return {"ok": True, "copy": text, "focus": ships.EXPORT_ID,
                 "message": f"{label} as {fmt}: {len(text):,} characters copied"
                            f" ({len(data['technology'])} technologies)."}
+
+    def _export_container(self, action_id: str, params: dict) -> dict:
+        """Copy one storage container's contents, or every container's, as TOON or JSON. Params are untrusted:
+        `key` is the container's save key, as the Storage tables' row keys hand it back (not needed for "all").
+
+        Like the ship export, the text goes into the action's `copy` and into the page."""
+        storage = (self.snapshot or {}).get("storage") or []
+        texts = planets_view.Texts(self.gamedata)
+        lookup = self.gamedata.lookup
+        if action_id in container_export.ALL_ACTIONS:
+            data = container_export.all_data(storage, texts, lookup)
+            what, stacks = f"All containers ({len(data['containers'])})", sum(c["stacks"] for c in data["containers"])
+            if not data["containers"]:
+                return {"ok": False, "message": "No storage container in the newest save holds anything."}
+        else:
+            chest = container_export.find(storage, params.get("key"))
+            if chest is None:
+                return {"ok": False, "message": "That container is not in the newest save (any more)."}
+            data = container_export.container_data(chest, texts, lookup)
+            what, stacks = data["container"], data["stacks"]
+        if action_id in container_export.JSON_ACTIONS:
+            text, fmt = json.dumps(data, ensure_ascii=False, indent=2), "JSON"
+        else:
+            text, fmt = toon.encode(data), "TOON"
+        self.container_export = {"what": what, "format": fmt, "text": text, "chars": len(text)}
+        return {"ok": True, "copy": text, "focus": container_export.EXPORT_ID,
+                "message": f"{what} as {fmt}: {len(text):,} characters copied ({stacks} stacks)."}
 
     def _set_guild(self, params: dict) -> dict:
         """Record which guild's envoy a station holds, for the whole voxel region of that system.
@@ -831,6 +859,7 @@ class NmsConnector:
             planets_view.SET_GUILD: self._act_set_guild,
             page.EXPORT_DATA: self._act_export_data,
             **{action: self._ship_export_handler(action) for action in ships.EXPORT_ACTIONS},
+            **{action: self._container_export_handler(action) for action in container_export.EXPORT_ACTIONS},
             page.IMPORT_DATA: self._act_import_data,
             inventory_search.SEARCH_INVENTORY: self._act_search_inventory,
             save_search.SEARCH_SAVE: self._act_search_save,
@@ -868,6 +897,12 @@ class NmsConnector:
         """The handler of one ship-export action (they differ only in the format they write)."""
         async def run(params: dict) -> dict:
             return await self.ctx.run_blocking(self._export_ship, action_id, params)
+        return run
+
+    def _container_export_handler(self, action_id: str):
+        """The handler of one container-export action (one container or all, TOON or JSON)."""
+        async def run(params: dict) -> dict:
+            return await self.ctx.run_blocking(self._export_container, action_id, params)
         return run
 
     async def _act_import_data(self, params: dict) -> dict:

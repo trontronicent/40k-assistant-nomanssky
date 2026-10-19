@@ -97,8 +97,9 @@ def test_storage_containers_are_numbered_like_the_game():
 
 
 def test_storage_tab_lists_full_containers_and_names_the_empty_ones(tmp_path, monkeypatch):
-    """The Storage tab has one table per container that holds something, titled with the game's number (a
-    renamed container also shows its name), other storages by save key, and a line naming the empty ones."""
+    """The Storage tab opens with an overview of the full containers (with the copy menu, keyed by save key),
+    then has one table per container that holds something, titled with the game's number (a renamed container
+    also shows its name), other storages by save key, and a line naming the empty ones."""
     from nms_connector import create_plugin
     from test_connector import FakeCtx
     monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
@@ -109,9 +110,13 @@ def test_storage_tab_lists_full_containers_and_names_the_empty_ones(tmp_path, mo
                         {"number": None, "key": "ChestMagicInventory", "name": None, "rows": [["STELLAR2", 15, 9999]]}]}
     tab = plugin.page.storage_tab(snap, context(tmp_path, {}), ["Name", "Category", "Item id", "Amount", "Max"])
     titles = [s.get("title") for s in tab["sections"]]
-    assert titles[:3] == ["Storage Container 0 - 1 stacks", "Storage Container 7: Metals - 1 stacks",
+    assert titles[:4] == ["Containers (3)", "Storage Container 0 - 1 stacks", "Storage Container 7: Metals - 1 stacks",
                           "Other storage (ChestMagic) - 1 stacks"]
-    assert tab["sections"][0]["rows"][0][:3] == [{"text": "FUEL1", "icon": "x.png", "hint": "Category: Fuel Element"},
+    overview = tab["sections"][0]
+    assert overview["row_keys"] == ["Chest1Inventory", "Chest8Inventory", "ChestMagicInventory"]
+    assert [r[:3] for r in overview["rows"]][1] == ["Storage Container 7: Metals", 1, 469]
+    assert tab["sections"][2]["row_keys"] == ["Chest8Inventory"] and tab["sections"][2]["row_menu"]
+    assert tab["sections"][1]["rows"][0][:3] == [{"text": "FUEL1", "icon": "x.png", "hint": "Category: Fuel Element"},
                                                  "Fuel Element", "FUEL1"]
     assert tab["sections"][-1]["text"] == "Empty storage containers: 1." and tab["badge"] == 3
 

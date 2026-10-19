@@ -28,13 +28,14 @@ MAX_GROUPS = 8                         # kinds shown; the view's own section bud
 
 @dataclass
 class Group:
-    """One searchable kind: a table the page built, with what makes its rows clickable."""
+    """One searchable kind: a table the page built, with what makes its rows clickable or right-clickable."""
     title: str
     columns: list
     rows: list
     keys: list | None = None
     row_action: str | None = None
     row_hint: str | None = None
+    row_menu: list | None = None
 
 
 @dataclass
@@ -76,7 +77,8 @@ def groups_from_sections(sections: list[dict], skip: tuple = ()) -> list[Group]:
             continue
         out.append(Group(title=section.get("title") or "Rows", columns=section.get("columns") or [],
                          rows=section["rows"], keys=section.get("row_keys"),
-                         row_action=section.get("row_action"), row_hint=section.get("row_hint")))
+                         row_action=section.get("row_action"), row_hint=section.get("row_hint"),
+                         row_menu=section.get("row_menu")))
     return out
 
 
@@ -133,11 +135,22 @@ def sections(results: list[Found], query: str) -> list[dict]:
                  "columns": found.group.columns, "rows": found.rows}
         if index == 0:
             table["id"] = RESULTS_ID            # the page scrolls to the first group after a search
-        if found.group.row_action and any(k is not None for k in found.keys):
-            table["row_action"] = found.group.row_action
-            table["row_keys"] = found.keys
-            table["row_hint"] = found.group.row_hint or "Click a row to open it."
-        out.append(table)
+        out.append(table | _row_handles(found))
+    return out
+
+
+def _row_handles(found: Found) -> dict:
+    """What keeps a hit clickable (`row_action`) and right-clickable (`row_menu`, e.g. copying a ship or a
+    container) as it was in its own table - nothing when its rows have no keys."""
+    group = found.group
+    if not any(k is not None for k in found.keys):
+        return {}
+    out: dict = {}
+    if group.row_action:
+        out.update(row_action=group.row_action, row_hint=group.row_hint or "Click a row to open it.")
+    if group.row_menu:
+        out["row_menu"] = group.row_menu
+    return out | ({"row_keys": found.keys} if out else {})
     return out
 
 

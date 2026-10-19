@@ -13,8 +13,8 @@ from __future__ import annotations
 
 import time
 
-from . import (companions_view, credits, discoveries_view, equipment, frigates, inventory_search, planets_view,
-               recipe_view, save_search, settlements, ships, timers, transfer)
+from . import (companions_view, container_export, credits, discoveries_view, equipment, frigates, inventory_search,
+               planets_view, recipe_view, save_search, settlements, ships, timers, transfer)
 
 EXPORT_DATA = "export_data"              # action: write the plugin's data as one zip
 IMPORT_DATA = "import_data"              # action: look into a zip, or merge/replace from it
@@ -164,25 +164,22 @@ class ConnectorPage:
         return out
 
     def storage_tab(self, snap: dict, ctx, columns: list[str]) -> dict:
-        """The Storage tab: one table per storage container that holds something (containers 0-9 as numbered
-        in the game), and which containers are empty."""
-        sections, empty = [], []
-        for chest in snap.get("storage") or []:
-            if chest["number"] is not None:
-                custom = chest["name"] if chest["name"] and not str(chest["name"]).startswith("BLD_") else None
-                title = f"Storage Container {chest['number']}" + (f": {custom}" if custom else "")
-            else:
-                title = f"Other storage ({chest['key'].removesuffix('Inventory')})"
-            if not chest["rows"]:
-                empty.append(str(chest["number"]))
-                continue
-            sections.append({"type": "table", "title": f"{title} - {len(chest['rows'])} stacks", "columns": columns,
-                             "rows": self.item_rows(chest["rows"], ctx)})
+        """The Storage tab: an overview of the containers that hold something (right-click one to copy it or all
+        of them), one table per such container (containers 0-9 as numbered in the game, with the same menu on
+        every row), which containers are empty, and the last copied export."""
+        storage = snap.get("storage") or []
+        overview = container_export.overview_section(storage, self.connector.gamedata.lookup)
+        sections = ([overview] if overview else []) + container_export.export_section(self.connector.container_export)
+        for chest in (c for c in storage if c["rows"]):
+            sections.append({"type": "table", "title": f"{container_export.label(chest)} - {len(chest['rows'])} stacks",
+                             "columns": columns, "rows": self.item_rows(chest["rows"], ctx),
+                             **container_export.menu_keys([chest["key"]] * len(chest["rows"]))})
+        empty = [str(c["number"]) for c in storage if not c["rows"]]
         if empty:
             sections.append({"type": "text", "text": f"Empty storage containers: {', '.join(empty)}."})
-        if not sections:
+        if not overview:
             sections.append({"type": "text", "text": "No storage container in this save holds anything."})
-        return {"id": "storage", "label": "Storage", "badge": sum(1 for c in snap.get("storage") or [] if c["rows"]) or None,
+        return {"id": "storage", "label": "Storage", "badge": sum(1 for c in storage if c["rows"]) or None,
                 "sections": sections}
 
     def inventory_search_sections(self, snap: dict, ctx, columns: list[str]) -> list[dict]:

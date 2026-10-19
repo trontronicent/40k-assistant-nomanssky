@@ -87,6 +87,19 @@ def test_the_page_shows_one_table_per_kind_and_says_so_when_nothing_matches():
     assert save_search.sections([], "") == []
 
 
+def test_a_hit_keeps_its_copy_menu():
+    """A row that has a right-click menu in its own table (a storage container, a ship) keeps it in the results,
+    with its key, even when it has no left-click action - otherwise copying found a container and then could
+    not copy it."""
+    menu = [{"id": "export_container_toon", "label": "Copy this container (TOON)"}]
+    chest = save_search.Group(title="Storage Container 7", columns=["Name"], rows=[["Copper"]],
+                              keys=["Chest8Inventory"], row_menu=menu)
+    table = save_search.sections(save_search.search([chest], "copper"), "copper")[0]
+    assert table["row_menu"] == menu and table["row_keys"] == ["Chest8Inventory"] and "row_action" not in table
+    plain = save_search.Group(title="Notes", columns=["Name"], rows=[["Copper"]], keys=[None], row_menu=menu)
+    assert "row_menu" not in save_search.sections(save_search.search([plain], "copper"), "copper")[0]
+
+
 def test_a_capped_group_says_how_many_it_shows():
     """A kind with more hits than rows shown says so in its title, as the two older searches do."""
     many = save_search.Group(title="Planets", columns=["Planet"],

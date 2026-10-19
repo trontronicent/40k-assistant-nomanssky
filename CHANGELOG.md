@@ -33,6 +33,15 @@
 - Searching also finds raw materials no recipe makes or uses (the substance table), because "where does Copper
   come from" is exactly what goes into that box.
 
+- **Copy storage containers for a prompt.** *Inventory → Storage* opens with a **Containers** overview (stacks,
+  items and base value per container). Right-click a container - in the overview, any item row of its table,
+  or a hit in the Overview search - to copy **this container** or **all containers**, as TOON or JSON, the
+  formats the ship export writes. Each container's items are one TOON table (a header and one line per stack:
+  id, name, amount, limit, unit and stack value); "all" lists every container that holds something and the
+  numbers of the empty ones. A left click on an overview row copies that container as TOON; the text is put
+  on the clipboard and shown on the page with its own Copy button. Search hits now keep a table's right-click
+  menu too, so a ship found by the search can be copied as well.
+
 - **Fix: new planets get their names and icons even when the galaxy map is read in the same moment.** The memory
   round reused one variable for "new planets found" and "economies changed on the galaxy map", so a map read
   that changed nothing hid the new planets' texts and icons until a later scan changed something.
