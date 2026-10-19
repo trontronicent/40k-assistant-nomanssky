@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.15.0-beta.8 (beta; needs app 3.17.0, right-click row menus on 3.18.0, draws diagrams on 3.19.0)
+
+- **Codex hits are shown formatted, not as Markdown source.** The standalone page's *Codex* tab draws each hit
+  styled - headings, bold and italic, lists, tables, quotes, code - with the words you searched for marked, the
+  way the app draws its Codex (a new `web/markdown.js`, which builds the page's elements and never HTML from the
+  text; a long document is cut after a whole line, so a table row is never cut in half). In the 40k Assistant the
+  same is true of the Codex Editor's search and the overlay's *Codex search* area, where resting the pointer on a
+  hit for a second now pins it as its own window with the whole document until you click its ✕ (app side).
+
+- **Copy storage containers for a prompt.** *Inventory → Storage* opens with a **Containers** overview (stacks,
+  items and base value per container). Right-click a container - in the overview, any item row of its table,
+  or a hit in the Overview search - to copy **this container** or **all containers**, as TOON or JSON, the
+  formats the ship export writes. Each container's items are one TOON table (a header and one line per stack:
+  id, name, amount, limit, unit and stack value); "all" lists every container that holds something and the
+  numbers of the empty ones. A left click on an overview row copies that container as TOON; the text is put
+  on the clipboard and shown on the page with its own Copy button. Search hits now keep a table's right-click
+  menu too, so a ship found by the search can be copied as well.
+
+- **Fix: new planets get their names and icons even when the galaxy map is read in the same moment.** The memory
+  round reused one variable for "new planets found" and "economies changed on the galaxy map", so a map read
+  that changed nothing hid the new planets' texts and icons until a later scan changed something.
+
+- Internal, nothing you can see: the code-shape limits went down (complexity 12 -> 8, branches 12 -> 8,
+  statements 50 -> 40, lines <= 140, pyupgrade/comprehension/bugbear rules), and the 31 functions above them
+  were split into named steps - planet merging (`PlanetHistory.record`), the route planner, the trade pair
+  search, planet seeds, the Codex item documents, the memory round, the technology tables and more. The page,
+  overlay and persona data (fake save), the Codex documents, planet seeds on 20,000 systems and the LZ4 decoder
+  (same results on 100,000 corrupt blocks, same speed) are identical before and after; two lines whose continuation had been flattened into one were restored.
+
 ## 0.15.0-beta.7 (beta; needs app 3.17.0, draws diagrams on 3.19.0)
 
 - **A recipe viewer, in all four places.** New **Recipes** tab: one search box, and for each item found what it
@@ -32,33 +61,6 @@
 
 - Searching also finds raw materials no recipe makes or uses (the substance table), because "where does Copper
   come from" is exactly what goes into that box.
-
-- **Codex hits are shown formatted, not as Markdown source.** The standalone page's *Codex* tab draws each hit
-  styled - headings, bold and italic, lists, tables, quotes, code - with the words you searched for marked, the
-  way the app draws its Codex (a new `web/markdown.js`, which builds the page's elements and never HTML from the
-  text; a long document is cut after a whole line, so a table row is never cut in half). In the 40k Assistant the
-  same is true of the Codex Editor's search and the overlay's *Codex search* area, where resting the pointer on a
-  hit for a second now pins it as its own window with the whole document until you click its ✕ (app side).
-
-- **Copy storage containers for a prompt.** *Inventory → Storage* opens with a **Containers** overview (stacks,
-  items and base value per container). Right-click a container - in the overview, any item row of its table,
-  or a hit in the Overview search - to copy **this container** or **all containers**, as TOON or JSON, the
-  formats the ship export writes. Each container's items are one TOON table (a header and one line per stack:
-  id, name, amount, limit, unit and stack value); "all" lists every container that holds something and the
-  numbers of the empty ones. A left click on an overview row copies that container as TOON; the text is put
-  on the clipboard and shown on the page with its own Copy button. Search hits now keep a table's right-click
-  menu too, so a ship found by the search can be copied as well.
-
-- **Fix: new planets get their names and icons even when the galaxy map is read in the same moment.** The memory
-  round reused one variable for "new planets found" and "economies changed on the galaxy map", so a map read
-  that changed nothing hid the new planets' texts and icons until a later scan changed something.
-
-- Internal, nothing you can see: the code-shape limits went down (complexity 12 -> 8, branches 12 -> 8,
-  statements 50 -> 40, lines <= 140, pyupgrade/comprehension/bugbear rules), and the 31 functions above them
-  were split into named steps - planet merging (`PlanetHistory.record`), the route planner, the trade pair
-  search, planet seeds, the Codex item documents, the memory round, the technology tables and more. The page,
-  overlay and persona data (fake save), the Codex documents, planet seeds on 20,000 systems and the LZ4 decoder
-  (same results on 100,000 corrupt blocks, same speed) are identical before and after; two lines whose continuation had been flattened into one were restored.
 
 ## 0.15.0-beta.6 (beta; needs app 3.17.0)
 
