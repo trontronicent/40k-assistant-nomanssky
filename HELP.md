@@ -53,8 +53,14 @@ save.
 
 The **Companions** tab lists your pets and eggs: name, creature, type, biome, trust, age, arena wins, **abilities** (five
 per pet; hover for the game's description of each), the **harvest** (what the creature gives and the product), the raw
-**personality** (three percentages in the game's own words, e.g. *Playfulness 23% / Gentleness 77% / Devotion 16%*; hover for the three axes and the stored values), the **type** (hover: what Passive / Prey / Predator mean), **where its kind was first scanned** and its origin. What the plugin cannot know is not invented: the
-how long an egg needs, and the species name the game shows. Ask the persona about your
+**personality** (three percentages in the game's own words, e.g. *Playfulness 23% / Gentleness 77% / Devotion 16%*; hover for the three axes and the stored values), the **type** (hover: what Passive / Prey / Predator mean), **where its kind was first scanned** and its origin. Hover a companion's **name** for the **treats** you have
+invested in each battle stat, named and ordered as the game shows them (*Combat Effectiveness 7/10, Agility
+0/10, Health 6/10*), how many are left to give, and its seeds.
+
+What the plugin cannot know is not invented: how long an egg needs, the species name the game shows, and the
+**C/B/A/S class letters** of the three battle stats. Those letters are fixed when a companion hatches and the
+save does not hold them - measured over eleven companions, nothing moves them: not treats, not gene editing,
+not resizing - so the treats you invested are shown rather than a guessed letter. Ask the persona about your
 pets, eggs, the arena or a pet by name; ask for abilities to get them spelled out.
 
 ## The knowledge base

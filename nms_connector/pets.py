@@ -8,8 +8,22 @@ What is *measured* (the real save and the installed game, build 25732212, 2026-1
   ``CreatureType.CreatureType`` (Prey / Predator ...), ``Biome.Biome``, ``Trust`` (0.75; an egg 0.70), ``BirthTime``,
   ``LastEggTime``, ``UA`` (the packed address it comes from), ``Traits`` (three signed floats), ``Moods`` (two
   floats), the genus/species/creature seeds, and the battle record ``PetBattlerVictories``,
-  ``PetBattlerTreatsEaten`` (3), ``PetBattlerTreatsAvailable``, ``PetBattlerCoreStatClassOverrides`` (3 x S/A/B/C =
-  Combat Effectiveness, Health, Agility) and ``PetBattlerMoves`` (5 template ids such as ``^ATTACK_DUST``).
+  ``PetBattlerTreatsEaten`` (3), ``PetBattlerTreatsAvailable``, ``PetBattlerCoreStatClassOverrides`` (3 x S/A/B/C,
+  **inert** - see below) and ``PetBattlerMoves`` (5 template ids such as ``^ATTACK_DUST``).
+* **The three battle stats** (measured 2026-10-20 against the Companion UI over 11 companions; the readings and the
+  reasoning are in ``research/pet_classes.json``). Two different quantities share the names *Combat Effectiveness /
+  Agility / Health*, and only one of them is in the save:
+
+  - The **number** the UI shows as ``x/10`` is exactly ``PetBattlerTreatsEaten``, whose order is ``(Health,
+    Agility, Combat Effectiveness)`` - the reverse of the UI's. Confirmed on two pets, six values, no mismatch,
+    the second predicted before it was read. A stat caps at 10 treats eaten.
+  - The **class letter** (C/B/A/S) is intrinsic, fixed at hatch, derived from the creature seeds, and **not in the
+    save**: ``PetBattlerCoreStatClassOverrides`` is ``[C, C, C]`` with ``PetBattlerUseCoreStatClassOverrides``
+    false on every pet, brand-new ones included, while the UI shows C through S. That array is an override slot
+    the game ignores and must never be shown as the class. Nothing moves a letter - not treats (proven on a clone
+    pair, and as a before/after on one pet taken to its cap), not gene editing, not a deliberate size edit. The
+    derivation is engine code, not a game data table, so the letters cannot be shown here at all; only the treat
+    numbers are. *Overall* is ``ceil(mean)`` of the three letters, so it carries nothing extra either.
 * **The move table** ``petbattlermovestable.mbin`` (61 records of 312 bytes; the self-calibrating reader finds them):
   id at 0x10, the game's own English description at 0x34, the class (ATTACK, HEAL, MULTI, PURGE ...) at 0xB4. All
   five moves of a measured pet were found in it. It sits in ``NMSARC.Precache.pak`` - without the pak hint it
@@ -38,7 +52,9 @@ MOVES_FILE = "metadata/simulation/gametables/petbattler/petbattlermovestable.mbi
 MOVES_PAK = "NMSARC.Precache.pak"
 ID_AT, TEXT_AT, TEXT_BYTES, KIND_AT = 0x10, 0x34, 0x80, 0xB4
 MAX_MOVE_RECORDS = 400
-STAT_NAMES = ("Combat Effectiveness", "Health", "Agility")       # the order of PetBattlerCoreStatClassOverrides
+TREAT_STATS = ("Health", "Agility", "Combat Effectiveness")       # the measured order of PetBattlerTreatsEaten
+TREAT_UI_ORDER = (2, 1, 0)                                        # the Companion UI lists them the other way round
+TREAT_CAP = 10                                                    # a stat stops accepting treats at 10
 MAX_PETS, MAX_EGGS = 60, 60                                       # the app's slots are 30; a damaged save is cut
 SECONDS_PER_DAY = 86_400
 
@@ -192,7 +208,6 @@ def compact(raw: dict) -> dict:
         return (raw.get(name) or {}).get(key) if isinstance(raw.get(name), dict) else None
 
     eaten = raw.get("PetBattlerTreatsEaten")
-    classes = raw.get("PetBattlerCoreStatClassOverrides")
     moves = raw.get("PetBattlerMoves")
     return {
         "name": raw.get("CustomName") if isinstance(raw.get("CustomName"), str) and raw["CustomName"].strip() else None,
@@ -207,8 +222,6 @@ def compact(raw: dict) -> dict:
         "wins": int(_number(raw.get("PetBattlerVictories"))),
         "treats": [int(_number(v)) for v in eaten[:3]] if isinstance(eaten, list) else [],
         "treats_free": int(_number(raw.get("PetBattlerTreatsAvailable"))),
-        "classes": [(c.get("InventoryClass") if isinstance(c, dict) else None) or "?" for c in classes[:3]]
-        if isinstance(classes, list) else [],
         "moves": [m.lstrip("^") for m in moves[:5] if isinstance(m, str) and m.strip("^")] if isinstance(moves, list) else [],
         "traits": [round(_number(v), 3) for v in raw["Traits"][:3]] if isinstance(raw.get("Traits"), list) else [],
         "moods": [round(_number(v), 3) for v in raw["Moods"][:2]] if isinstance(raw.get("Moods"), list) else [],
@@ -294,9 +307,15 @@ def type_note(creature_type: str, book: PetBook) -> str:
     return note.replace(f"{key.title()}:", f"{word}:", 1) if word else note
 
 
-def stat_classes_text(pet: dict) -> str:
-    """'Combat Effectiveness C, Health C, Agility C' (the order of the three overrides)."""
-    return ", ".join(f"{n} {c}" for n, c in zip(STAT_NAMES, pet["classes"], strict=False)) if pet["classes"] else "–"
+def treats_text(pet: dict) -> str:
+    """'Combat Effectiveness 6/10, Agility 0/10, Health 4/10' - the treats invested in each battle stat.
+
+    Named and ordered as the game's Companion UI shows them, which is the reverse of how the save stores them
+    (``TREAT_STATS``). This is the stat *number*, not its class letter: the letters are not in the save at all.
+    """
+    eaten = pet["treats"]
+    return ", ".join(f"{TREAT_STATS[i]} {eaten[i]}/{TREAT_CAP}"
+                     for i in TREAT_UI_ORDER if i < len(eaten)) if eaten else "–"
 
 
 def move_lines(pet: dict, book: PetBook) -> list[str]:

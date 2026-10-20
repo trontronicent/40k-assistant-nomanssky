@@ -97,7 +97,8 @@ def test_a_pet_is_reduced_to_the_fields_the_plugin_uses():
     assert (pet["name"], pet["id"], pet["type"], pet["biome"]) == ("Unzy Bunzy Bowa", "COW", "Prey", "Lush")
     assert pet["trust"] == 0.75 and pet["wins"] == 22 and pet["treats"] == [6, 0, 7] and pet["treats_free"] == 2
     assert pet["moves"] == ["ATTACK_DUST", "AFF_SPEED_THEM", "SELF_HOT", "DEBUFF_DEF"], "the empty '^' slot is dropped"
-    assert pet["classes"] == ["C", "C", "C"] and pet["ua"] == 0x20B70002925E80
+    assert pet["ua"] == 0x20B70002925E80
+    assert "classes" not in pet, "PetBattlerCoreStatClassOverrides is inert and deliberately not kept"
     assert pet["seeds"] == [0x320E447D6296A867, 0x56427E9D16C14071, 0x269DB40F01A2201D, 0xAA78C244162F491A]
     assert json.loads(json.dumps(pet)) == pet
 
@@ -109,7 +110,7 @@ def test_damaged_pet_fields_never_raise():
                         "PetBattlerMoves": [None, 3, "^OK"], "PetBattlerCoreStatClassOverrides": [None],
                         "UA": "zz", "CreatureSeed": [True, "zz"], "BirthTime": True})
     assert pet["name"] is None and pet["id"] == "" and pet["trust"] == 0.0 and pet["traits"] == []
-    assert pet["moves"] == ["OK"] and pet["classes"] == ["?"] and pet["ua"] is None and pet["seeds"][0] is None
+    assert pet["moves"] == ["OK"] and pet["ua"] is None and pet["seeds"][0] is None
     assert pet["born"] is None
     assert pets.compact({})["moves"] == []
 
@@ -126,9 +127,8 @@ def test_all_pets_eggs_and_slots_are_collected_and_bounded():
 
 
 def test_the_texts_a_pet_row_shows():
-    """Name (or 'Cow (unnamed)'), age in days, trust as a percentage, the raw signed traits and the three
-    stat classes in the order Combat Effectiveness / Health / Agility. The traits are shown raw because
-    their meaning is not confirmed."""
+    """Name (or 'Cow (unnamed)'), age in days, trust as a percentage and the raw signed traits. The traits are
+    shown raw because their meaning is not confirmed."""
     pet = pets.compact(raw_pet())
     assert pets.display_name(pet) == "Unzy Bunzy Bowa"
     assert pets.display_name(pets.compact(raw_pet(CustomName=""))) == "Cow (unnamed)"
@@ -136,7 +136,29 @@ def test_the_texts_a_pet_row_shows():
     assert pets.age_days(pets.compact(raw_pet(BirthTime=0)), NOW) is None
     assert pets.trust_text(pet) == "75 %"
     assert pets.traits_text(pet) == "+0.25 / -0.73 / -0.16" and pets.traits_text(pets.compact({})) == "–"
-    assert pets.stat_classes_text(pet) == "Combat Effectiveness C, Health C, Agility C"
+
+
+def test_treats_are_labelled_in_the_order_the_game_shows_them():
+    """PetBattlerTreatsEaten is stored (Health, Agility, Combat Effectiveness) but the Companion UI lists the
+    three the other way round, so the text has to reorder as well as label. Measured 2026-10-20: a stat's x/10
+    in the UI *is* its stored treat count, so a mislabelling here would show the player a wrong number against
+    the game's own screen."""
+    pet = pets.compact(raw_pet())                                     # PetBattlerTreatsEaten [6, 0, 7]
+    assert pet["treats"] == [6, 0, 7]
+    assert pets.treats_text(pet) == "Combat Effectiveness 7/10, Agility 0/10, Health 6/10"
+    assert pets.TREAT_STATS == ("Health", "Agility", "Combat Effectiveness")
+    assert pets.TREAT_CAP == 10
+
+
+def test_treats_text_survives_a_save_with_too_few_values():
+    """A damaged save may hold fewer than three treat counts, or none. Each present value must still be
+    labelled correctly rather than shifted onto the wrong stat, and no values at all gives a dash."""
+    assert pets.treats_text(pets.compact({})) == "–"
+    one = pets.compact({"PetBattlerTreatsEaten": [4]})
+    assert one["treats"] == [4]
+    assert pets.treats_text(one) == "Health 4/10", "index 0 is Health; it must not be read as Combat"
+    two = pets.compact({"PetBattlerTreatsEaten": [4, 5]})
+    assert pets.treats_text(two) == "Agility 5/10, Health 4/10"
 
 
 def test_abilities_are_listed_with_the_games_description_when_it_is_known():

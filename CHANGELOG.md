@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.15.0-beta.10 (beta; needs app 3.20.0)
+
+- **Companion battle stats: the treats you invested, instead of a letter that was always wrong.** Hovering a
+  companion's name used to show *Stat classes: Combat Effectiveness C, Health C, Agility C* - for every
+  companion, forever, including one that had just hatched. It now shows the treats invested in each stat,
+  named and ordered as the game's own Companion UI shows them:
+  *Treats: Combat Effectiveness 7/10, Agility 0/10, Health 6/10 (2 to give)*.
+
+  Two things were measured against the game over eleven companions (the readings, the clone-pair experiments
+  and the falsified hypotheses are kept in `research/pet_classes.json`):
+
+  - The `x/10` number the game shows **is** the save's `PetBattlerTreatsEaten`, and that array is ordered
+    *(Health, Agility, Combat Effectiveness)* - the reverse of how the game lists them. The plugin had the
+    order wrong in all three positions, so the labels are now right as well as present. A stat caps at 10.
+  - The **C/B/A/S class letter is not in the save at all.** `PetBattlerCoreStatClassOverrides` is `[C, C, C]`
+    with its "use" flag false on every pet while the game shows C through S, so it is an override slot the
+    game ignores. The real letter is fixed when a companion hatches: it survived a clone pair trained 44
+    battles apart, a single pet taken from 2 to 10 treats on one stat, gene editing, and a deliberate size
+    edit. It is computed in engine code, not in any game data table, so the plugin shows no letter rather
+    than a wrong one. (*Overall* is just `ceil(mean)` of the three letters, so it adds nothing either.)
+
+  The inert field is no longer kept in the snapshot, and the *Companions* tab now says plainly which letters
+  cannot be shown and why. No app change: this needs nothing newer than 3.20.0.
+
 ## 0.15.0-beta.9 (beta; needs app 3.20.0)
 
 - **Portal addresses are shown as glyphs.** Every place that names a system - *Where you are now*, the
