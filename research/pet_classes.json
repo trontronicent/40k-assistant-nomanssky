@@ -1655,6 +1655,25 @@
       "other_fields_this_batch_pinned_down": "No colour and no model change this time, and the displayed SPECIES NAME changed (e.g. 'D. Winkridii'). So: CreatureSeed drives colour and nothing else structural; SpeciesSeed drives the species name as well as feeding the tier; Descriptors drive the body. The Typ label moved in both batches, so it is derived from several seeds and is not a tier proxy - testCTRL3 and testG32 both read 'keins' while differing in every tier. Displayed age tracked the BirthTime offsets, as expected.",
       "the_practical_catch": "SpeciesSeed is distinct for all 524 Animal records, so every creature has a unique (SpeciesSeed, GenusSeed) pair. A lookup table of observed pairs would therefore never hit twice: predicting a wild creature's tiers REQUIRES the function itself, not a cache.",
       "next": "Route 2 with the right inputs - test candidate hash and PRNG constructions against the 18 natural pets' (species, genus) -> tier labels, generating more labels through the oracle as needed. If that comes back empty, route 4, static analysis, is now far better targeted: the inputs are known, so the search is for a function consuming those two seeds."
+    },
+    "ROUTE2_NEGATIVE_2026_10_20": {
+      "verdict": "No construction in the standard-hash family reproduces the tiers. Route 2 is a clean negative with the CORRECT inputs this time, so it is genuinely closed rather than untried.",
+      "the_label_set": "30 labels covering 26 distinct (SpeciesSeed, GenusSeed) pairs = 90 tier symbols: 21 natural pets the player read, plus batch 3's 9 hand-written pets whose inputs we chose. The written ones carry no selection bias.",
+      "what_was_searched": "134,400 constructions: 8 combiners (xor, add, sub, species-then-genus, genus-then-species, xor with rotated genus, odd multiply, FNV) x 7 mixers (splitmix64, murmur3 finaliser, xorshift64*, xorshift64, a 64-bit LCG, wyhash, identity) x 200 slicings of three 2-bit fields x all 24 tier permutations.",
+      "the_result": "Best was 43 of 90 symbols = 47.8%, against 25.0% expected by chance. That is ~5 sigma on a single test, but it is the top of a smooth multiplicity tail (1 construction at 43, 4 at 42, 13 at 41, 20 at 40, 38 at 39) over 134,400 correlated candidates, where the expected maximum is already around 4.5 sigma. A correct construction would score at or near 90/90, not 43. So this is noise, not a partial solution.",
+      "unbiased_tier_distribution": {
+        "note": "Batch 3's inputs were chosen by us, so its 27 symbols are the first bias-free sample of the tier distribution. It confirms the player's own warning about the S readings.",
+        "batch3_chosen_inputs": "C 19%, B 33%, A 37%, S 11% (n=27)",
+        "natural_tamed_pets": "C 17%, B 24%, A 25%, S 33% (n=63)",
+        "conclusion": "S is about three times over-represented among the tamed pets. That is the player hunting for the best companions, exactly as stated. Any distributional claim must come from chosen-input batches, never from the tamed pets."
+      },
+      "game_files_located": {
+        "install": "J:/SteamLibrary/steamapps/common/No Man's Sky (GAMEDATA dated 2025-09-30; the F: install is a stale 2023 copy with no PCBANKS)",
+        "target": "GAMEDATA/PCBANKS/NMSARC.globals.pak, 618,608 bytes - the globals archive, which is where a GcPetBattler*Globals MBIN would live given the save field PetBattlerCoreStatClassOverrides.",
+        "format": "HGPAK version 2 (magic 'HGPA'), NOT the older PSARC. Header reports 43 files. Filenames are hashed and all content is compressed - a raw ASCII scan finds zero readable paths, so there is no plaintext manifest to grep. Extraction needs an HGPAK v2 reader; with only 43 entries, identifying the pet-battler globals by structure after extracting all of them is tractable.",
+        "tooling_on_disk": "None. mapping.json came from MBINCompiler but no extractor is installed locally."
+      },
+      "next": "Route 4, and it is now the only live route. Two sub-paths, cheapest first: (a) extract NMSARC.globals.pak and look for the pet-battler stat-class table - it would give the tier names, weights or thresholds, and a weight table plus a known PRNG may be the whole answer; (b) if the table is data-driven but the roll is not, locate the function in NMS.exe, which is now far better targeted because the two inputs are known. The oracle stays available as a label generator to confirm whatever either sub-path produces."
     }
   },
   "creature_seed_search": {
