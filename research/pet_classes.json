@@ -27,7 +27,8 @@
     "Overall is computed from the three letters alone, as ceil(mean), i.e. ceil(sum/3) with C=0 B=1 A=2 S=3. It fits all 11 pets and every simpler alternative (max, min, median, floor, round) is contradicted by at least one pet. So Overall carries no information beyond the three stats and is not worth storing separately.",
     "Alia is both larger and heavier than Wolverine (1.0 m / 41.0 kg against 0.8 m / 30.3 kg) and reads Health C against Wolverine's S. That refutes 'larger creatures have higher inherent health' a second time, now against the size and weight the game itself prints rather than the raw Scale field.",
     "The displayed size is Scale rounded to one decimal and the displayed weight is 40 * Scale rounded to one decimal, with 40 a single global constant. Confirmed on three species of very different build across a 4.9x range of Scale (Cat 0.8 m, Two-leg Antelope 1.0 m, Spider 3.7 m), the last predicted in advance as the falsifier. Both values can therefore be shown exactly, from Scale alone.",
-    "What a tier does: it is an unchangeable rate of return on treats, scaling how much stat each treat buys in that category - stated by the player, not measurable from a save. It is not a cap (every stat takes 10 treats whatever its tier) and not a stat value. The plugin therefore shows investment, not strength, and cannot rank companions by power."
+    "What a tier does: it is an unchangeable rate of return on treats, scaling how much stat each treat buys in that category - stated by the player, not measurable from a save. It is not a cap (every stat takes 10 treats whatever its tier) and not a stat value. The plugin therefore shows investment, not strength, and cannot rank companions by power.",
+    "The tier is a function of CreatureSeed ALONE - measured, not just stated. Tippo shares Unzy's CreatureSeed but has no CreatureSecondarySeed and different Descriptors, and reads the same B/B/C. The creature archetype does not bias tiers either: three Two-leg Antelopes on three seeds scatter across every stat."
   ],
   "open": [
     "The exact CreatureSeed -> tier function. Not recoverable from labelled pets; see creature_seed_search. Needs engine disassembly, and nothing in the plugin depends on it.",
@@ -196,6 +197,70 @@
             "health": "10/10"
           },
           "trained_since_previous_reading": "Health, +3 treats"
+        }
+      ]
+    },
+    {
+      "name": "Tippo",
+      "slot": 1,
+      "creature_id": "^COW",
+      "creature_type": "Prey",
+      "biome": "Lush",
+      "scale": 0.6560065746307373,
+      "seeds": {
+        "CreatureSeed": "0x320E447D6296A867",
+        "CreatureSecondarySeed": "0x0",
+        "SpeciesSeed": "0x269DB40F01A2201D",
+        "GenusSeed": "0xAA78C244162F491A",
+        "BoneScaleSeed": "0x320E447D6296A867",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_TAIL_THIN",
+        "^_COW_NORMAL",
+        "^_BODY_COW",
+        "^_BCA_COWHUMP",
+        "^_EXT_BLANKYO3",
+        "^_TYPE_TREXFEET",
+        "^_FEET_1",
+        "^_HEAD_ALIENTYPE",
+        "^_WEIRD_HTAIL2",
+        "^_EYESTAIL2_B",
+        "^_DIVIDE_2",
+        "^1406447095"
+      ],
+      "traits": [
+        -0.5287595987319946,
+        -0.79766446352005,
+        0.21000432968139648
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            1,
+            0,
+            2
+          ],
+          "treats_available": 0,
+          "victories": 5,
+          "progress_to_treat": 0.641791045665741,
+          "trust": 0.6500000357627869,
+          "ui_class": {
+            "combat_effectiveness": "B",
+            "agility": "B",
+            "health": "C"
+          },
+          "ui_class_overall": null,
+          "ui_size_m": 0.7,
+          "ui_weight_kg": 26.2,
+          "note": "Shares Unzy Bunzy Bowa's CreatureSeed exactly but has no CreatureSecondarySeed (Unzy has 0x56427E9D16C14071) and different Descriptors - a cow hump and T-Rex feet against Unzy's feathers and long face. Predicted B/B/C before the reading. Overall was not read for this pet."
         }
       ]
     },
@@ -384,6 +449,65 @@
       ]
     },
     {
+      "name": "Buzita",
+      "slot": 5,
+      "creature_id": "^TWOLEGANTELOPE",
+      "creature_type": "Passive",
+      "biome": "Frozen",
+      "scale": 0.26641902327537537,
+      "seeds": {
+        "CreatureSeed": "0x7B9A93A18B293313",
+        "CreatureSecondarySeed": "0xD58FE65CC8EE1A8A",
+        "SpeciesSeed": "0x2D6C1D4319CA5A63",
+        "GenusSeed": "0x1464B776F08C6A5C",
+        "BoneScaleSeed": "0x7B9A93A18B293313",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_HEAD_AEATER",
+        "^_AEHACCS_1",
+        "^_AEHEARA_4",
+        "^_AEHTOPA_1",
+        "^_BODY_CHICKEN",
+        "^_TAIL_1",
+        "^2826508901"
+      ],
+      "traits": [
+        0.18789982795715332,
+        -0.7176620960235596,
+        0.4233381748199463
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            1,
+            0,
+            1
+          ],
+          "treats_available": 1,
+          "victories": 3,
+          "progress_to_treat": 0.0849662646651268,
+          "trust": 0.6500000357627869,
+          "ui_class": {
+            "combat_effectiveness": "S",
+            "agility": "C",
+            "health": "B"
+          },
+          "ui_class_overall": "A",
+          "ui_size_m": 0.3,
+          "ui_weight_kg": 10.7,
+          "note": "Sum 4, which was an unobserved gap in the Overall fit with a predicted A."
+        }
+      ]
+    },
+    {
       "name": "Plati",
       "slot": 6,
       "creature_id": "^GRUNT",
@@ -462,6 +586,131 @@
       ]
     },
     {
+      "name": "Kaky",
+      "slot": 7,
+      "creature_id": "^CAT",
+      "creature_type": "Predator",
+      "biome": "Barren",
+      "scale": 1.3208385705947876,
+      "seeds": {
+        "CreatureSeed": "0xAC7185FDCC4F7036",
+        "CreatureSecondarySeed": "0x0",
+        "SpeciesSeed": "0x654BA7C55F25F10F",
+        "GenusSeed": "0x8D2C4A258332E24A",
+        "BoneScaleSeed": "0xAC7185FDCC4F7036",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_BODY_CAT",
+        "^_SHAPE_1",
+        "^_HEAD_ALIEN",
+        "^_VAR_1",
+        "^_SCALP_1",
+        "^_SOCKETS_NONE",
+        "^_TOPGUM_2",
+        "^_UPPERGUM_1",
+        "^_CHEEKS_1",
+        "^_INCHEEKS_1",
+        "^_SIDES_1",
+        "^_BROWS_1",
+        "^_EYEBALLS_1",
+        "^_TAIL_HOG",
+        "^_THA_X2",
+        "^_MESH_CAT",
+        "^_BCA_NULL",
+        "^3099660574"
+      ],
+      "traits": [
+        -0.16777771711349487,
+        0.7732040286064148,
+        -0.31194597482681274
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            1,
+            0,
+            1
+          ],
+          "treats_available": 8,
+          "victories": 14,
+          "progress_to_treat": 0.32330718636512756,
+          "trust": 0.7500000596046448,
+          "ui_class": {
+            "combat_effectiveness": "S",
+            "agility": "S",
+            "health": "S"
+          },
+          "ui_class_overall": "S",
+          "ui_size_m": 1.3,
+          "ui_weight_kg": 52.8,
+          "note": "The third Cat, on a third distinct CreatureSeed."
+        }
+      ]
+    },
+    {
+      "name": "Strixy",
+      "slot": 8,
+      "creature_id": "^PROTOROLLER",
+      "creature_type": "ProtoRoller",
+      "biome": "Toxic",
+      "scale": 1.0478017330169678,
+      "seeds": {
+        "CreatureSeed": "0x923A02C8D43C703F",
+        "CreatureSecondarySeed": "0xEFD7ED641269A7AE",
+        "SpeciesSeed": "0x2E3C58D102EE0866",
+        "GenusSeed": "0x8A7D35D0475042FD",
+        "BoneScaleSeed": "0x923A02C8D43C703F",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_STRANGE_ROLL",
+        "^_ROLL_SINGLEJOINT",
+        "^_ROLL_CLOCKBALL",
+        "^2774317676"
+      ],
+      "traits": [
+        0.21795904636383057,
+        -0.8229648470878601,
+        -0.37718212604522705
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 11,
+          "victories": 13,
+          "progress_to_treat": 0.0804208368062973,
+          "trust": 0.7500000596046448,
+          "ui_class": {
+            "combat_effectiveness": "A",
+            "agility": "C",
+            "health": "B"
+          },
+          "ui_class_overall": "B",
+          "ui_size_m": 1.0,
+          "ui_weight_kg": 41.9
+        }
+      ]
+    },
+    {
       "name": "Zushetto",
       "slot": 9,
       "creature_id": "^SPIDER",
@@ -527,6 +776,69 @@
       ]
     },
     {
+      "name": "Allista",
+      "slot": 10,
+      "creature_id": "^ARTHROPOD",
+      "creature_type": "Predator",
+      "biome": "Radioactive",
+      "scale": 4.97562313079834,
+      "seeds": {
+        "CreatureSeed": "0x704D9606BE2FB80F",
+        "CreatureSecondarySeed": "0x20A680836BEEC182",
+        "SpeciesSeed": "0x6C15736DED74B407",
+        "GenusSeed": "0x6EF72F4954EF847E",
+        "BoneScaleSeed": "0x704D9606BE2FB80F",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_ARTHROPOD_1",
+        "^_APODLEGS_1",
+        "^_APODHEADLOWER_5",
+        "^_APOD5JAW_2",
+        "^_APODSHELL_3",
+        "^_APODABDOMEN_9",
+        "^_APODTAILTIP_1",
+        "^_APODTAILSHELL_1",
+        "^_APODHEADUPPER_3",
+        "^_APOD3ANTENNA_2",
+        "^392111638"
+      ],
+      "traits": [
+        -0.37123626470565796,
+        0.7904913425445557,
+        0.3459281921386719
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 3,
+          "victories": 3,
+          "progress_to_treat": 0.714778482913971,
+          "trust": 0.6500000357627869,
+          "ui_class": {
+            "combat_effectiveness": "B",
+            "agility": "S",
+            "health": "S"
+          },
+          "ui_class_overall": "S",
+          "ui_size_m": 5.0,
+          "ui_weight_kg": 199.0,
+          "note": "The largest companion in the save at 5.0 m / 199.0 kg."
+        }
+      ]
+    },
+    {
       "name": "Zero-Rex",
       "slot": 11,
       "creature_id": "^TREX",
@@ -588,6 +900,61 @@
       ]
     },
     {
+      "name": "Uri",
+      "slot": 12,
+      "creature_id": "^WEIRDROLL",
+      "creature_type": "Weird",
+      "biome": "Weird",
+      "scale": 1.5,
+      "seeds": {
+        "CreatureSeed": "0x15639E64C81F4F71",
+        "CreatureSecondarySeed": "0x666FD364F388A10A",
+        "SpeciesSeed": "0x8CACAB34E1276930",
+        "GenusSeed": "0xFE503729269E8B21",
+        "BoneScaleSeed": "0x15639E64C81F4F71",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_WEIRD_ROLL",
+        "^_ROLL_SINGLEJOINT",
+        "^_ROLL_STRUCTURE",
+        "^2774317676"
+      ],
+      "traits": [
+        -0.24942123889923096,
+        0.5215873122215271,
+        0.7622592449188232
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 0,
+          "victories": 0,
+          "progress_to_treat": 0.0,
+          "trust": 0.6500000357627869,
+          "ui_class": {
+            "combat_effectiveness": "S",
+            "agility": "A",
+            "health": "A"
+          },
+          "ui_class_overall": "S",
+          "ui_size_m": 1.5,
+          "ui_weight_kg": 60.0
+        }
+      ]
+    },
+    {
       "name": "Zero-Bug",
       "slot": 13,
       "creature_id": "^FLYINGBEETLE",
@@ -636,6 +1003,130 @@
             "health": "S"
           },
           "ui_class_overall": "B"
+        }
+      ]
+    },
+    {
+      "name": "Gosy",
+      "slot": 14,
+      "creature_id": "^ANTELOPE",
+      "creature_type": "Prey",
+      "biome": "Barren",
+      "scale": 0.40085074305534363,
+      "seeds": {
+        "CreatureSeed": "0x486C2837F5A6A615",
+        "CreatureSecondarySeed": "0x0",
+        "SpeciesSeed": "0xD8F84C3625484D77",
+        "GenusSeed": "0x2FC92ED0E17FAE80",
+        "BoneScaleSeed": "0x486C2837F5A6A615",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_HEAD_BUFF",
+        "^_BHHORNS_3",
+        "^_BHNOSE_NULL",
+        "^_BHEARS_4",
+        "^_HDACC_NONE",
+        "^_HBTEETH_1",
+        "^_BODY_FAT",
+        "^_FATACC_3N",
+        "^_FA3N_1",
+        "^_TAIL_ALIEN5",
+        "^696409119"
+      ],
+      "traits": [
+        -0.7642549276351929,
+        -0.4672622084617615,
+        0.15075457096099854
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 2,
+          "victories": 3,
+          "progress_to_treat": 0.49228399991989136,
+          "trust": 0.7000000476837158,
+          "ui_class": {
+            "combat_effectiveness": "S",
+            "agility": "S",
+            "health": "B"
+          },
+          "ui_class_overall": "S",
+          "ui_size_m": 0.4,
+          "ui_weight_kg": 16.0
+        }
+      ]
+    },
+    {
+      "name": "Buza",
+      "slot": 15,
+      "creature_id": "^TWOLEGANTELOPE",
+      "creature_type": "Prey",
+      "biome": "Barren",
+      "scale": 1.0470043420791626,
+      "seeds": {
+        "CreatureSeed": "0xD6F72E2D0BAE3948",
+        "CreatureSecondarySeed": "0xAD4E412E10E2DCF4",
+        "SpeciesSeed": "0xA8756C8392A93430",
+        "GenusSeed": "0x1BBE26C12F58A684",
+        "BoneScaleSeed": "0xD6F72E2D0BAE3948",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_HEAD_BUFF",
+        "^_HBTEETH_2",
+        "^_BHHORNS_3",
+        "^_BHEARS_4",
+        "^_HDACC_NONE",
+        "^_BHNOSE_NULL",
+        "^_BODY_BUFF",
+        "^_B2LB_11",
+        "^_TAIL_3",
+        "^_FIN_0B",
+        "^2504188552"
+      ],
+      "traits": [
+        -0.3786977529525757,
+        -0.8731489777565002,
+        0.28781676292419434
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 0,
+          "victories": 1,
+          "progress_to_treat": 0.8483245968818665,
+          "trust": 0.7000000476837158,
+          "ui_class": {
+            "combat_effectiveness": "B",
+            "agility": "B",
+            "health": "S"
+          },
+          "ui_class_overall": "A",
+          "ui_size_m": 1.0,
+          "ui_weight_kg": 41.9
         }
       ]
     },
@@ -987,10 +1478,11 @@
   "overall_formula": {
     "formula": "Overall = ceil((combat + agility + health) / 3), scoring C=0, B=1, A=2, S=3",
     "equivalently": "the ceiling of the mean of the three letters",
-    "fits": "all 13 pets",
+    "fits": "all 20 pets with an Overall reading, of 21 labelled",
     "sums_observed": [
       2,
       3,
+      4,
       5,
       6,
       7,
@@ -999,13 +1491,11 @@
     "sums_not_observed": [
       0,
       1,
-      4,
       8
     ],
     "predictions_for_unobserved_sums": {
       "0": "C",
       "1": "B",
-      "4": "A",
       "8": "S"
     },
     "alternatives_ruled_out": {
@@ -1016,8 +1506,8 @@
       "median": "4 misses: Little Cute Monster, Plati, Zero-Rex, Zero-Bug"
     },
     "decisive_observation": "Zero-Rex. A/C/C sums to 2, the same as Unzy's B/B/C, but has a different max (A vs B) and a different median (C vs B). Both read Overall B, which eliminates max and median at a stroke - no single-letter statistic can produce it.",
-    "caveat": "A formula fitted over 6 distinct sums ([2, 3, 5, 6, 7, 9]), not a derivation from the game's code, though it has now predicted one sum correctly in advance. Remaining gaps: [0, 1, 4, 8].",
-    "confirmed_predictions": "Sum 9 was listed as unobserved with a predicted Overall of S; Wolverine came in at S/S/S and read Overall S. Alia at sum 3 read B, matching Zero-Bug. So the formula has now survived a prediction made before the reading existed."
+    "caveat": "Fitted over 7 distinct sums ([2, 3, 4, 5, 6, 7, 9]) rather than derived from the game's code, but it has now predicted two previously unobserved sums correctly in advance. Gaps: [0, 1, 8].",
+    "confirmed_predictions": "Two sums have now been predicted before any pet existed at them and then read correctly: sum 9 (Wolverine S/S/S -> S) and sum 4 (Buzita S/C/B -> A). Only sums 0, 1 and 8 remain unobserved."
   },
   "size_and_weight": {
     "date": "2026-10-20",
@@ -1049,13 +1539,14 @@
   "tier_source": {
     "date": "2026-10-20",
     "player_statement": "The tier of a category is directly based on the creature seed.",
-    "what_this_research_can_show": "Consistent with it, but this save cannot isolate WHICH seed. Every pair of pets that shares a CreatureSeed also shares its SpeciesSeed and GenusSeed, and no pair shares a SpeciesSeed while differing in CreatureSeed. So the measurements establish 'seed-derived' and the player's statement supplies 'CreatureSeed specifically'.",
+    "what_this_research_can_show": "Isolated. Three pairs share a CreatureSeed and all three agree on every letter: Little Cute Monster/Plati A/A/S, Mantissa/Zushetto B/A/A, and Unzy/Tippo B/B/C - the last with a different secondary seed and different descriptors, which is what makes it decisive rather than merely consistent.",
     "pairs_sharing_a_creature_seed": [
       "0xEBE89A26D590DC7F - Little Cute Monster and Plati, both A/A/S",
       "0xA94CC67AB47E86D0 - Mantissa and Zushetto, both B/A/A",
       "0x320E447D6296A867 - Unzy Bunzy Bowa (B/B/C) and the unnamed Cow in slot 1 (UNREAD)"
     ],
-    "open_test": "The unnamed Cow in slot 1 is the one discriminating pet in the save. It shares Unzy's CreatureSeed, SpeciesSeed and GenusSeed and has the same Scale, but differs in CreatureSecondarySeed (Unzy 0x56427E9D16C14071, slot 1 absent) and in its Descriptors - a visibly different animal with different body parts. If the tier is a function of CreatureSeed alone it must read exactly B/B/C like Unzy; if CreatureSecondarySeed or the descriptors enter the derivation, it can differ. Reading its three letters tests the player's statement in its strict form, and it is the only such test available without new pets."
+    "open_test": "The unnamed Cow in slot 1 is the one discriminating pet in the save. It shares Unzy's CreatureSeed, SpeciesSeed and GenusSeed and has the same Scale, but differs in CreatureSecondarySeed (Unzy 0x56427E9D16C14071, slot 1 absent) and in its Descriptors - a visibly different animal with different body parts. If the tier is a function of CreatureSeed alone it must read exactly B/B/C like Unzy; if CreatureSecondarySeed or the descriptors enter the derivation, it can differ. Reading its three letters tests the player's statement in its strict form, and it is the only such test available without new pets.",
+    "measured_2026_10_20": "CONFIRMED that the tier is a function of CreatureSeed alone. Tippo (slot 1) shares Unzy Bunzy Bowa's CreatureSeed byte for byte while differing in CreatureSecondarySeed (Unzy 0x56427E9D16C14071, Tippo none) and in its Descriptors - a visibly different animal, cow hump and T-Rex feet against feathers and a long face - and reads B/B/C, identical to Unzy, as predicted before the reading. So neither the secondary seed nor the descriptors enter the derivation. The player's statement now has a measurement behind it, and the earlier caveat that this save could not isolate which seed is resolved."
   },
   "creature_seed_search": {
     "date": "2026-10-20",
@@ -1066,6 +1557,21 @@
     "null_test": "The same search was re-run on randomly shuffled letters, 300 trials per stat, comparing how many value-collisions the best field survived. Shuffled labels did as well or better in 300/300 trials for Combat, 61/300 (20%) for Agility and 256/300 (85%) for Health. So the apparent hits - e.g. bits[31:34] looking consistent for Agility - are what this search finds in noise, not a finding. Recorded because without the null test they look convincing.",
     "why_it_fails": "A 64-bit seed almost certainly reaches the tier through a hash or seeded PRNG, as the rest of the game's procedural generation does. No contiguous bit field of the input would then map to the output, which is exactly what is observed. Recovering it needs the function, not more input/output pairs: 11 samples cannot distinguish candidate hashes, and even hundreds would not without the right functional form to fit.",
     "do_not_retry": "Searching bit fields of any seed against the letters. This is the second such search to come back empty - the first swept all six seeds over 8 pets - and the null test explains why a third would also produce plausible-looking hits that mean nothing.",
-    "what_would_work": "Disassembling the engine's companion-stat code, or a community datamine of it. Neither is available, and the plugin does not need it: it shows the treat numbers, which are exact, and says plainly that the tier is not in the save."
+    "what_would_work": "Disassembling the engine's companion-stat code, or a community datamine of it. Neither is available, and the plugin does not need it: it shows the treat numbers, which are exact, and says plainly that the tier is not in the save.",
+    "rerun_2026_10_20": "Repeated on 18 distinct CreatureSeeds, up from 11. Still negative, and more clearly so: the best field survived only 1 collision for each stat, and shuffled labels matched or beat that in 372/400, 361/400 and 365/400 trials (93%, 90%, 91%). The 15 fields that looked consistent for Agility on 11 seeds collapsed to noise level once the data doubled, which is what a chance fit does and a real one does not. This closes the question: the tier comes from CreatureSeed, but the function is not recoverable from input/output pairs."
+  },
+  "archetype_bias": {
+    "date": "2026-10-20",
+    "question": "Does the CreatureID archetype (^CAT, ^TWOLEGANTELOPE ...) bias a stat's tier?",
+    "answer": "NO general bias. One unexplained run remains, treated as chance.",
+    "evidence_against": "The three Two-leg Antelopes, on three distinct CreatureSeeds, scatter completely: Buzita S/C/B, Buza B/B/S, Alia C/S/C. No stat is shared across them. An archetype that set or biased tiers could not produce that.",
+    "the_run": "All three Cats read Combat S - Mandriliva S/C/A, Wolverine S/S/S, Kaky S/S/S - on three distinct CreatureSeeds. Tempting, but Combat S is the single most common tier in this roster (21/63 of all tier readings are S, 33%), so three in a row is roughly a 1-in-27 coincidence, and two archetypes were examined, which roughly doubles the chance of seeing some such run. Not significant, and flatly contradicted as a general rule by the Antelopes. A fourth Cat would decide it.",
+    "tier_frequencies": {
+      "C": 11,
+      "B": 15,
+      "A": 16,
+      "S": 21
+    },
+    "note": "Clone pairs carry no information here: ^COW, ^GRUNT and ^SPIDER each have two pets sharing one CreatureSeed, so their agreement is the seed, not the archetype."
   }
 }
