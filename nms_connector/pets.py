@@ -17,13 +17,19 @@ What is *measured* (the real save and the installed game, build 25732212, 2026-1
   - The **number** the UI shows as ``x/10`` is exactly ``PetBattlerTreatsEaten``, whose order is ``(Health,
     Agility, Combat Effectiveness)`` - the reverse of the UI's. Confirmed on two pets, six values, no mismatch,
     the second predicted before it was read. A stat caps at 10 treats eaten.
-  - The **class letter** (C/B/A/S) is intrinsic, fixed at hatch, derived from the creature seeds, and **not in the
-    save**: ``PetBattlerCoreStatClassOverrides`` is ``[C, C, C]`` with ``PetBattlerUseCoreStatClassOverrides``
+  - The **tier letter** (C/B/A/S) is unchangeable, fixed at hatch, derived from the creature seed, and **not in
+    the save**: ``PetBattlerCoreStatClassOverrides`` is ``[C, C, C]`` with ``PetBattlerUseCoreStatClassOverrides``
     false on every pet, brand-new ones included, while the UI shows C through S. That array is an override slot
-    the game ignores and must never be shown as the class. Nothing moves a letter - not treats (proven on a clone
+    the game ignores and must never be shown as the tier. Nothing moves a letter - not treats (proven on a clone
     pair, and as a before/after on one pet taken to its cap), not gene editing, not a deliberate size edit. The
     derivation is engine code, not a game data table, so the letters cannot be shown here at all; only the treat
     numbers are. *Overall* is ``ceil(mean)`` of the three letters, so it carries nothing extra either.
+
+    What a tier *does* comes from the player, not from a save (nothing here can measure it): it scales **how much
+    benefit the category gets from each treat**. A rate of return, not a cap - every stat accepts the same 10
+    treats whatever its tier, which is why Unzy shows a maxed 10/10 Health at tier C. So the treat numbers this
+    module reports are **investment, not strength**, and two companions with equal treats need not be equally
+    strong; nothing here may imply otherwise or rank companions by power.
 * **The move table** ``petbattlermovestable.mbin`` (61 records of 312 bytes; the self-calibrating reader finds them):
   id at 0x10, the game's own English description at 0x34, the class (ATTACK, HEAL, MULTI, PURGE ...) at 0xB4. All
   five moves of a measured pet were found in it. It sits in ``NMSARC.Precache.pak`` - without the pak hint it

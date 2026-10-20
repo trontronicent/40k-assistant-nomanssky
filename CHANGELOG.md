@@ -22,7 +22,10 @@
     than a wrong one. (*Overall* is just `ceil(mean)` of the three letters, so it adds nothing either.)
 
   The inert field is no longer kept in the snapshot, and the *Companions* tab now says plainly which letters
-  cannot be shown and why. No app change: this needs nothing newer than 3.20.0.
+  cannot be shown and why - including **what a tier actually does**: it decides how much benefit a stat gets
+  from each treat you spend on it. So the numbers shown are *investment, not strength*, and two companions
+  with the same treats are not equally strong if their tiers differ. The tab and the help say so, so the
+  numbers cannot be mistaken for a power rating. No app change: this needs nothing newer than 3.20.0.
 
 - **A companion's size and weight, the numbers the game shows.** The roster has a new **Size** column -
   *3.7 m*, with the weight in its tooltip (*147.3 kg*) - sorted by the real stored scale rather than the

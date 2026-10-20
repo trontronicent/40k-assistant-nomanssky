@@ -60,9 +60,11 @@ invested in each battle stat, named and ordered as the game shows them (*Combat 
 0/10, Health 6/10*), how many are left to give, and its seeds.
 
 What the plugin cannot know is not invented: how long an egg needs, the species name the game shows, and the
-**C/B/A/S class letters** of the three battle stats. Those letters are fixed when a companion hatches and the
-save does not hold them - measured over eleven companions, nothing moves them: not treats, not gene editing,
-not resizing - so the treats you invested are shown rather than a guessed letter. Ask the persona about your
+**C/B/A/S tier** of each battle stat. A stat's tier decides how much benefit it gets from every treat you
+spend on it, and it is fixed when a companion hatches - measured over eleven companions, nothing moves it:
+not treats, not gene editing, not resizing - but the save does not hold it. So the treats you invested are
+shown rather than a guessed letter, which means **those numbers are investment, not strength**: two
+companions with the same treats are not equally strong if their tiers differ. Ask the persona about your
 pets, eggs, the arena or a pet by name; ask for abilities to get them spelled out.
 
 ## The knowledge base

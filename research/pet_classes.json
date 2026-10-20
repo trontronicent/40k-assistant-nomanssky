@@ -20,13 +20,14 @@
     "A stat caps at 10 treats eaten: Plati's Combat stopped at exactly 10 with a treat still available, which also explains Little Cute Monster's [8, 10, 10].",
     "Training confirmed a second time, now as a before/after on one pet rather than across clones: Plati went from 2 to 10 treats on Combat Effectiveness and still reads A / A / S with Overall S. Treats do not move the class letters.",
     "PetBattlerTreatsEaten is ordered (Health, Agility, Combat Effectiveness) - the reverse of the UI's display order. pets.STAT_NAMES = (Combat Effectiveness, Health, Agility) is wrong in all three positions.",
-    "The class letter and the trained number are independent quantities. Unzy reads Health C at a maxed 10/10 and Agility B at 1/10: a maxed stat in a low class still shows C, an untouched stat in a better class still shows B. So the letter is the stat's intrinsic class, fixed by the seeds, and the x/10 is treats invested within it. This is what 'training' means, and it is why no amount of it moves a letter.",
+    "The class letter and the trained number are independent quantities. Unzy reads Health C at a maxed 10/10 and Agility B at 1/10: a maxed stat in a low tier still shows C, an untouched stat in a better tier still shows B. The letter is the stat's unchangeable tier, fixed at hatch by the seeds, and the x/10 is treats invested. Per the player, the tier scales how much each treat is worth in that category - see what_a_tier_does - so it is a rate of return, not a cap: every stat takes 10 treats whatever its tier.",
     "Unzy read B / B / C both before and after this training, a third confirmation that treats do not move the class - now on a pet where one stat went all the way to its cap.",
     "Gene modification (the Morphogenetics interface) changes Aggressiveness, Helpfulness, Size and the like - stated by the player, who performed the edits - i.e. it writes Traits and Scale, NOT the battle stats and NOT the creature seeds. This reframes both clone pairs: they are gene-edited relatives, not coincidences. Plati is a gene-modified descendant of Little Cute Monster, and the two Spiders differ by a deliberate size edit (Scale 2.181 -> 3.681). So size was not merely uncorrelated with the class - it was directly altered on one creature and the class letters did not move. Traits and Scale are player-editable; the class is not.",
     "The x/10 numbers the Companion UI shows ARE PetBattlerTreatsEaten, not a derived stat. Confirmed on two pets, six independent values, with no mismatch: Unzy stores [10, 1, 8] and reads Combat 8/10, Agility 1/10, Health 10/10; Mantissa stores [4, 0, 6] and reads Combat 6/10, Agility 0/10, Health 4/10 - the latter predicted before it was read. The cap of 10 is therefore the treat cap, and nothing numeric about a companion's battle stats is hidden from the save: the plugin can show these values exactly, from the save alone, with no guessing.",
     "Overall is computed from the three letters alone, as ceil(mean), i.e. ceil(sum/3) with C=0 B=1 A=2 S=3. It fits all 11 pets and every simpler alternative (max, min, median, floor, round) is contradicted by at least one pet. So Overall carries no information beyond the three stats and is not worth storing separately.",
     "Alia is both larger and heavier than Wolverine (1.0 m / 41.0 kg against 0.8 m / 30.3 kg) and reads Health C against Wolverine's S. That refutes 'larger creatures have higher inherent health' a second time, now against the size and weight the game itself prints rather than the raw Scale field.",
-    "The displayed size is Scale rounded to one decimal and the displayed weight is 40 * Scale rounded to one decimal, with 40 a single global constant. Confirmed on three species of very different build across a 4.9x range of Scale (Cat 0.8 m, Two-leg Antelope 1.0 m, Spider 3.7 m), the last predicted in advance as the falsifier. Both values can therefore be shown exactly, from Scale alone."
+    "The displayed size is Scale rounded to one decimal and the displayed weight is 40 * Scale rounded to one decimal, with 40 a single global constant. Confirmed on three species of very different build across a 4.9x range of Scale (Cat 0.8 m, Two-leg Antelope 1.0 m, Spider 3.7 m), the last predicted in advance as the falsifier. Both values can therefore be shown exactly, from Scale alone.",
+    "What a tier does: it is an unchangeable rate of return on treats, scaling how much stat each treat buys in that category - stated by the player, not measurable from a save. It is not a cap (every stat takes 10 treats whatever its tier) and not a stat value. The plugin therefore shows investment, not strength, and cannot rank companions by power."
   ],
   "open": [
     "Overall still looks like a function of the three letters alone, scoring C=0 B=1 A=2 S=3, and is now monotone over three distinct sums: Unzy B/B/C sums 2 and reads Overall B; Mantissa, Zushetto and Callista all sum 5 and read A; Plati sums 7 and reads S. Consistent but underdetermined - the B/A boundary lies somewhere in 3..5 and the A/S boundary in 6..7, and no pet has yet read Overall C.",
@@ -1032,5 +1033,28 @@
     "status": "CONFIRMED on three species with very different builds - a Cat (0.8 m), a Two-leg Antelope (1.0 m) and a 3.7 m Spider/mantis - spanning a 4.9x range of Scale, every value exact to the printed decimal. The 40 kg per unit of Scale is a single global constant, not a per-species density: a species-dependent weight could not have survived the Spider, which was predicted before it was read precisely because it is the least cat-like body in the save.",
     "consequence_if_it_holds": "The plugin could show a companion's size and weight exactly as the game does, from Scale alone - neither is currently shown anywhere.",
     "remaining_doubt": "Low. All three samples are rounded to one decimal, so the constant is 40 to about three significant figures; a true value of, say, 39.99 would not show up here. Nothing in the plugin depends on more precision than the game itself prints."
+  },
+  "what_a_tier_does": {
+    "date": "2026-10-20",
+    "provenance": "Stated by the player from their own play, NOT measured here - the save exposes neither the letter nor any resulting stat value, so this cannot be checked from a save file. Recorded separately from the measurements for that reason.",
+    "statement": "A stat's tier is unchangeable and determines how much benefit that category gets from investing in it. The tier is a rate of return on treats, not a cap on them and not a stat value in itself: every stat accepts the same 10 treats, but a higher tier converts each treat into more of that stat.",
+    "corrects": "An earlier framing in this research called the letter 'the stat's intrinsic class' and 'the ceiling's quality'. That was imprecise: the ceiling in treats is 10 for every stat regardless of tier, as Unzy's maxed 10/10 Health at tier C shows. What the tier scales is the payoff per treat.",
+    "consistent_with": [
+      "Unzy reads Health C at a maxed 10/10 and Agility B at 1/10 - the letter is plainly not a function of the number, and the number is plainly not limited by the letter.",
+      "Every stat on every pet caps at 10 treats, whatever its letter (Plati's tier-A Combat stopped at 10, Unzy's tier-C Health stopped at 10).",
+      "Nothing moves a letter, which is what 'unchangeable' predicts."
+    ],
+    "consequence": "Two companions with the same treats invested are not equally strong, so the treat numbers the plugin shows are investment, not power. The tier that converts them cannot be read from the save, so the plugin cannot rank companions by strength and should not imply that it can."
+  },
+  "tier_source": {
+    "date": "2026-10-20",
+    "player_statement": "The tier of a category is directly based on the creature seed.",
+    "what_this_research_can_show": "Consistent with it, but this save cannot isolate WHICH seed. Every pair of pets that shares a CreatureSeed also shares its SpeciesSeed and GenusSeed, and no pair shares a SpeciesSeed while differing in CreatureSeed. So the measurements establish 'seed-derived' and the player's statement supplies 'CreatureSeed specifically'.",
+    "pairs_sharing_a_creature_seed": [
+      "0xEBE89A26D590DC7F - Little Cute Monster and Plati, both A/A/S",
+      "0xA94CC67AB47E86D0 - Mantissa and Zushetto, both B/A/A",
+      "0x320E447D6296A867 - Unzy Bunzy Bowa (B/B/C) and the unnamed Cow in slot 1 (UNREAD)"
+    ],
+    "open_test": "The unnamed Cow in slot 1 is the one discriminating pet in the save. It shares Unzy's CreatureSeed, SpeciesSeed and GenusSeed and has the same Scale, but differs in CreatureSecondarySeed (Unzy 0x56427E9D16C14071, slot 1 absent) and in its Descriptors - a visibly different animal with different body parts. If the tier is a function of CreatureSeed alone it must read exactly B/B/C like Unzy; if CreatureSecondarySeed or the descriptors enter the derivation, it can differ. Reading its three letters tests the player's statement in its strict form, and it is the only such test available without new pets."
   }
 }

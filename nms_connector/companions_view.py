@@ -9,9 +9,10 @@ from .summary import system_key_of
 
 INTRO = ("Your companions and eggs as the save holds them. Trait values, how long an egg takes to be ready and the "
          "species name the game shows are not stored in a readable form, so the traits are shown raw (three signed "
-         "numbers) and no species name is made up. The C/B/A/S class letters of the three battle stats are not in "
-         "the save either - they are fixed when a companion hatches and no amount of training, gene editing or "
-         "resizing changes them - so a companion's name shows the treats you have invested in each stat instead. "
+         "numbers) and no species name is made up. The C/B/A/S tier of each battle stat is not in the save either "
+         "- a tier decides how much benefit that stat gets from each treat, is fixed when a companion hatches, "
+         "and no amount of training, gene editing or resizing changes it - so a companion's name shows the treats "
+         "you have invested in each stat, which is investment rather than strength. "
          "Abilities are the game's ability templates with its own description; the harvest is read from the "
          "game's text.")
 
@@ -45,8 +46,9 @@ def name_cell(pet: dict) -> dict:
     seeds = pet["seeds"]
     hint = "\n".join([
         f"Treats: {pets.treats_text(pet)} ({pet['treats_free']} to give)",
-        "The C/B/A/S class letters the game shows are fixed at hatch and are not in the save, so only the "
-        "treats you have invested can be shown.",
+        "Each stat also has a C/B/A/S tier, which decides how much benefit it gets from every treat. Tiers are "
+        "fixed when a companion hatches and the save does not hold them, so these numbers are what you have "
+        "invested - not how strong the companion is.",
         f"Creature seed: {pets.pack_seed(seeds[0])}",
         f"Species seed: {pets.pack_seed(seeds[2])}",
         f"Genus seed: {pets.pack_seed(seeds[3])}",
