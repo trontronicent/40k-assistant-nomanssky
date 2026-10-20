@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.15.0-beta.9 (beta; needs app 3.20.0)
+
+- **Portal addresses are shown as glyphs.** Every place that names a system - *Where you are now*, the
+  *Visited systems* table, a system map's star, a planned route and the desktop overlay's *Where you are*
+  area - now draws the twelve portal symbols next to the hex digits, so the address can be typed into a
+  portal without translating it first. Rest the pointer on a symbol and it names it (*Sunset*, *Bird*,
+  *Atlas*...). The hex stays beside the symbols: it is what you copy, and it is what you see if a picture
+  cannot be drawn.
+
+  The pictures are **this plugin's own artwork** (`glyph_art.py`: stroke-only vector paths), drawn after the
+  game's symbols - no glyph files from the game or a fan site are shipped or downloaded. The page gets SVG,
+  which takes the interface's own colour; the overlay gets PNGs rasterised from the same paths, because Tk
+  cannot display SVG. Both are generated into the plugin's data folder the first time the plugin starts.
+
+  Needs app 3.20.0, which gained the `glyphs` key on a view cell, a `kv`/`stats` item and an overlay area.
+
 ## 0.15.0-beta.8 (beta; needs app 3.17.0, right-click row menus on 3.18.0, draws diagrams on 3.19.0)
 
 - **Codex hits are shown formatted, not as Markdown source.** The standalone page's *Codex* tab draws each hit

@@ -32,6 +32,7 @@ from . import (codex_sync, container_export, discoveries, equipment, frigates, g
 from .companion import PluginCompanion
 from .describe import StateText
 from .game_install import GameInstall, find_game
+from .glyphs import ensure_glyph_assets
 from .gamedata import GameData
 from .history import PlanetHistory, visits_from_save
 from .live import LiveMemory
@@ -268,6 +269,9 @@ class NmsConnector:
             raise RuntimeError(result["message"])
 
     async def start(self) -> None:
+        # The glyph artwork is generated once per art version, like the item icons: the page fetches the SVG
+        # and the overlay the PNG from the assets folder, both by the names glyph_art writes.
+        await self.ctx.run_blocking(ensure_glyph_assets, self.ctx.assets_dir)
         self.ctx.spawn(self._run(), "save-watch")
         self.ctx.spawn(self._camera_loop(), "map-camera")
 

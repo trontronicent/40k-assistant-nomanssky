@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 from . import galaxies, galaxy, guilds, planet_search, positions, starmap, trade
+from .glyphs import glyph_digits
 from .summary import address_portal, galaxy_name, unpack_address
 
 # GcPlanetInfo.SentinelsPerDifficulty is indexed by the ground combat timer setting.
@@ -621,6 +622,22 @@ def where_sentence(ctx: Context, key: int | None, galaxy_label: str | None = Non
     return f"You are currently on the planet {planet['text']} in {where}{tail}."
 
 
+def portal_item(label: str, address: str | None) -> dict:
+    """A kv item for a portal address, with the address also sent as glyphs when it is one. The text stays:
+    it is what the player copies, and it is the fallback when the symbols cannot be drawn."""
+    item = {"label": label, "value": address or "–"}
+    if address and glyph_digits(address):
+        item["glyphs"] = address
+    return item
+
+
+def portal_cell(address: str | None) -> object:
+    """A table cell for a portal address: the text, plus the glyphs when it is a valid address."""
+    if address and glyph_digits(address):
+        return {"text": address, "glyphs": address}
+    return address or "–"
+
+
 def where_you_are(ctx: Context) -> dict | None:
     """'Where you are now': system, portal, galaxy and planet - the planet exact from the player
     state, else from the newest save in the same system, else unknown. None outside a known system."""
@@ -635,7 +652,7 @@ def where_you_are(ctx: Context) -> dict | None:
         {"label": "System", "value": _system_label(key, visit)},
         *([{"label": "Generated name", "value": visit["generated_name"]}]
           if visit and visit.get("name") and visit.get("generated_name") not in (None, visit.get("name")) else []),
-        {"label": "Portal address", "value": address_portal(addr)},
+        portal_item("Portal address", address_portal(addr)),
         {"label": "Galaxy", "value": galaxy_name(addr.get("RealityIndex"))},
         {"label": "Planet", "value": planet},
         {"label": "Found by", "value": "your position in the game's memory" if exact else
@@ -658,7 +675,7 @@ def _star(key: int, visit: dict, planets: list[dict], ctx: Context) -> dict:
     last = max((p.get("last_seen") or "" for p in planets), default="") or None
     bases = [b["name"] for b in ctx.bases if b.get("system") == key]
     items = [
-        {"label": "Portal address", "value": address_portal(addr)},
+        portal_item("Portal address", address_portal(addr)),
         {"label": "Galaxy", "value": galaxy_name(addr.get("RealityIndex"))},
         {"label": "Region (voxel X, Y, Z)", "value": f"{addr.get('VoxelX')}, {addr.get('VoxelY')}, {addr.get('VoxelZ')}"},
         {"label": "System index", "value": f"{index} (0x{index:03X})" if isinstance(index, int) else None},
@@ -776,7 +793,7 @@ def visited_systems_sections(ctx: Context, selected: int | None) -> list[dict]:
         addr = unpack_address(key) or {}
         planets = ctx.recorded.get(key, [])
         named = sum(1 for p in (visit.get("planets") or {}).values() if p.get("name"))
-        row = [_system_label(key, visit), address_portal(addr), galaxy_name(addr.get("RealityIndex")),
+        row = [_system_label(key, visit), portal_cell(address_portal(addr)), galaxy_name(addr.get("RealityIndex")),
                len(planets) or None, named or None, visit.get("named_by"), _last_seen(key, ctx) or None,
                "yes" if key == ctx.live.current_system else "",
                ctx.economy_display(key), ctx.conflict_cell((ctx.economies.get(key) or {}).get("conflict")),
@@ -936,7 +953,7 @@ def _galaxy_point(key: int, ctx: Context, color_by: str = "kind") -> dict:
     point = {"key": system_key_text(key), "label": _system_label(key, visit), "sublabel": address_portal(addr),
              "x": round(x, 3), "y": round(y, 3), "z": round(z, 3),
              "items": [
-                 {"label": "Portal address", "value": address_portal(addr)},
+                 portal_item("Portal address", address_portal(addr)),
                  {"label": "Region (voxel X, Y, Z)", "value": ", ".join(str(v) for v in galaxy.region(key))},
                  {"label": "Distance from you",
                   "value": galaxy.distance_text(dist, key == ctx.origin) if ctx.origin is not None else "unknown"},
@@ -1276,7 +1293,9 @@ def _route_summary(ctx: Context, result: dict, label) -> dict:
     unknown = result["unknown_jumps"]
     return {"type": "kv", "id": ROUTE_RESULT_ID, "title": f"Route to {label(target)}", "items": [
         {"label": "From", "value": f"{label(legs[0]['from'])} (you)"},
-        {"label": "To", "value": f"{label(target)} - portal {address_portal(unpack_address(target) or {})}"},
+        {"label": "To", "value": f"{label(target)} - portal {address_portal(unpack_address(target) or {})}",
+         **({"glyphs": portal} if (portal := address_portal(unpack_address(target) or {})) and glyph_digits(portal)
+            else {})},
         {"label": "Jumps", "value": f"{result['jumps']}"
          + (f" ({unknown} of them into unknown space)" if unknown else " (all to known systems)")},
         {"label": "Distance", "value": galaxy.distance_text(result["distance"])},

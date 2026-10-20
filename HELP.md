@@ -165,6 +165,9 @@ refiner recipes can be done, which ingredient limits it and, for a wanted number
 Asking **what something needs** does the same for one of it - *What do I need for a Warp Cell?*, *Which
 ingredients for Antimatter am I missing?*, *Was brauche ich für Antimaterie?*, *Welche Zutaten fehlen mir?*
 Ask for your **portal address in glyphs** and it names the glyphs (the community's English names).
+On the plugin page and in the overlay the address is also **drawn** as those symbols beside the hex
+digits, so it can be typed into a portal without translating it first; rest the pointer on a symbol
+and it names it. The pictures are this plugin's own artwork, drawn after the game's symbols.
 
 **Equipment of one ship or tool.** Name it - *What technology is installed in the Mad Falcon?* - and you get
 that ship's parts with what each does, instead of a little of everything. Without a name you get as much as
