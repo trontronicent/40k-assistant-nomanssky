@@ -740,5 +740,48 @@
     "2": "Combat Effectiveness (measured 2026-10-20)",
     "cap_per_stat": 10,
     "note": "Fully determined, and it is the exact REVERSE of the order the Companion UI lists the stats in (UI: Combat Effectiveness, Agility, Health). Established by two independent single-stat spends - Plati's 8 treats into Combat landed on index 2, Unzy's 3 into Health landed on index 0 - and confirmed outright by Unzy's numeric stats matching the stored array element by element (Combat 8 = index 2, Agility 1 = index 1, Health 10 = index 0)."
+  },
+  "web_cross_check": {
+    "date": "2026-10-20",
+    "provenance_warning": "These claims come from web SEARCH RESULT SNIPPETS, not from reading the pages - the page fetches were not performed. Treat every wording here as second-hand. All of the sources are fan sites or secondary games press; none is Hello Games documentation.",
+    "headline": "No source was found that documents companion stat CLASSES (S/A/B/C) at all. Searches for them returned No Man's Sky SHIP classes instead. The grading of companion battle stats appears to be publicly undocumented, so there is nothing to cross-check the central finding against and no corroboration should be implied.",
+    "claims": [
+      {
+        "claim": "Giving a companion treats from the Companion Register increases its aggression stat.",
+        "source": "cyberpost.co (FAQ page surfaced in search; flagged single-source by the search itself)",
+        "verdict": "REFUTED by measurement",
+        "evidence": "Two independent treat spends were diffed on the save. Plati: only PetBattlerTreatsAvailable (9->1) and PetBattlerTreatsEaten ([1,0,2]->[1,0,10]) changed. Unzy: only PetBattlerTreatsAvailable (7->4) and PetBattlerTreatsEaten ([7,1,8]->[10,1,8]) changed. Traits - which hold aggression and helpfulness - were byte-identical before and after in both cases. Treats feed the three battle stats only."
+      },
+      {
+        "claim": "Larger creatures have higher inherent health.",
+        "source": "nomansskyrecipes.com (snippet)",
+        "verdict": "REFUTED for the class letters; UNTESTED for the numeric values",
+        "evidence": "The Spider pair is a deliberate gene edit of Size on an otherwise seed-identical creature (Scale 2.181 -> 3.681) and both read Health A. So size does not set the health CLASS. Whether it shifts the x/10 numbers is untested and remains an open question; both Spiders have zero treats, so they are the ready-made control."
+      },
+      {
+        "claim": "Evolve creatures with Retroviral Pellets and gene edits to boost Combat Effectiveness, Agility and Health.",
+        "source": "allthings.how / dtgre.com Xeno Arena 6.3 guides (snippets)",
+        "verdict": "CONFLICTS with the player's own account and with measurement, for the letters",
+        "evidence": "The player, who performed the gene edits, states the Morphogenetics interface changes Aggressiveness, Helpfulness and Size - Traits and Scale in the save - not the battle stats. No gene edit or treat spend observed in this save moved a class letter. The guides may be describing the numeric values, or loosely restating patch-note marketing; as written, the claim is not supported here."
+      },
+      {
+        "claim": "Personality traits influence battle behaviour.",
+        "source": "dtgre.com meta guide (snippet)",
+        "verdict": "PLAUSIBLE, not tested",
+        "evidence": "Consistent with this research's finding that Traits are a separate axis from the stat class - abs(Traits) was tested as the source of the letters and falsified. Behaviour during a battle is not something the save records, so it cannot be checked this way."
+      },
+      {
+        "claim": "Update 6.3 'Xeno Arena' (April 2026) added creature battles and a genetics interface.",
+        "source": "nomanssky.com/xeno-arena-update, gematsu.com, fullcleared.com (snippets)",
+        "verdict": "CONSISTENT background, not load-bearing",
+        "evidence": "Matches the installed build and the save's PetBattler* fields. Nothing in this research depends on it."
+      },
+      {
+        "claim": "Sources disagree on whether a companion can die in a battle or is only knocked out.",
+        "source": "two guides surfaced in search, in direct contradiction",
+        "verdict": "IRRELEVANT here, recorded as a warning",
+        "evidence": "Noted only as evidence that these secondary guides contradict each other on basic mechanics, which is why none of them is relied on above."
+      }
+    ]
   }
 }
