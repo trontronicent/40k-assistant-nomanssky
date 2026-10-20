@@ -1617,7 +1617,24 @@
       "the_result": "ALL NINE read B/B/C, Overall B - identical to the donor, including the pet with CreatureSeed 0x0. The control also read B/B/C, which proves a hand-written pet is treated as genuine, so this is a real negative and not a rejected edit.",
       "what_creature_seed_DOES_drive": "Colour and the displayed 'Typ' label, and nothing else visible. The nine pets were the SAME creature visually, differing only in colour, with Typ values Rational, Primus, Weiblich, Unbestimmt, Orthogonal, Ungleichmaessig, Rational, Exotisch, Vektorisiert in slot order. Note the control and the 1<<32 pet both read Rational, so bit 32 may not reach the Typ either. The body comes from Descriptors, which were Tippo's.",
       "why_the_earlier_evidence_misled": "BoneScaleSeed is byte-identical to CreatureSeed in all 21 natural pets - 21 of 21, no exceptions - so the two fields are perfectly confounded in observational data. The Tippo/Unzy pair, which was the decisive evidence, shares BOTH. No number of naturally caught creatures could ever have separated them; only a written save could, which is exactly what route 1 was for.",
-      "where_the_tier_must_live": "In a field the nine clones shared with Tippo. Ranked by suspicion: BoneScaleSeed (still holding Tippo's 0x320E447D6296A867 in every test pet, and the field the old CreatureSeed evidence actually implicated), then SpeciesSeed, GenusSeed, Descriptors, Traits, CreatureSecondarySeed, ColourBaseSeed. The game normalised nothing on load, so whatever is written is what is used."
+      "where_the_tier_must_live": "RESOLVED by batch 2 - see SOLVED_FIELDS_2026_10_20. It is SpeciesSeed + GenusSeed jointly. BoneScaleSeed, ranked prime suspect here, was eliminated: a clone carrying Kaky's BoneScaleSeed still read Tippo's B/B/C."
+    },
+    "SOLVED_FIELDS_2026_10_20": {
+      "verdict": "The tier is a function of SpeciesSeed AND GenusSeed. Neither alone reproduces the donor's tiers, and no other field in the pet record affects them.",
+      "the_experiment": "Batch 2: Tippo (B/B/C) cloned nine times, each clone taking ONE field from Kaky (S/S/S). Both controls landed: a plain Tippo clone read B/B/C and a full Kaky clone read S/S/S, so the batch is valid.",
+      "results": {
+        "testSPEC (Kaky SpeciesSeed)": "B/A/B, Overall A - CHANGED",
+        "testGENU (Kaky GenusSeed)": "C/C/A, Overall B - CHANGED",
+        "testBONE (Kaky BoneScaleSeed)": "B/B/C - unchanged; the prime suspect is ELIMINATED",
+        "testSEC (CreatureSecondarySeed)": "B/B/C - unchanged",
+        "testBODY (Descriptors + CreatureID)": "B/B/C - unchanged",
+        "testTRAI (Traits)": "B/B/C - unchanged",
+        "testCOL (ColourBaseSeed)": "B/B/C - unchanged"
+      },
+      "both_inputs_are_needed": "Tippo's own pair gives B/B/C; swapping only SpeciesSeed gives B/A/B; swapping only GenusSeed gives C/C/A; swapping both gives Kaky's S/S/S. So the two seeds are not alternatives and neither is dominant - the tier is a joint function of the pair, and no stat is explained by one seed alone.",
+      "why_every_earlier_search_failed": "Both bit-field searches and the whole seed-cracking plan used CreatureSeed as the input. That was the wrong input entirely, so the searches were not merely underpowered - they could never have succeeded. The null tests were right to reject their hits.",
+      "what_it_unlocks": "SpeciesSeed and GenusSeed are VP2 and VP3 of every Animal discovery record, so they are known for all ~528 scanned creatures, tamed or not. If the joint function is recovered, tiers become predictable for every creature the player has ever scanned - including before taming.",
+      "typ_label": "The Typ label tracks the changed field too (ungleichmaessig for Tippo's own pair, alpha for Kaky's species, unbekannt for Kaky's genus, assymmetrisch for full Kaky), and testBONE and testCOL both read rational while being tier-identical to Tippo - so Typ is not a tier proxy."
     }
   },
   "creature_seed_search": {
