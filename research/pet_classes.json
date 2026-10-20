@@ -1700,7 +1700,12 @@
         "hypothesis": "VP1 == 0xE7CAD69E2F26FF55 is the flying genus and is untameable. If so, 82 of the 524 Animal records (16%) are unlabelable, and they can be excluded from the seed search without the player looking at any of them.",
         "evidence_for": "The flyer holds it; none of the 21 tamed pets do; and it is the most frequent VP1 in the save, which fits birds being ubiquitous. VP1 is established as a per-genus constant on 14 archetypes, so one member's value characterises the genus.",
         "evidence_against_overreach": "It rests on ONE untameable creature. And the inverse rule is already false: the tameable C/B/B creature's VP1 (0xA3B91CE4065B1E29, 4 records) is also absent from the tamed set, so 'VP1 not seen among tamed' does NOT mean untameable. Only 13 of 48 VP1 values are confirmed tameable; the other 34 are simply unknown.",
-        "the_test": "Scan a second flying creature. The hypothesis predicts VP1 == 0xE7CAD69E2F26FF55 before the reading. A flyer with a different VP1 kills the simple one-genus story; a tameable creature with that VP1 kills the hypothesis outright."
+        "the_test": "Two predictions now stand. (1) Any further creature in either untameable genus above should also be untameable - a tameable one there falsifies the per-genus model outright. (2) A second flying creature should carry VP1 0xE7CAD69E2F26FF55; still untested, since the second untameable was a ground creature.",
+        "result_2026_10_20_second_untameable": "The 'one flying genus' form of the hypothesis is FALSIFIED. The second untameable creature was ground-dwelling, with VP1 0x4C1604BE2666DB41, not the flyer's 0xE7CAD69E2F26FF55. Untameability therefore spans at least two archetypes and is not about flight. What SURVIVES is the weaker and more useful form: tameability looks like a per-genus property, and both untameable genera found so far are absent from the 21 tamed pets' 13 VP1 values. Nothing yet contradicts 'a genus is either tameable or not' - the open risk is still the reverse direction, since the tameable C/B/B creature also sat in a VP1 no tamed pet held.",
+        "untameable_genera_so_far": {
+          "0xE7CAD69E2F26FF55": "flying; 82 of 527 records",
+          "0x4C1604BE2666DB41": "ground; 8 of 527 records"
+        }
       }
     },
     "calibration_result_2026_10_20": {
@@ -1734,6 +1739,48 @@
       "overall_read": null,
       "overall_predicted": "B",
       "note": "Read with the scanner, never tamed. Overall was not read; the formula predicts B from sum 2. This is the first tier label in the dataset that does not come from a Companion UI, so it is kept here rather than in observations until scan-then-tame validation."
+    },
+    {
+      "date": "2026-10-20",
+      "creature_seed": "0x47C804445A70D3C0",
+      "vp1_archetype": "0x4C1604BE2666DB41",
+      "scanned_at": 1792482293,
+      "system": 173722894692097,
+      "planet": 6,
+      "tiers": null,
+      "note": "UNTAMEABLE and GROUND-dwelling, not flying. Its VP1 is not the flyer genus, so untameability spans at least two archetypes. No tamed pet holds this VP1 either, and it covers 8 of 527 records."
+    },
+    {
+      "date": "2026-10-20",
+      "creature_seed": "0x83CC0566F2749CC3",
+      "vp1_archetype": "0x9C1C7E2EB0BBDE4C",
+      "scanned_at": 1792482488,
+      "system": 173722894692097,
+      "planet": 2,
+      "tiers": {
+        "combat_effectiveness": "B",
+        "agility": "S",
+        "health": "C"
+      },
+      "overall_read": null,
+      "overall_predicted": "A",
+      "note": "Ground. VP1 is the ^ANTELOPE genus, already confirmed tameable by a tamed pet."
+    },
+    {
+      "date": "2026-10-20",
+      "creature_seed": "0xD125D18A66E15CA1",
+      "vp1_archetype": "0xCF230EB7717F4CDC",
+      "scanned_at": 1792482506,
+      "system": 173722894692097,
+      "planet": 2,
+      "tiers": {
+        "combat_effectiveness": "A",
+        "agility": "B",
+        "health": "S"
+      },
+      "overall_read": null,
+      "overall_predicted": "A",
+      "note": "Ground. VP1 is the ^TRICERATOPS genus, already confirmed tameable by a tamed pet."
     }
   ],
   "discovery_seed_vector": {
