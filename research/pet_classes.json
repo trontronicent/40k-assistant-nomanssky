@@ -681,19 +681,11 @@
           "trust": 0.7000000476837158,
           "ui_class": {
             "combat_effectiveness": "S",
-            "agility": "C?",
+            "agility": "C",
             "health": "A"
           },
           "ui_class_overall": "A",
-          "conflict": {
-            "field": "ui_class.agility",
-            "readings": [
-              "B (first reading)",
-              "C (second reading)"
-            ],
-            "save_record": "byte-identical between the two readings - no treats, traits, scale or seed changed",
-            "resolution": "UNRESOLVED, and recorded as such rather than silently picking one. Since nothing in the save changed, this is a transcription slip in one of the two readings, not a mechanic - no other pet has ever shown a letter move. Both values give Overall A under ceil(sum/3) (sums 6 and 5), so the Overall finding does not depend on which is right."
-          }
+          "note": "Agility double-checked by the player as C. An earlier reading of this pet said B; the save record was byte-identical across both, so that was a misreading and has been discarded rather than kept as a conflict. The corrected S/C/A sums to 5 and gives Overall A, which is what was read."
         }
       ]
     },
@@ -859,7 +851,7 @@
   "overall_formula": {
     "formula": "Overall = ceil((combat + agility + health) / 3), scoring C=0, B=1, A=2, S=3",
     "equivalently": "the ceiling of the mean of the three letters",
-    "fits": "all 11 pets (12 rows, counting Mandriliva under both of its conflicting agility readings)",
+    "fits": "all 11 pets",
     "sums_observed": [
       2,
       3,
@@ -882,13 +874,13 @@
       "9": "S"
     },
     "alternatives_ruled_out": {
-      "max": "5 misses - Zero-Bug C/C/S would be S, read B",
-      "min": "12 misses - never matches",
-      "median": "4 misses - Zero-Rex A/C/C would be C, read B",
-      "floor(sum/3)": "9 misses - Unzy sum 2 would be C, read B",
-      "round(mean)": "3 misses - the three sum-7 pets would be A, all read S"
+      "floor(sum/3)": "9 misses: Unzy Bunzy Bowa, Little Cute Monster, Mantissa, Plati, Zushetto, Zero-Rex, Mandriliva, Milkinny, Callista",
+      "round(mean)": "3 misses: Little Cute Monster, Plati, Milkinny",
+      "max": "4 misses: Hidippo, Zero-Rex, Zero-Bug, Mandriliva",
+      "min": "11 misses: Unzy Bunzy Bowa, Hidippo, Little Cute Monster, Mantissa, Plati, Zushetto, Zero-Rex, Zero-Bug, Mandriliva, Milkinny, Callista",
+      "median": "4 misses: Little Cute Monster, Plati, Zero-Rex, Zero-Bug"
     },
     "decisive_observation": "Zero-Rex. A/C/C sums to 2, the same as Unzy's B/B/C, but has a different max (A vs B) and a different median (C vs B). Both read Overall B, which eliminates max and median at a stroke - no single-letter statistic can produce it.",
-    "caveat": "A fitted formula over 5 distinct sums, not a derivation from the game's code. Sum 4 is the one gap inside the observed range; a pet summing 4 that reads B would break it."
+    "caveat": "A formula fitted over 5 distinct sums ([2, 3, 5, 6, 7]), not a derivation from the game's code. Inside the observed range the gap is sum 4; a pet summing 4 that reads B would break it."
   }
 }
