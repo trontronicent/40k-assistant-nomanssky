@@ -29,20 +29,29 @@ mapping is used in one direction only, to translate a readable path into an obfu
 path. `saves.py` stays read-only and untouched, as its docstring promises, so every
 existing caller and test keeps the code it has today.
 
-### `mf_*.hg` is opaque
+### `mf_*.hg` is opaque, and does not bind the save (settled 2026-10-20)
 
 `mf_save.hg` is 432 bytes with no magic and high entropy (encrypted metadata). Whether the
-game validates `save.hg` against it cannot be determined by reading. It becomes an explicit
-empirical gate, not an assumption - see *Correctness gates*.
+game validates `save.hg` against it could not be determined by reading, so it was settled by
+experiment: `save3.hg` was rewritten through this module with one edited value and
+`mf_save3.hg` deliberately left stale, and the game **loaded it and showed the edited
+value**. So the editor writes `save*.hg` only and never touches `mf_*.hg`.
 
 ## Modules
 
 ### `nms_connector/lz4.py` - `compress_block(data) -> bytes`
 
-Literals-only LZ4 block output: token `0xF0`, the extended literal length bytes, then the
-literals. This is valid LZ4 that any decompressor accepts, needs no match finding, and is
-correct by construction. Compression ratio is explicitly not a goal; the file grows by
-roughly 0.4 % of its size in length bytes.
+A greedy single-candidate matcher over a hash table of 4-byte sequences. A literals-only
+encoder was tried first - correct by construction, no match finding - but measured **4.1x**
+the game's own file size on the real saves (1,435,843 -> 5,561,391 bytes), which is a real
+regression for the player's disk and their Steam Cloud quota. The matcher gives **0.95x**
+the game's size at 0.47 s per save, payload byte-identical.
+
+The format's end rules are honoured, because the game's decompressor is real LZ4 and may
+reject what this module's lenient `decompress_block` accepts: the last sequence is literals
+only and no match starts in the final 12 bytes. `tests/test_save_write.py` carries an
+independent strict reader (`strict_block_problem`) that is itself proved to reject a
+malformed block, and every chunk of every real save passes it (34 chunks, 0 malformed).
 
 ### `nms_connector/save_write.py` - the only module that writes a save
 
@@ -85,7 +94,10 @@ save number, so a changeset survives the standalone page's 5 s poll and a restar
 `save_edit.commit`, in order, aborting on the first failure with nothing written:
 
 1. the experimental master switch and `save_editor` are both on (re-checked server-side);
-2. No Man's Sky is not running;
+2. No Man's Sky is not running **at all** - not merely "not in that save". Measured
+   2026-10-20: two writes were destroyed within minutes by a running game, one of them
+   while it sat at the main menu. A live game owns its save files and rewrites them from
+   memory whenever it chooses;
 3. `mapping.json` is present;
 4. the save's mtime and size still match what they were when the changeset was staged - if
    the game saved in the meantime the changeset is discarded rather than applied to a tree
@@ -127,7 +139,10 @@ A new `Editor` tab built from existing section types only (`tabs`, `table`, `for
 `standalone/web/sections.js`:
 
 - a notice: experimental, and the game must be closed;
-- a save-slot picker;
+- a save-slot picker that names the two files per slot the way the game's own load screen
+  does - **Automatic Save** (the newer file) and **Restore Point** (the older) with their
+  timestamps - never "save 3 / save 4". A slot is a pair of *generations*, not an automatic
+  and a manual save;
 - per-container sub-tabs with the slot table (item, amount, type, slot), drawn from the
   existing summary code;
 - a *Change a slot* form, action `stage_change`;
@@ -142,9 +157,13 @@ Before any UI is built:
 - a test that takes the real saves (via `NMS_SAVE_DIR`) and committed fixtures, runs
   `read_raw` then `encode_bytes` with **zero edits**, and asserts the result decodes to a
   byte-identical JSON text;
-- a manual gate the user drives: commit a no-op re-encode over save slot 2 (the older pair,
-  not the live slot) and load it in the game. If it loads, `mf_*.hg` needs no update and the
-  feature is viable. If it does not, that is known before anything is built on top.
+- a manual gate the user drives, **passed 2026-10-20**: `save3.hg` (the Season slot) was
+  rewritten with units 21,200 -> 123,456, `mf_save3.hg` left stale, and the game loaded it
+  and showed 123,456 units.
+
+  A *no-op* re-encode was tried first and proved nothing: the two files in a slot hold
+  near-identical states, so "it loaded fine" looks the same whichever of the pair the game
+  read. A gate for a write path needs an observable difference in the written file.
 
 ## Tests
 
@@ -171,7 +190,7 @@ Plugin repo only; the app suite runs only for the app-side permission change.
 
 ## Risks
 
-- **`mf_*.hg`** may bind the save. Addressed by the manual gate above before further work.
+- **`mf_*.hg`** does not bind the save - settled by experiment, see above. Retired.
 - **Technology adjacency and upgrade relationships** are not modelled: validation confirms
   that a technology is a valid technology for that container and slot, not that the
   resulting layout is one the game considers sensible. Raised with the user, who chose to
