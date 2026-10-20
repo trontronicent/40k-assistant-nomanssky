@@ -55,6 +55,7 @@ MAX_MOVE_RECORDS = 400
 TREAT_STATS = ("Health", "Agility", "Combat Effectiveness")       # the measured order of PetBattlerTreatsEaten
 TREAT_UI_ORDER = (2, 1, 0)                                        # the Companion UI lists them the other way round
 TREAT_CAP = 10                                                    # a stat stops accepting treats at 10
+KG_PER_SCALE = 40.0                                               # measured: the game's weight is 40 x Scale
 MAX_PETS, MAX_EGGS = 60, 60                                       # the app's slots are 30; a damaged save is cut
 SECONDS_PER_DAY = 86_400
 
@@ -215,6 +216,7 @@ def compact(raw: dict) -> dict:
         "type": inner("CreatureType", "CreatureType") or "",
         "biome": inner("Biome", "Biome") or "",
         "trust": round(_number(raw.get("Trust")), 3),
+        "scale": round(_number(raw.get("Scale")), 6),
         "born": int(_number(raw.get("BirthTime"))) or None,
         "egg": int(_number(raw.get("LastEggTime"))) or None,
         "ua": _address(raw.get("UA")),
@@ -316,6 +318,16 @@ def treats_text(pet: dict) -> str:
     eaten = pet["treats"]
     return ", ".join(f"{TREAT_STATS[i]} {eaten[i]}/{TREAT_CAP}"
                      for i in TREAT_UI_ORDER if i < len(eaten)) if eaten else "–"
+
+
+def size_text(pet: dict) -> str:
+    """'3.7 m' - the size the game displays, which is ``Scale`` rounded to one decimal; '–' without a scale."""
+    return f"{pet['scale']:.1f} m" if pet.get("scale") else "–"
+
+
+def weight_text(pet: dict) -> str:
+    """'147.3 kg' - the weight the game displays, measured to be ``KG_PER_SCALE * Scale``; '–' without a scale."""
+    return f"{KG_PER_SCALE * pet['scale']:.1f} kg" if pet.get("scale") else "–"
 
 
 def move_lines(pet: dict, book: PetBook) -> list[str]:

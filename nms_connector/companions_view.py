@@ -54,6 +54,13 @@ def name_cell(pet: dict) -> dict:
     return {"text": pets.display_name(pet), "hint": hint}
 
 
+def size_cell(pet: dict) -> dict:
+    """'3.7 m', sorting by the real scale, with the weight the game shows in its tooltip."""
+    return {"text": pets.size_text(pet), "sort": pet.get("scale") or 0.0,
+            "hint": f"Weight: {pets.weight_text(pet)}\nBoth are what the game shows, from the save's stored "
+                    f"scale ({pet.get('scale') or 0:.6f})."}
+
+
 def abilities_cell(pet: dict, book: pets.PetBook) -> dict:
     """'4 abilities', with each template and the game's description in its tooltip."""
     lines = pets.move_lines(pet, book)
@@ -91,13 +98,13 @@ def roster_table(companions: dict, book: pets.PetBook, animals: dict, ctx, now: 
         age = pets.age_days(pet, now)
         rows.append([
             name_cell(pet), pet["id"].title() or "?", type_cell(pet, book), pet["biome"] or "?",
-            {"text": pets.trust_text(pet), "sort": pet["trust"]},
+            size_cell(pet), {"text": pets.trust_text(pet), "sort": pet["trust"]},
             {"text": "–" if age is None else f"{age:,}", "sort": age if age is not None else -1},
             {"text": f"{pet['wins']:,}", "sort": pet["wins"]}, abilities_cell(pet, book),
             harvest_text(pet, book), {"text": pets.personality_text(pet, book), "hint": traits_hint(book, pet)},
             first_scan_text(pet, animals, ctx), origin_text(pet, ctx)])
     return {"type": "table", "id": "companions-roster", "title": "Companions",
-            "columns": ["Name", "Creature", "Type", "Biome", "Trust", "Age (days)", "Arena wins", "Abilities",
+            "columns": ["Name", "Creature", "Type", "Biome", "Size", "Trust", "Age (days)", "Arena wins", "Abilities",
                         "Harvest", "Personality", "First scanned", "Origin"], "rows": rows}
 
 

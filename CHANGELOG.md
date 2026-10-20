@@ -24,6 +24,16 @@
   The inert field is no longer kept in the snapshot, and the *Companions* tab now says plainly which letters
   cannot be shown and why. No app change: this needs nothing newer than 3.20.0.
 
+- **A companion's size and weight, the numbers the game shows.** The roster has a new **Size** column -
+  *3.7 m*, with the weight in its tooltip (*147.3 kg*) - sorted by the real stored scale rather than the
+  rounded label, so your biggest companion sorts biggest.
+
+  Both are derived from the save's `Scale`: the size is it rounded to one decimal, the weight is `40 x Scale`.
+  Measured against the game on three species of very different build spanning a 4.9x range of scale - a Cat
+  at 0.8 m, a Two-leg Antelope at 1.0 m and a Spider at 3.7 m - every value exact to the decimal the game
+  prints. The Spider was predicted before it was read, as the test of whether that 40 was a per-species
+  density; it is not, it is one global constant.
+
 ## 0.15.0-beta.9 (beta; needs app 3.20.0)
 
 - **Portal addresses are shown as glyphs.** Every place that names a system - *Where you are now*, the

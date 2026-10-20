@@ -150,6 +150,25 @@ def test_treats_are_labelled_in_the_order_the_game_shows_them():
     assert pets.TREAT_CAP == 10
 
 
+def test_size_and_weight_are_the_numbers_the_game_prints():
+    """The game shows a companion's size as Scale rounded to one decimal and its weight as 40 x Scale, measured
+    2026-10-20 on three species across a 4.9x range of Scale (Cat 0.8 m, Two-leg Antelope 1.0 m, Spider 3.7 m),
+    every value exact. These are the real readings, so a change to the constant would show up here."""
+    assert pets.KG_PER_SCALE == 40.0
+    for scale, size, weight in ((0.757267, "0.8 m", "30.3 kg"),      # Wolverine, a Cat
+                                (1.025970, "1.0 m", "41.0 kg"),      # Alia, a Two-leg Antelope
+                                (3.681337, "3.7 m", "147.3 kg")):    # Zushetto, a Spider
+        pet = pets.compact({"Scale": scale})
+        assert (pets.size_text(pet), pets.weight_text(pet)) == (size, weight), scale
+
+
+def test_size_and_weight_need_a_scale():
+    """A missing or zero Scale gives a dash rather than '0.0 m', so a damaged record never claims a companion is
+    weightless."""
+    assert (pets.size_text(pets.compact({})), pets.weight_text(pets.compact({}))) == ("–", "–")
+    assert pets.size_text(pets.compact({"Scale": "big"})) == "–", "a non-numeric scale is not shown either"
+
+
 def test_treats_text_survives_a_save_with_too_few_values():
     """A damaged save may hold fewer than three treat counts, or none. Each present value must still be
     labelled correctly rather than shifted onto the wrong stat, and no values at all gives a dash."""

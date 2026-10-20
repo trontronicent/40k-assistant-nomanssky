@@ -25,8 +25,8 @@
     "Gene modification (the Morphogenetics interface) changes Aggressiveness, Helpfulness, Size and the like - stated by the player, who performed the edits - i.e. it writes Traits and Scale, NOT the battle stats and NOT the creature seeds. This reframes both clone pairs: they are gene-edited relatives, not coincidences. Plati is a gene-modified descendant of Little Cute Monster, and the two Spiders differ by a deliberate size edit (Scale 2.181 -> 3.681). So size was not merely uncorrelated with the class - it was directly altered on one creature and the class letters did not move. Traits and Scale are player-editable; the class is not.",
     "The x/10 numbers the Companion UI shows ARE PetBattlerTreatsEaten, not a derived stat. Confirmed on two pets, six independent values, with no mismatch: Unzy stores [10, 1, 8] and reads Combat 8/10, Agility 1/10, Health 10/10; Mantissa stores [4, 0, 6] and reads Combat 6/10, Agility 0/10, Health 4/10 - the latter predicted before it was read. The cap of 10 is therefore the treat cap, and nothing numeric about a companion's battle stats is hidden from the save: the plugin can show these values exactly, from the save alone, with no guessing.",
     "Overall is computed from the three letters alone, as ceil(mean), i.e. ceil(sum/3) with C=0 B=1 A=2 S=3. It fits all 11 pets and every simpler alternative (max, min, median, floor, round) is contradicted by at least one pet. So Overall carries no information beyond the three stats and is not worth storing separately.",
-    "The displayed size is Scale rounded to one decimal, and the displayed weight is 40 * Scale rounded to one decimal - exact on both freshly tamed pets. The weight constant rests on two similarly built creatures and is the weaker half; see size_and_weight.falsifiers.",
-    "Alia is both larger and heavier than Wolverine (1.0 m / 41.0 kg against 0.8 m / 30.3 kg) and reads Health C against Wolverine's S. That refutes 'larger creatures have higher inherent health' a second time, now against the size and weight the game itself prints rather than the raw Scale field."
+    "Alia is both larger and heavier than Wolverine (1.0 m / 41.0 kg against 0.8 m / 30.3 kg) and reads Health C against Wolverine's S. That refutes 'larger creatures have higher inherent health' a second time, now against the size and weight the game itself prints rather than the raw Scale field.",
+    "The displayed size is Scale rounded to one decimal and the displayed weight is 40 * Scale rounded to one decimal, with 40 a single global constant. Confirmed on three species of very different build across a 4.9x range of Scale (Cat 0.8 m, Two-leg Antelope 1.0 m, Spider 3.7 m), the last predicted in advance as the falsifier. Both values can therefore be shown exactly, from Scale alone."
   ],
   "open": [
     "Overall still looks like a function of the three letters alone, scoring C=0 B=1 A=2 S=3, and is now monotone over three distinct sums: Unzy B/B/C sums 2 and reads Overall B; Mantissa, Zushetto and Callista all sum 5 and read A; Plati sums 7 and reads S. Consistent but underdetermined - the B/A boundary lies somewhere in 3..5 and the A/S boundary in 6..7, and no pet has yet read Overall C.",
@@ -518,7 +518,10 @@
             "agility": "A",
             "health": "A"
           },
-          "ui_class_overall": "A"
+          "ui_class_overall": "A",
+          "ui_size_m": 3.7,
+          "ui_weight_kg": 147.3,
+          "note": "Size and weight read as the falsifier for the 40 kg per unit of Scale: a 3.7 m mantis is the most differently built creature in the save from the Cat and Two-leg Antelope the constant was derived from. Predicted 3.7 m / 147.3 kg before the reading; both exact."
         }
       ]
     },
@@ -1023,10 +1026,11 @@
     },
     "measured_on": [
       "Wolverine ^CAT: Scale 0.757267 -> 0.8 m, 30.3 kg (game: 0.8 m, 30.3 kg)",
-      "Alia ^TWOLEGANTELOPE: Scale 1.025970 -> 1.0 m, 41.0 kg (game: 1.0 m, 41.0 kg)"
+      "Alia ^TWOLEGANTELOPE: Scale 1.025970 -> 1.0 m, 41.0 kg (game: 1.0 m, 41.0 kg)",
+      "Zushetto ^SPIDER: Scale 3.681337 -> 3.7 m, 147.3 kg (game: 3.7 m, 147.3 kg) - predicted in advance, as the falsifier for the weight constant"
     ],
-    "status": "Exact on both pets, to the decimal the game prints. The 40 kg per unit of Scale is the part to doubt: both samples are four-legged land animals of broadly similar build, and weight could plausibly carry a per-species or per-body-type density that happens to be 40 for a Cat and a Two-leg Antelope. The size formula is just Scale rounded and is far safer.",
-    "falsifiers": "Read the displayed size and weight of a very differently built creature. Zushetto (^SPIDER, Scale 3.6813 -> predict 3.7 m / 147.3 kg) and Callista (^WEIRDFLOAT, Scale 1.5000 -> predict 1.5 m / 60.0 kg) are the most unlike the two measured bodies; Zero-Rex (^TREX, 3.1230 -> 3.1 m / 124.9 kg) is a third. If any weight misses while its size matches, the density is species-dependent and only the size formula survives.",
-    "consequence_if_it_holds": "The plugin could show a companion's size and weight exactly as the game does, from Scale alone - neither is currently shown anywhere."
+    "status": "CONFIRMED on three species with very different builds - a Cat (0.8 m), a Two-leg Antelope (1.0 m) and a 3.7 m Spider/mantis - spanning a 4.9x range of Scale, every value exact to the printed decimal. The 40 kg per unit of Scale is a single global constant, not a per-species density: a species-dependent weight could not have survived the Spider, which was predicted before it was read precisely because it is the least cat-like body in the save.",
+    "consequence_if_it_holds": "The plugin could show a companion's size and weight exactly as the game does, from Scale alone - neither is currently shown anywhere.",
+    "remaining_doubt": "Low. All three samples are rounded to one decimal, so the constant is 40 to about three significant figures; a true value of, say, 39.99 would not show up here. Nothing in the plugin depends on more precision than the game itself prints."
   }
 }

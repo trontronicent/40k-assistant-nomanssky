@@ -51,7 +51,9 @@ save.
 
 ## Companions
 
-The **Companions** tab lists your pets and eggs: name, creature, type, biome, trust, age, arena wins, **abilities** (five
+The **Companions** tab lists your pets and eggs: name, creature, type, biome, **size** (the metres the game
+shows, with the weight in its tooltip; the column sorts by the real stored scale, so your largest companion
+sorts largest), trust, age, arena wins, **abilities** (five
 per pet; hover for the game's description of each), the **harvest** (what the creature gives and the product), the raw
 **personality** (three percentages in the game's own words, e.g. *Playfulness 23% / Gentleness 77% / Devotion 16%*; hover for the three axes and the stored values), the **type** (hover: what Passive / Prey / Predator mean), **where its kind was first scanned** and its origin. Hover a companion's **name** for the **treats** you have
 invested in each battle stat, named and ordered as the game shows them (*Combat Effectiveness 7/10, Agility

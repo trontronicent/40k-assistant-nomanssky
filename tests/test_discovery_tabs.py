@@ -114,9 +114,10 @@ def test_tables_stay_within_the_apps_row_limit():
 
 
 def test_the_companions_tab_shows_roster_abilities_harvest_and_first_scan():
-    """One row per pet: name (seeds and stat classes in the tooltip), creature, type, biome, trust, age, wins,
-    the abilities with the game's description in the tooltip, the harvest read from the game's text, the raw
-    traits, where its kind was first scanned (the seed join) and its origin system."""
+    """One row per pet: name (seeds and the treats invested per battle stat in the tooltip), creature, type,
+    biome, size (weight in the tooltip), trust, age, wins, the abilities with the game's description in the
+    tooltip, the harvest read from the game's text, the raw traits, where its kind was first scanned (the seed
+    join) and its origin system."""
     snap = snapshot()
     out = companions_view.sections(snap, Ctx(), book(), DiscoveryBook(snap["discoveries"]), NOW)
     assert out[0]["type"] == "text" and "not stored in a readable form" in out[0]["text"]
@@ -126,7 +127,10 @@ def test_the_companions_tab_shows_roster_abilities_harvest_and_first_scan():
     roster = next(s for s in out if s.get("id") == "companions-roster")
     cow = dict(zip(roster["columns"], roster["rows"][0], strict=True))
     assert cow["Name"]["text"] == "Unzy Bunzy Bowa" and "Creature seed: 0x320E447D6296A867" in cow["Name"]["hint"]
+    assert "Treats: Combat Effectiveness 7/10, Agility 0/10, Health 6/10 (2 to give)" in cow["Name"]["hint"]
     assert (cow["Creature"], cow["Type"]["text"], cow["Biome"]) == ("Cow", "Prey", "Lush")
+    assert cow["Size"]["text"] == "0.7 m" and cow["Size"]["sort"] == 0.656, "sorts by the real scale, not the label"
+    assert "Weight: 26.2 kg" in cow["Size"]["hint"]
     assert cow["Type"]["hint"].startswith("Prey:") and "inferred" in cow["Personality"]["hint"]
     assert cow["Trust"] == {"text": "75 %", "sort": 0.75} and cow["Arena wins"]["sort"] == 22
     assert cow["Abilities"]["text"] == "4" and "ATTACK_DUST (ATTACK): Direct damage of one affinity" in cow["Abilities"]["hint"]
