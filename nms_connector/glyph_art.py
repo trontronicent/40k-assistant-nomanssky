@@ -15,20 +15,21 @@ the generated assets with no cache-busting logic.
 from __future__ import annotations
 
 GLYPH_ART_VERSION = 1
-STROKE_WIDTH = 6.0
+STROKE_WIDTH = 5.0
 
 #: Glyph index -> its subpaths, in a 0..100 box. The index is the value of the address digit, so this lines up
 #: with ``craftable.GLYPHS`` (0 Sunset ... F Atlas) and there is no second ordering to keep in step.
 #: Drawn after the game's symbols; simplified to read at 20 px, which is the size the page and the overlay use.
 GLYPHS: tuple[tuple[str, ...], ...] = (
     # 0 Sunset - a dome over three waves.
-    ("M 14 56 C 14 28 86 28 86 56",
-     "M 16 64 C 27 56 33 72 44 64 C 55 56 61 72 72 64 C 78 60 81 61 84 64",
-     "M 20 78 C 31 70 37 86 48 78 C 57 72 63 80 70 78"),
+    ("M 12 52 C 12 20 88 20 88 52",
+     "M 14 66 C 26 58 32 74 44 66 C 56 58 62 74 74 66 C 80 62 83 63 86 66",
+     "M 20 82 C 31 74 37 90 48 82 C 57 76 63 84 70 82"),
     # 1 Bird - a swept wing over a tapering body.
-    ("M 10 38 C 34 26 62 28 88 44 C 70 52 48 54 28 48",
-     "M 16 56 C 38 50 60 52 82 60 C 62 70 36 70 18 62 Z",
-     "M 18 62 C 26 70 38 74 48 74"),
+    ("M 10 40 C 36 24 66 26 92 42 C 66 58 34 60 14 50 Z",
+     "M 28 46 C 44 40 60 40 76 44",
+     "M 34 54 C 48 50 60 50 72 50",
+     "M 10 40 C 4 46 6 54 14 50"),
     # 2 Face - a vertical bar with two crossbars and two eyes.
     ("M 50 16 L 50 84",
      "M 26 28 L 74 28",
@@ -46,14 +47,14 @@ GLYPHS: tuple[tuple[str, ...], ...] = (
      "M 58 18 C 76 24 86 38 86 52 C 86 68 76 80 58 86",
      "M 56 52 L 86 52"),
     # 5 Balloon - a teardrop with a seam.
-    ("M 50 14 C 70 34 76 54 50 88 C 24 54 30 34 50 14 Z",
-     "M 50 20 L 50 82"),
+    ("M 50 10 C 72 28 86 42 86 56 C 86 76 70 92 50 92 C 30 92 14 76 14 56 C 14 42 28 28 50 10 Z",
+     "M 50 22 L 50 84"),
     # 6 Boat - a hull with a mast and two yards.
-    ("M 16 62 C 34 76 66 76 84 62 Z",
-     "M 50 16 L 50 62",
-     "M 50 28 L 70 36",
-     "M 50 42 L 66 48",
-     "M 50 14 L 50 18"),
+    ("M 12 66 C 30 84 70 84 88 66 Z",
+     "M 46 20 L 46 66",
+     "M 46 28 L 72 36",
+     "M 46 44 L 66 50",
+     "M 46 16"),
     # 7 Bug - two horns over a segmented body.
     ("M 24 16 C 18 32 24 44 36 48",
      "M 76 16 C 82 32 76 44 64 48",
@@ -61,21 +62,24 @@ GLYPHS: tuple[tuple[str, ...], ...] = (
      "M 32 56 L 68 56",
      "M 28 84 C 36 72 64 72 72 84"),
     # 8 Dragonfly - wings across a long tail.
-    ("M 50 18 L 50 86",
-     "M 50 36 C 32 30 20 36 14 48 C 28 54 42 50 50 44",
-     "M 50 36 C 68 30 80 36 86 48 C 72 54 58 50 50 44",
-     "M 38 58 L 62 58",
-     "M 42 70 L 58 70"),
+    ("M 50 14 L 50 88",
+     "M 45 34 C 28 26 12 32 8 44 C 22 54 38 50 45 42 Z",
+     "M 55 34 C 72 26 88 32 92 44 C 78 54 62 50 55 42 Z",
+     "M 40 62 L 60 62",
+     "M 43 74 L 57 74"),
     # 9 Galaxy - two spiral arms around a core.
-    ("M 50 50 C 50 28 34 18 22 26 C 12 32 14 48 28 54 C 44 62 62 56 68 42",
-     "M 50 50 C 50 72 66 82 78 74 C 88 68 86 52 72 46 C 56 38 38 44 32 58"),
+    ("M 53 45 C 44 28 50 14 68 10 C 64 30 60 38 54 46 Z",
+     "M 47 55 C 56 72 50 86 32 90 C 36 70 40 62 46 54 Z",
+     "M 38 34 C 22 40 14 52 18 66",
+     "M 62 66 C 78 60 86 48 82 34",
+     "M 50 50"),
     # A Voxel - a hexagon with a dot.
     ("M 50 14 L 84 33 L 84 67 L 50 86 L 16 67 L 16 33 Z",
      "M 49 34 L 51 34"),
     # B Fish - a body with a tail and a fin.
-    ("M 18 54 C 34 38 62 36 76 48 C 80 51 84 52 88 52 C 84 58 80 60 76 60 C 62 70 34 68 18 54 Z",
-     "M 46 40 L 52 30 L 58 42",
-     "M 30 52 L 36 52"),
+    ("M 10 52 C 28 38 54 36 70 46 C 76 40 84 36 92 34 C 86 44 86 60 92 70 C 84 68 76 64 70 58 C 54 68 28 66 10 52 Z",
+     "M 40 40 L 48 28 L 56 42",
+     "M 22 50"),
     # C Tent - a peak with a doorway and a ground line.
     ("M 50 16 C 40 38 32 62 24 84",
      "M 50 16 C 60 38 68 62 76 84",
