@@ -23,7 +23,7 @@
     "The class letter and the trained number are independent quantities. Unzy reads Health C at a maxed 10/10 and Agility B at 1/10: a maxed stat in a low class still shows C, an untouched stat in a better class still shows B. So the letter is the stat's intrinsic class, fixed by the seeds, and the x/10 is treats invested within it. This is what 'training' means, and it is why no amount of it moves a letter.",
     "Unzy read B / B / C both before and after this training, a third confirmation that treats do not move the class - now on a pet where one stat went all the way to its cap.",
     "Gene modification (the Morphogenetics interface) changes Aggressiveness, Helpfulness, Size and the like - stated by the player, who performed the edits - i.e. it writes Traits and Scale, NOT the battle stats and NOT the creature seeds. This reframes both clone pairs: they are gene-edited relatives, not coincidences. Plati is a gene-modified descendant of Little Cute Monster, and the two Spiders differ by a deliberate size edit (Scale 2.181 -> 3.681). So size was not merely uncorrelated with the class - it was directly altered on one creature and the class letters did not move. Traits and Scale are player-editable; the class is not.",
-    "The x/10 numbers the Companion UI shows ARE PetBattlerTreatsEaten, not a derived stat. Unzy read Combat 8/10, Agility 1/10, Health 10/10 against the stored [10, 1, 8] - three independent values matching exactly, under the measured (Health, Agility, Combat) order. The cap of 10 is therefore the treat cap, and nothing numeric about a companion's battle stats is hidden from the save. Worth confirming on a second pet: Mantissa stores [4, 0, 6] and so must read Combat 6/10, Agility 0/10, Health 4/10.",
+    "The x/10 numbers the Companion UI shows ARE PetBattlerTreatsEaten, not a derived stat. Confirmed on two pets, six independent values, with no mismatch: Unzy stores [10, 1, 8] and reads Combat 8/10, Agility 1/10, Health 10/10; Mantissa stores [4, 0, 6] and reads Combat 6/10, Agility 0/10, Health 4/10 - the latter predicted before it was read. The cap of 10 is therefore the treat cap, and nothing numeric about a companion's battle stats is hidden from the save: the plugin can show these values exactly, from the save alone, with no guessing.",
     "Overall is computed from the three letters alone, as ceil(mean), i.e. ceil(sum/3) with C=0 B=1 A=2 S=3. It fits all 11 pets and every simpler alternative (max, min, median, floor, round) is contradicted by at least one pet. So Overall carries no information beyond the three stats and is not worth storing separately."
   ],
   "open": [
@@ -370,7 +370,13 @@
             "agility": "A",
             "health": "A"
           },
-          "ui_class_overall": "A"
+          "ui_class_overall": "A",
+          "ui_stat_numbers": {
+            "combat_effectiveness": "6/10",
+            "agility": "0/10",
+            "health": "4/10"
+          },
+          "note": "Numeric stats read by the player: Combat 6/10, Agility 0/10, Health 4/10 - matching the stored [4, 0, 6] exactly under the measured (Health, Agility, Combat) order. Predicted before the reading, so this is a confirmation rather than a fit."
         }
       ]
     },
