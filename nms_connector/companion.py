@@ -21,6 +21,7 @@ from datetime import date
 from . import (assistant, conversation, cooking, craftable, creature_lines, diagrams, discoveries_view, galaxies, galaxy,
                logs, merging, planet_search, planets_view, recipe_view, recipes, seasons, settlements, timers, trade)
 from . import page as page_module
+from .summary import address_portal, unpack_address
 
 PERSONA_PROMPT = (
     "You are the No Man's Sky Plugin Persona, the player's companion for No Man's Sky. With every message you "
@@ -450,7 +451,10 @@ class PluginCompanion:
         for area_id, title, default_on in OVERLAY_AREAS:
             data = content[area_id]
             areas.append({"id": area_id, "title": title, "default_on": default_on,
-                          "timers": data if area_id == "timers" else [], "lines": [] if area_id == "timers" else data})
+                          "timers": data if area_id == "timers" else [], "lines": [] if area_id == "timers" else data,
+                          # App 3.20.0: the overlay draws the address above the location lines as the game's
+                          # own symbols, so the player can read them without translating the hex.
+                          **({"glyphs": self.current_portal()} if area_id == "location" else {})})
         # The recipe viewer's own area (recipe_view): the diagrams of whatever was last searched for, here or on
         # the page - one query, one language decision, both places.
         areas.append(recipe_view.overlay_area(c.tables.recipes, c.gamedata, c.tables.terms, c.recipe_query))
@@ -462,6 +466,11 @@ class PluginCompanion:
                 "persona_id": PERSONA_ID, "codeword": c.settings.codeword,
                 # Switches in the overlay; clicking one runs the plugin's set_setting action (plugin.SET_SETTING).
                 "toggles": c.settings.toggles("set_setting")}
+
+    def current_portal(self) -> str:
+        """The portal address of the system you are in, or "" - what the overlay draws as glyphs."""
+        here = self.connector.here()
+        return (address_portal(unpack_address(here) or {}) or "") if here is not None else ""
 
     def where_lines(self) -> list[str]:
         """Overlay area *Where you are*: the system (live from the game, else the save's), the planet you are on

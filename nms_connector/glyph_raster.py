@@ -10,7 +10,8 @@ from __future__ import annotations
 
 from PIL import Image, ImageDraw
 
-from .glyph_art import GLYPH_ART_VERSION, GLYPHS, STROKE_WIDTH, _checked
+from .glyph_art import GLYPH_ART_VERSION as GLYPH_ART_VERSION   # re-exported: both emitters share one version
+from .glyph_art import GLYPHS, STROKE_WIDTH, _checked
 
 BOX = 100.0              # the artwork's coordinate box
 SUPERSAMPLE = 4          # drawn this many times larger, then downsampled with LANCZOS
