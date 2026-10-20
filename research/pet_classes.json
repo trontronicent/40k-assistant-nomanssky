@@ -1804,5 +1804,42 @@
     "vp1_is_the_real_grouping": "VP1 has only 48 distinct values over 524 records and maps one-to-one onto the CreatureID archetype: each of the 14 tamed archetypes has exactly one VP1 value, and all three Cats share theirs. The one merge is ^WEIRDFLOAT and ^WEIRDROLL, which share 0x711E4D20ED4E1D52 - so VP1 is slightly coarser than CreatureID, a genus rather than an archetype. 13 of the 48 values are confirmed tameable.",
     "why_this_matters": "CreatureID ('^CAT') exists only on a tamed pet. VP1 is the same information for a creature that was merely scanned, so the 497 untamed seeds CAN be grouped by kind without taming anything - which is what the archetype_bias question needs at scale, and what makes a tameability filter possible.",
     "same_species_question_resolved": "The standing wish for 'two creatures of the same species, different CreatureSeed' is already satisfied and was mis-specified: SpeciesSeed never repeats, so it could never have identified a species. By VP1 the save already holds three Cats and three Two-leg Antelopes on distinct CreatureSeeds, and they scatter across every tier - which is the confirmation that was wanted."
+  },
+  "selection_bias": {
+    "date": "2026-10-20",
+    "the_warning": "The player states that the companions were TAMED BY SELECTION - they were hunting for the best pets. The 21 tamed observations are therefore a biased sample of the galaxy's creatures, chosen for high tiers.",
+    "what_it_invalidates": "Any claim about how tiers are DISTRIBUTED. The observed 'S is 33% of all readings, above the 25% a uniform draw would give' is explained by the selection and is no longer evidence of a weighted table. Tamed-pet tiers: {'B': 15, 'C': 11, 'A': 16, 'S': 21} over 63 readings. This removes the main motivation for hunting a weighting table in the MBINs (route 3 below), which was built on that apparent skew.",
+    "what_it_does_NOT_invalidate": "Everything that is a per-seed relation rather than a frequency. The tier-is-a-function-of-CreatureSeed result, the clone-pair agreements, the Overall formula, size/weight, and the treats findings are all within-creature or within-pair comparisons, and selecting which creatures enter the sample cannot change them. The archetype_bias reasoning also survives: it compared the three Cats against the base rate OF THE SAME BIASED SAMPLE, which is the correct conditional comparison and is self-calibrating - if the player selected for high tiers generally, Cats reading Combat S is not special.",
+    "the_unbiased_sample": "The scanner readings are the clean sample: the player scans whatever is in front of them rather than choosing. Current scanner tiers: {'C': 2, 'B': 4, 'S': 2, 'A': 1} over 9 readings - far too few to say anything, but this is the list that may ever support a distributional claim. RULE: never compute tier frequencies from 'observations'; use 'scanned_readings' only, and say the sample size out loud."
+  },
+  "how_to_crack_the_seed": {
+    "date": "2026-10-20",
+    "the_key_realisation": "Sample size was never the blocker. A BLIND search over millions of candidate bit fields drowns in multiple comparisons - that is what the null test measured, with shuffled labels matching 90-93% of the time. But testing a NAMED hypothesis has almost no multiplicity: 18 labelled seeds x 3 tiers = 54 symbols at 1 in 4 each, so a wrong function reproducing all 54 by chance is about 4^-54. Ten thousand candidate functions could be tested against the data ALREADY HELD and a single survivor would be conclusive. Collecting hundreds more labels buys power only for the one method that does not work.",
+    "route_1_save_as_oracle": {
+      "priority": "HIGHEST",
+      "idea": "Save writing is proven on this machine. Edit a pet's CreatureSeed, load, read the tiers. That converts the problem from statistics into direct probing: chosen inputs instead of whatever the galaxy hands over.",
+      "why_it_is_decisive": "With chosen seeds the structure falls out in a few dozen readings instead of hundreds - seed 0, 1, 2, then single bits 1<<0 .. 1<<63. If a tier flips when one bit flips, that bit's role is immediate. Random samples can never do this, however many are collected.",
+      "first_step": "One reading: change a disposable pet's seed and see whether the tiers move at all. That also re-tests the 'CreatureSeed alone' claim independently - if they do not move, tiers are cached at hatch and everything downstream needs revising.",
+      "safety": "Needs the player's go-ahead. Work on a copied save slot with a backup, never the live one.",
+      "status": "NOT STARTED - awaiting consent."
+    },
+    "route_2_known_prngs": {
+      "priority": "HIGH, and free",
+      "idea": "NMS procedural generation runs through a seeded RNG whose shapes are small and documented: 64-bit LCGs, SplitMix64, xoroshiro128+, and the variants the modding community has recovered. If a tier is a Range(0,4) draw, the tier is a few known steps from the seed. Test a battery of candidates x draw orders x output mappings against the 18 existing labels.",
+      "cost": "No new data, no new readings. Either hands over the function or eliminates the whole family.",
+      "status": "NOT STARTED - offered, no go-ahead yet."
+    },
+    "route_3_mbin_weighting_table": {
+      "priority": "DOWNGRADED on 2026-10-20 - see selection_bias",
+      "idea": "Enumerate every pet-related MBIN (the earlier search only grepped gccreatureglobals.mbin for tier-ish strings) and look for a tier weighting table.",
+      "why_downgraded": "Its motivation was the apparent S skew at 33%, which the player has now explained as selection bias - they tamed the best creatures they found. There is no longer any evidence that the tier draw is weighted rather than uniform, so the table may not exist. Still cheap, and still the place the weights would live IF the scanner sample ever shows a real skew.",
+      "status": "NOT STARTED, low value until an unbiased skew is demonstrated."
+    },
+    "route_4_static_analysis": {
+      "priority": "FALLBACK",
+      "idea": "Static analysis of NMS.exe - the ground truth, and the only route guaranteed to hold the answer.",
+      "cost": "Much the most laborious. A proper fallback, not a starting point."
+    },
+    "what_bulk_scanning_is_still_for": "NOT for cracking the function - that advice was wrong and is retracted. Scanning remains worth doing for the unbiased tier distribution (see selection_bias), for mapping which VP1 genera are tameable, and for validating scanner tiers against companion tiers. None of those need hundreds of readings either."
   }
 }
