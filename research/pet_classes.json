@@ -24,7 +24,9 @@
     "Unzy read B / B / C both before and after this training, a third confirmation that treats do not move the class - now on a pet where one stat went all the way to its cap.",
     "Gene modification (the Morphogenetics interface) changes Aggressiveness, Helpfulness, Size and the like - stated by the player, who performed the edits - i.e. it writes Traits and Scale, NOT the battle stats and NOT the creature seeds. This reframes both clone pairs: they are gene-edited relatives, not coincidences. Plati is a gene-modified descendant of Little Cute Monster, and the two Spiders differ by a deliberate size edit (Scale 2.181 -> 3.681). So size was not merely uncorrelated with the class - it was directly altered on one creature and the class letters did not move. Traits and Scale are player-editable; the class is not.",
     "The x/10 numbers the Companion UI shows ARE PetBattlerTreatsEaten, not a derived stat. Confirmed on two pets, six independent values, with no mismatch: Unzy stores [10, 1, 8] and reads Combat 8/10, Agility 1/10, Health 10/10; Mantissa stores [4, 0, 6] and reads Combat 6/10, Agility 0/10, Health 4/10 - the latter predicted before it was read. The cap of 10 is therefore the treat cap, and nothing numeric about a companion's battle stats is hidden from the save: the plugin can show these values exactly, from the save alone, with no guessing.",
-    "Overall is computed from the three letters alone, as ceil(mean), i.e. ceil(sum/3) with C=0 B=1 A=2 S=3. It fits all 11 pets and every simpler alternative (max, min, median, floor, round) is contradicted by at least one pet. So Overall carries no information beyond the three stats and is not worth storing separately."
+    "Overall is computed from the three letters alone, as ceil(mean), i.e. ceil(sum/3) with C=0 B=1 A=2 S=3. It fits all 11 pets and every simpler alternative (max, min, median, floor, round) is contradicted by at least one pet. So Overall carries no information beyond the three stats and is not worth storing separately.",
+    "The displayed size is Scale rounded to one decimal, and the displayed weight is 40 * Scale rounded to one decimal - exact on both freshly tamed pets. The weight constant rests on two similarly built creatures and is the weaker half; see size_and_weight.falsifiers.",
+    "Alia is both larger and heavier than Wolverine (1.0 m / 41.0 kg against 0.8 m / 30.3 kg) and reads Health C against Wolverine's S. That refutes 'larger creatures have higher inherent health' a second time, now against the size and weight the game itself prints rather than the raw Scale field."
   ],
   "open": [
     "Overall still looks like a function of the three letters alone, scoring C=0 B=1 A=2 S=3, and is now monotone over three distinct sums: Unzy B/B/C sums 2 and reads Overall B; Mantissa, Zushetto and Callista all sum 5 and read A; Plati sums 7 and reads S. Consistent but underdetermined - the B/A boundary lies somewhere in 3..5 and the A/S boundary in 6..7, and no pet has yet read Overall C.",
@@ -802,6 +804,130 @@
           "ui_class_overall": "A"
         }
       ]
+    },
+    {
+      "name": "Wolverine",
+      "slot": 25,
+      "creature_id": "^CAT",
+      "creature_type": "Predator",
+      "biome": "Barren",
+      "scale": 0.7572673559188843,
+      "seeds": {
+        "CreatureSeed": "0x31FA691FD601B06C",
+        "CreatureSecondarySeed": "0x0",
+        "SpeciesSeed": "0xBAC37658DBF06000",
+        "GenusSeed": "0xB2E9FF4E881ACBD3",
+        "BoneScaleSeed": "0x31FA691FD601B06C",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_BODY_CAT",
+        "^_SHAPE_1",
+        "^_HEAD_WOLF",
+        "^_HWACC_A",
+        "^_WOLFTOP_2",
+        "^_HWTOP_F",
+        "^_HWEARS_E1",
+        "^_TAIL_WOLF",
+        "^_MESH_LIZ",
+        "^_BLBACK_NULL",
+        "^4258439961"
+      ],
+      "traits": [
+        0.48923516273498535,
+        0.30742743611335754,
+        -0.7783952951431274
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "note": "Freshly tamed, untrained. The player also read the displayed size and weight.",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 0,
+          "victories": 0,
+          "progress_to_treat": 0.0,
+          "trust": 0.6500000357627869,
+          "ui_class": {
+            "combat_effectiveness": "S",
+            "agility": "S",
+            "health": "S"
+          },
+          "ui_class_overall": "S",
+          "ui_size_m": 0.8,
+          "ui_weight_kg": 30.3
+        }
+      ]
+    },
+    {
+      "name": "Alia",
+      "slot": 26,
+      "creature_id": "^TWOLEGANTELOPE",
+      "creature_type": "Prey",
+      "biome": "Barren",
+      "scale": 1.025970220565796,
+      "seeds": {
+        "CreatureSeed": "0xBC54E1F2573708C8",
+        "CreatureSecondarySeed": "0x0",
+        "SpeciesSeed": "0x17A2939342EC560E",
+        "GenusSeed": "0x3146BF1096C800F3",
+        "BoneScaleSeed": "0xBC54E1F2573708C8",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_HEAD_DEER",
+        "^_HDTEETH_1",
+        "^_HDEARS_NULL",
+        "^_HDHORNS_2",
+        "^_BODY_DEER",
+        "^_B2LD_5",
+        "^_TAIL_3",
+        "^_FIN_0B",
+        "^693582224"
+      ],
+      "traits": [
+        0.1973334550857544,
+        -0.6795653104782104,
+        0.16196036338806152
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "note": "Freshly tamed, untrained. The player also read the displayed size and weight.",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 0,
+          "victories": 0,
+          "progress_to_treat": 0.0,
+          "trust": 0.6000000238418579,
+          "ui_class": {
+            "combat_effectiveness": "C",
+            "agility": "S",
+            "health": "C"
+          },
+          "ui_class_overall": "B",
+          "ui_size_m": 1.0,
+          "ui_weight_kg": 41.0
+        }
+      ]
     }
   ],
   "save_treats_order": {
@@ -857,27 +983,26 @@
   "overall_formula": {
     "formula": "Overall = ceil((combat + agility + health) / 3), scoring C=0, B=1, A=2, S=3",
     "equivalently": "the ceiling of the mean of the three letters",
-    "fits": "all 11 pets",
+    "fits": "all 13 pets",
     "sums_observed": [
       2,
       3,
       5,
       6,
-      7
+      7,
+      9
     ],
     "sums_not_observed": [
       0,
       1,
       4,
-      8,
-      9
+      8
     ],
     "predictions_for_unobserved_sums": {
       "0": "C",
       "1": "B",
       "4": "A",
-      "8": "S",
-      "9": "S"
+      "8": "S"
     },
     "alternatives_ruled_out": {
       "floor(sum/3)": "9 misses: Unzy Bunzy Bowa, Little Cute Monster, Mantissa, Plati, Zushetto, Zero-Rex, Mandriliva, Milkinny, Callista",
@@ -887,6 +1012,21 @@
       "median": "4 misses: Little Cute Monster, Plati, Zero-Rex, Zero-Bug"
     },
     "decisive_observation": "Zero-Rex. A/C/C sums to 2, the same as Unzy's B/B/C, but has a different max (A vs B) and a different median (C vs B). Both read Overall B, which eliminates max and median at a stroke - no single-letter statistic can produce it.",
-    "caveat": "A formula fitted over 5 distinct sums ([2, 3, 5, 6, 7]), not a derivation from the game's code. Inside the observed range the gap is sum 4; a pet summing 4 that reads B would break it."
+    "caveat": "A formula fitted over 6 distinct sums ([2, 3, 5, 6, 7, 9]), not a derivation from the game's code, though it has now predicted one sum correctly in advance. Remaining gaps: [0, 1, 4, 8].",
+    "confirmed_predictions": "Sum 9 was listed as unobserved with a predicted Overall of S; Wolverine came in at S/S/S and read Overall S. Alia at sum 3 read B, matching Zero-Bug. So the formula has now survived a prediction made before the reading existed."
+  },
+  "size_and_weight": {
+    "date": "2026-10-20",
+    "formulas": {
+      "size_m": "round(Scale, 1)",
+      "weight_kg": "round(40 * Scale, 1)"
+    },
+    "measured_on": [
+      "Wolverine ^CAT: Scale 0.757267 -> 0.8 m, 30.3 kg (game: 0.8 m, 30.3 kg)",
+      "Alia ^TWOLEGANTELOPE: Scale 1.025970 -> 1.0 m, 41.0 kg (game: 1.0 m, 41.0 kg)"
+    ],
+    "status": "Exact on both pets, to the decimal the game prints. The 40 kg per unit of Scale is the part to doubt: both samples are four-legged land animals of broadly similar build, and weight could plausibly carry a per-species or per-body-type density that happens to be 40 for a Cat and a Two-leg Antelope. The size formula is just Scale rounded and is far safer.",
+    "falsifiers": "Read the displayed size and weight of a very differently built creature. Zushetto (^SPIDER, Scale 3.6813 -> predict 3.7 m / 147.3 kg) and Callista (^WEIRDFLOAT, Scale 1.5000 -> predict 1.5 m / 60.0 kg) are the most unlike the two measured bodies; Zero-Rex (^TREX, 3.1230 -> 3.1 m / 124.9 kg) is a third. If any weight misses while its size matches, the density is species-dependent and only the size formula survives.",
+    "consequence_if_it_holds": "The plugin could show a companion's size and weight exactly as the game does, from Scale alone - neither is currently shown anywhere."
   }
 }
