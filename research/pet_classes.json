@@ -30,8 +30,8 @@
     "What a tier does: it is an unchangeable rate of return on treats, scaling how much stat each treat buys in that category - stated by the player, not measurable from a save. It is not a cap (every stat takes 10 treats whatever its tier) and not a stat value. The plugin therefore shows investment, not strength, and cannot rank companions by power."
   ],
   "open": [
+    "The exact CreatureSeed -> tier function. Not recoverable from labelled pets; see creature_seed_search. Needs engine disassembly, and nothing in the plugin depends on it.",
     "Overall still looks like a function of the three letters alone, scoring C=0 B=1 A=2 S=3, and is now monotone over three distinct sums: Unzy B/B/C sums 2 and reads Overall B; Mantissa, Zushetto and Callista all sum 5 and read A; Plati sums 7 and reads S. Consistent but underdetermined - the B/A boundary lies somewhere in 3..5 and the A/S boundary in 6..7, and no pet has yet read Overall C.",
-    "The exact seed -> class function. Would need engine-code reverse engineering, or many more labelled pets than this save holds.",
     "Whether treats raise the numeric stat within a class (plausible, and what 'training' would then mean) - the UI letters are all that has been read so far.",
     "Scale looks like a seeded base plus a discrete step: the Spider clones differ by exactly 1.500 with an identical fractional part, and Callista's Scale is 1.4999999. The younger Spider is the bigger one, so it is not growth with age.",
     "Whether size affects anything the player can see. It does not affect the class letters (proven by the Spider size edit) and it cannot affect the x/10 numbers either, because those ARE PetBattlerTreatsEaten - see the conclusion on that. So if size matters at all it is inside battle resolution, which neither the save nor the UI exposes, and this plugin cannot speak to it. An earlier version of this note proposed comparing the two Spiders' numbers as a size control; that was wrong twice over - the numbers are just treats, and the two Spiders do not even have equal treats (Mantissa [4,0,6], Zushetto [0,0,0])."
@@ -1056,5 +1056,16 @@
       "0x320E447D6296A867 - Unzy Bunzy Bowa (B/B/C) and the unnamed Cow in slot 1 (UNREAD)"
     ],
     "open_test": "The unnamed Cow in slot 1 is the one discriminating pet in the save. It shares Unzy's CreatureSeed, SpeciesSeed and GenusSeed and has the same Scale, but differs in CreatureSecondarySeed (Unzy 0x56427E9D16C14071, slot 1 absent) and in its Descriptors - a visibly different animal with different body parts. If the tier is a function of CreatureSeed alone it must read exactly B/B/C like Unzy; if CreatureSecondarySeed or the descriptors enter the derivation, it can differ. Reading its three letters tests the player's statement in its strict form, and it is the only such test available without new pets."
+  },
+  "creature_seed_search": {
+    "date": "2026-10-20",
+    "question": "Given that the tier comes from CreatureSeed, can the derivation be recovered from labelled pets?",
+    "data": "13 pets, 11 distinct CreatureSeeds. The two duplicate-seed pairs agree on all three letters.",
+    "searched": "Every 2-, 3-, 4- and 8-bit field at every offset of the 64-bit seed (about 250 fields), the seed modulo 3,4,5,6,7,8,10,12,16,20,100, its popcount and popcount%4. A field counted as a hit only if no field value ever carried two different letters.",
+    "result": "NEGATIVE. Nothing survives a null test.",
+    "null_test": "The same search was re-run on randomly shuffled letters, 300 trials per stat, comparing how many value-collisions the best field survived. Shuffled labels did as well or better in 300/300 trials for Combat, 61/300 (20%) for Agility and 256/300 (85%) for Health. So the apparent hits - e.g. bits[31:34] looking consistent for Agility - are what this search finds in noise, not a finding. Recorded because without the null test they look convincing.",
+    "why_it_fails": "A 64-bit seed almost certainly reaches the tier through a hash or seeded PRNG, as the rest of the game's procedural generation does. No contiguous bit field of the input would then map to the output, which is exactly what is observed. Recovering it needs the function, not more input/output pairs: 11 samples cannot distinguish candidate hashes, and even hundreds would not without the right functional form to fit.",
+    "do_not_retry": "Searching bit fields of any seed against the letters. This is the second such search to come back empty - the first swept all six seeds over 8 pets - and the null test explains why a third would also produce plausible-looking hits that mean nothing.",
+    "what_would_work": "Disassembling the engine's companion-stat code, or a community datamine of it. Neither is available, and the plugin does not need it: it shows the treat numbers, which are exact, and says plainly that the tier is not in the save."
   }
 }
