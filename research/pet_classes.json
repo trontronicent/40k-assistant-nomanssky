@@ -18,10 +18,13 @@
     "A search of every nibble, byte and 16-bit word of all six seeds for a field monotone with the observed letters found nothing for Combat or Agility, and only overlapping bits of SpeciesSeed for Health - 8 samples against about 144 candidate fields, so treated as coincidence, not a finding.",
     "PetBattlerTreatsEaten index 2 is Combat Effectiveness, measured: the player spent 8 treats on Combat and all 8 appeared at index 2 (2 -> 10), with indices 0 and 1 unchanged. The plugin's pets.STAT_NAMES claims index 2 is Agility and is therefore WRONG about at least that index; indices 0 and 1 are still unidentified. Note this is measured for PetBattlerTreatsEaten only - whether PetBattlerCoreStatClassOverrides shares the same order is untested, and cannot be tested while every pet reads [C, C, C].",
     "A stat caps at 10 treats eaten: Plati's Combat stopped at exactly 10 with a treat still available, which also explains Little Cute Monster's [8, 10, 10].",
-    "Training confirmed a second time, now as a before/after on one pet rather than across clones: Plati went from 2 to 10 treats on Combat Effectiveness and still reads A / A / S with Overall S. Treats do not move the class letters."
+    "Training confirmed a second time, now as a before/after on one pet rather than across clones: Plati went from 2 to 10 treats on Combat Effectiveness and still reads A / A / S with Overall S. Treats do not move the class letters.",
+    "PetBattlerTreatsEaten is ordered (Health, Agility, Combat Effectiveness) - the reverse of the UI's display order. pets.STAT_NAMES = (Combat Effectiveness, Health, Agility) is wrong in all three positions.",
+    "The class letter and the trained number are independent quantities. Unzy reads Health C at a maxed 10/10 and Agility B at 1/10: a maxed stat in a low class still shows C, an untouched stat in a better class still shows B. So the letter is the stat's intrinsic class, fixed by the seeds, and the x/10 is treats invested within it. This is what 'training' means, and it is why no amount of it moves a letter.",
+    "Unzy read B / B / C both before and after this training, a third confirmation that treats do not move the class - now on a pet where one stat went all the way to its cap."
   ],
   "open": [
-    "Overall looks like a function of the three letters alone, scoring C=0 B=1 A=2 S=3: Mantissa B/A/A, Zushetto B/A/A and Callista A/B/A all sum to 5 and all read Overall A, while Plati A/A/S sums to 7 and reads Overall S. Four data points and only two distinct sums, so this is a lead, not a rule; the A/S boundary is somewhere in 6..7 and the B and C boundaries are unobserved.",
+    "Overall still looks like a function of the three letters alone, scoring C=0 B=1 A=2 S=3, and is now monotone over three distinct sums: Unzy B/B/C sums 2 and reads Overall B; Mantissa, Zushetto and Callista all sum 5 and read A; Plati sums 7 and reads S. Consistent but underdetermined - the B/A boundary lies somewhere in 3..5 and the A/S boundary in 6..7, and no pet has yet read Overall C.",
     "The exact seed -> class function. Would need engine-code reverse engineering, or many more labelled pets than this save holds.",
     "Whether treats raise the numeric stat within a class (plausible, and what 'training' would then mean) - the UI letters are all that has been read so far.",
     "Scale looks like a seeded base plus a discrete step: the Spider clones differ by exactly 1.500 with an identical fractional part, and Callista's Scale is 1.4999999. The younger Spider is the bigger one, so it is not growth with age."
@@ -99,7 +102,7 @@
     "Agility",
     "Health"
   ],
-  "save_override_order": "Unverified. pets.STAT_NAMES claims Combat Effectiveness / Health / Agility, but the measured PetBattlerTreatsEaten order contradicts that at index 2. See save_treats_order.",
+  "save_override_order": "Unverified and untestable while every pet reads [C, C, C]. pets.STAT_NAMES claims Combat Effectiveness / Health / Agility, which the measured PetBattlerTreatsEaten order (Health / Agility / Combat Effectiveness) contradicts. Do not assume the two arrays share an order.",
   "save_path": "BaseContext.PlayerStateData.Pets",
   "observations": [
     {
@@ -161,6 +164,31 @@
             "health": "C"
           },
           "ui_class_overall": null
+        },
+        {
+          "date": "2026-10-20",
+          "note": "After the player spent treats on Health only. 3 treats left the pool (7 -> 4) and all 3 landed on PetBattlerTreatsEaten index 0, which rose 7 -> 10. The player also read the numeric stats, which pin every index at once: Combat 8/10, Agility 1/10, Health 10/10 against the stored [10, 1, 8].",
+          "treats_eaten": [
+            10,
+            1,
+            8
+          ],
+          "treats_available": 4,
+          "victories": 27,
+          "progress_to_treat": 0.36273816227912903,
+          "trust": 0.8000000715255737,
+          "ui_class": {
+            "combat_effectiveness": "B",
+            "agility": "B",
+            "health": "C"
+          },
+          "ui_class_overall": "B",
+          "ui_stat_numbers": {
+            "combat_effectiveness": "8/10",
+            "agility": "1/10",
+            "health": "10/10"
+          },
+          "trained_since_previous_reading": "Health, +3 treats"
         }
       ]
     },
@@ -705,9 +733,10 @@
     }
   ],
   "save_treats_order": {
-    "0": "unidentified",
-    "1": "unidentified",
+    "0": "Health (measured 2026-10-20)",
+    "1": "Agility (measured 2026-10-20)",
     "2": "Combat Effectiveness (measured 2026-10-20)",
-    "cap_per_stat": 10
+    "cap_per_stat": 10,
+    "note": "Fully determined, and it is the exact REVERSE of the order the Companion UI lists the stats in (UI: Combat Effectiveness, Agility, Health). Established by two independent single-stat spends - Plati's 8 treats into Combat landed on index 2, Unzy's 3 into Health landed on index 0 - and confirmed outright by Unzy's numeric stats matching the stored array element by element (Combat 8 = index 2, Agility 1 = index 1, Health 10 = index 0)."
   }
 }
