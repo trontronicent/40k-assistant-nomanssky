@@ -1849,5 +1849,38 @@
       "cost": "Much the most laborious. A proper fallback, not a starting point."
     },
     "what_bulk_scanning_is_still_for": "NOT for cracking the function - that advice was wrong and is retracted. Scanning remains worth doing for the unbiased tier distribution (see selection_bias), for mapping which VP1 genera are tameable, and for validating scanner tiers against companion tiers. None of those need hundreds of readings either."
+  },
+  "oracle_session_state": {
+    "date": "2026-10-20",
+    "where_we_are": "Batch 1 is done and recorded (CreatureSeed falsified). Batch 2 is BUILT AND VERIFIED but NOT INSTALLED and NOT READ. Nothing is pending analysis; the next input needed is the player's nine tier readings for batch 2.",
+    "batch_files_kept": "J:/nms-save-backups/oracle-batches holds save_batch1.hg, save_batch2.hg and the build scripts, outside the session scratchpad so they survive the session.",
+    "backup_of_the_real_save": "J:/nms-save-backups/2026-10-20_095912_pre-test-pets - all 10 .hg files plus steam_autocloud.vdf, verified byte-identical by md5. Checksums at J:/nms-save-backups/checksums_2026-10-20_095912.md5. Restore by copying the .hg files back with the game closed.",
+    "the_save_currently_in_place": "The player's live save.hg HOLDS BATCH 1: nine pets named testCTRL, testZERO and testBIT00/08/16/24/32/40/48 in slots 18-23 and 27-29. The 21 real pets are untouched. The test pets should eventually be deleted in game to reclaim the slots, or be overwritten by the next batch.",
+    "install_command": "Copy-Item <batch file> 'C:/Users/Reto/AppData/Roaming/HelloGames/NMS/st_76561197971751554/save.hg' -Force, with the game closed. The agent's own write to that folder is blocked by the sandbox as irreversible local destruction, so the player runs it. In PowerShell use $env:APPDATA, never $APPDATA.",
+    "batch_2_plan": {
+      "donor": "Tippo B/B/C",
+      "source": "Kaky S/S/S",
+      "pets": {
+        "18 testCTRL2": "plain Tippo clone - must read B/B/C",
+        "19 testKAKY": "full Kaky clone - must read S/S/S, or the tier is not in the pet record at all",
+        "20 testBONE": "Tippo + Kaky BoneScaleSeed - prime suspect",
+        "21 testSPEC": "Tippo + Kaky SpeciesSeed",
+        "22 testGENU": "Tippo + Kaky GenusSeed",
+        "23 testSEC": "Tippo + Kaky CreatureSecondarySeed",
+        "27 testBODY": "Tippo + Kaky Descriptors AND CreatureID, moved together on purpose",
+        "28 testTRAI": "Tippo + Kaky Traits",
+        "29 testCOL": "Tippo + Kaky ColourBaseSeed"
+      },
+      "how_to_read_it": "Exactly one pet reading S/S/S names the field that holds the tier. Several means the tier draws on more than one field. None, with testKAKY correct, means a combination and the next batch goes after pairs."
+    },
+    "method_notes_for_next_time": [
+      "Read the NEWEST of save.hg / save2.hg, never a hard-coded one - the game alternates between them.",
+      "The pet struct has 35 fields and an empty slot carries the same key set, so a test pet is a deepcopy of a live pet with fields overwritten - never a hand-built dict.",
+      "Give each test pet a distinct BirthTime; identity is CreatureSeed@BirthTime.",
+      "The write path is nms_connector/save_write.py, working on the RAW obfuscated tree; resolve keys through the reverse of mapping.json. The payload round-trips exactly, file bytes differ by design, and the module's top docstring wrongly claims byte-for-byte - the tests are right, the docstring overstates.",
+      "Always verify a built save by re-reading it with saves.read_save and asserting the 21 real pets are still there before handing it over.",
+      "The game normalises nothing on load: what is written is what is used."
+    ],
+    "still_untested_side_experiment": "PetBattlerUseCoreStatClassOverrides set true with [S,S,S] - one slot would finally say what that inert field does. Not yet spent."
   }
 }
