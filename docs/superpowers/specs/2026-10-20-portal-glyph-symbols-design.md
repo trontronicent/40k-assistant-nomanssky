@@ -59,8 +59,8 @@ smooth without an anti-aliasing library.
 
 Thin and pure, so the call sites stay one-liners:
 
-- `glyph_cells(address)` → `None` for anything that is not 1–12 hex digits (never raises, never half-renders), else
-  the list of indices.
+- `glyph_digits(address)` → `None` for anything that is not 1–12 hex digits (never raises, never half-renders),
+  else the list of glyph indices.
 - `ensure_glyph_assets(assets_dir)` → writes the sixteen `.svg` and sixteen `.png` files for the current
   `GLYPH_ART_VERSION` if they are not already there, and removes files of an older version. Called once from the
   connector's start, the same way `_ensure_icons` already works.
@@ -112,7 +112,7 @@ gives it those.
 
 Nothing about this feature may cost the player a view. Each layer degrades to the layer below:
 
-- A malformed or absent address → `glyph_cells` returns `None` → the key is simply not set → the plain hex shows,
+- A malformed or absent address → `glyph_digits` returns `None` → the key is simply not set → the plain hex shows,
   exactly as today.
 - An asset that failed to write → the app drops the key at normalisation or the `<img>` fails → text alone.
 - A rasteriser failure → logged at warning (the overlay loses its symbols, which has a visible consequence) and
@@ -126,7 +126,7 @@ Nothing about this feature may cost the player a view. Each layer degrades to th
 - `glyph_png` yields a transparent image with ink in it, and the sixteen images are pairwise distinct (guards
   against a copy-paste entry)
 - both emitters are deterministic for the same input
-- `glyph_cells` accepts 1–12 hex digits in either case and rejects empty, 13 digits, `0x` prefixes and non-hex
+- `glyph_digits` accepts 1–12 hex digits in either case and rejects empty, 13 digits, `0x` prefixes and non-hex
 - `ensure_glyph_assets` writes 32 files, is idempotent, and clears files of a superseded `GLYPH_ART_VERSION`
 - the call sites set `glyphs` alongside the unchanged text
 
