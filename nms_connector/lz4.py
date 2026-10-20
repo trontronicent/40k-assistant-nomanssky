@@ -70,19 +70,79 @@ def decompress_block(src: bytes, out_size: int) -> bytes:
     return bytes(dst)
 
 
-def compress_block(data: bytes) -> bytes:
-    """Encode `data` as one LZ4 block of literals only - the encoder the savegame editor writes with.
+MIN_MATCH = 4           # LZ4's shortest match; a match length is stored as length - 4
+MAX_OFFSET = 0xFFFF     # the offset is two bytes
+LAST_LITERALS = 5       # the block's last 5 bytes must be literals
+MF_LIMIT = 12           # and no match may start within the last 12
 
-    A block whose single sequence is all literals and no match is valid LZ4 that any decompressor accepts, so
-    this needs no match finding and is correct by construction. Compression is deliberately not attempted: the
-    save grows by the length bytes alone, and a save that is certainly readable beats a smaller one.
+
+def _emit_length(out: bytearray, rest: int) -> None:
+    """The continuation bytes for a length that did not fit in its 4-bit nibble: 255 until the remainder."""
+    while rest >= 255:
+        out.append(255)
+        rest -= 255
+    out.append(rest)
+
+
+def _emit_literals(out: bytearray, data: bytes) -> None:
+    """A final, match-less sequence: the token (match nibble 0), the literal length bytes, the literals.
+
+    A sequence without a match carries no offset, which is why this is only ever the block's last one.
     """
     n = len(data)
-    out = bytearray([min(n, 15) << 4])
+    out.append(min(n, 15) << 4)
     if n >= 15:
-        rest = n - 15
-        while rest >= 255:
-            out.append(255)
-            rest -= 255
-        out.append(rest)
-    return bytes(out) + data
+        _emit_length(out, n - 15)
+    out += data
+
+
+def _emit_sequence(out: bytearray, literals: bytes, offset: int, match_len: int) -> None:
+    """One full sequence: token, literal length, the literals, the 2-byte offset, the match length."""
+    extra = match_len - MIN_MATCH
+    out.append((min(len(literals), 15) << 4) | min(extra, 15))
+    if len(literals) >= 15:
+        _emit_length(out, len(literals) - 15)
+    out += literals
+    out += offset.to_bytes(2, "little")
+    if extra >= 15:
+        _emit_length(out, extra - 15)
+
+
+def _match_end(data: bytes, pos: int, cand: int, limit: int) -> int:
+    """How far the match at `cand` extends the one at `pos`, stopping at `limit` (the last-literals boundary)."""
+    end, other = pos + MIN_MATCH, cand + MIN_MATCH
+    while end < limit and data[end] == data[other]:
+        end += 1
+        other += 1
+    return end
+
+
+def compress_block(data: bytes) -> bytes:
+    """Encode `data` as one LZ4 block - the encoder the savegame editor writes saves with.
+
+    A greedy single-candidate matcher over a hash table of 4-byte sequences: good enough to bring a save back
+    to roughly the size the game writes (a literals-only encoding turned a 1.4 MB save into 5.5 MB), and small
+    enough to read in one sitting. The format's end rules are honoured, because the *game's* decompressor is
+    real LZ4 and is entitled to reject a block that this module's lenient `decompress_block` would accept: the
+    last sequence is literals only, and no match starts in the final `MF_LIMIT` bytes.
+    """
+    n = len(data)
+    out = bytearray()
+    if n < MF_LIMIT + MIN_MATCH:
+        _emit_literals(out, data)           # too short for any match to be legal
+        return bytes(out)
+    table: dict[bytes, int] = {}
+    extend_limit, start_limit = n - LAST_LITERALS, n - MF_LIMIT
+    anchor = pos = 0
+    while pos < start_limit:
+        key = data[pos:pos + MIN_MATCH]
+        cand = table.get(key, -1)
+        table[key] = pos
+        if cand < 0 or pos - cand > MAX_OFFSET:
+            pos += 1
+            continue
+        end = _match_end(data, pos, cand, extend_limit)
+        _emit_sequence(out, data[anchor:pos], pos - cand, end - pos)
+        pos = anchor = end
+    _emit_literals(out, data[anchor:])
+    return bytes(out)

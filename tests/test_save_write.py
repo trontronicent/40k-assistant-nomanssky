@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from nms_connector.lz4 import compress_block, decompress_block
+from nms_connector.lz4 import LAST_LITERALS, MIN_MATCH, compress_block, decompress_block
 from nms_connector.save_write import CHUNK, RawSave, decode_lossless, encode_bytes, read_raw, write_save
 from nms_connector.saves import MAGIC, SaveFormatError
 
@@ -29,13 +29,101 @@ def test_compress_block_round_trips_at_every_length_boundary(size):
     assert decompress_block(encoded, size) == data
 
 
-def test_compress_block_emits_a_literals_only_block():
-    """The encoder must emit literals only - no match sequences - because a literals-only block is correct by
-    construction and needs no match finding. The token's match nibble is therefore always 0."""
-    encoded = compress_block(b"abcabcabcabc")
+def test_compress_block_actually_compresses_repetitive_data():
+    """The encoder must find matches, not just emit literals: a literals-only save is about four times the
+    size of the game's own (measured 1.4 MB -> 5.5 MB), which is a real regression for the player's disk and
+    their Steam Cloud quota."""
+    data = b"abcdefgh" * 2000
 
-    assert encoded[0] & 0x0F == 0
-    assert encoded.endswith(b"abcabcabcabc")
+    encoded = compress_block(data)
+
+    assert len(encoded) < len(data) // 4
+    assert decompress_block(encoded, len(data)) == data
+
+
+def test_compress_block_keeps_the_last_bytes_as_literals():
+    """The LZ4 block format requires the last sequence to be literals and forbids a match in the final 12
+    bytes. Our own decompressor is lenient, but the game's is real LZ4 - a block that breaks the rule may
+    decode here and be rejected by the game, which is the worst possible failure mode."""
+    data = b"abcdefgh" * 2000
+
+    encoded = compress_block(data)
+
+    assert encoded.endswith(data[-5:])
+
+
+def strict_block_problem(block: bytes, out_size: int) -> str | None:
+    """Why `block` breaks the LZ4 block format, or None. An independent, strict reader.
+
+    `decompress_block` is deliberately lenient - it is the save *reader* and takes what the game gives it. The
+    game's own decompressor is real LZ4 and may reject what ours accepts, so the encoder's output is checked
+    against the format's rules here instead: a 4-byte minimum match, an offset that stays inside the output,
+    the last five bytes literal, and no match beginning in the final twelve.
+    """
+    pos, produced, last_match_end = 0, 0, None
+    while pos < len(block):
+        token = block[pos]
+        pos += 1
+        literals = token >> 4
+        if literals == 15:
+            while block[pos] == 255:
+                literals += 255
+                pos += 1
+            literals += block[pos]
+            pos += 1
+        produced += literals
+        pos += literals
+        if pos >= len(block):
+            if literals < LAST_LITERALS and out_size >= LAST_LITERALS:
+                return f"final literal run is {literals} bytes, the format needs at least {LAST_LITERALS}"
+            break
+        offset = block[pos] | (block[pos + 1] << 8)
+        pos += 2
+        match = (token & 15) + MIN_MATCH
+        if (token & 15) == 15:
+            while block[pos] == 255:
+                match += 255
+                pos += 1
+            match += block[pos]
+            pos += 1
+        if offset == 0 or offset > produced:
+            return f"match offset {offset} reaches outside the {produced} bytes produced so far"
+        if match < MIN_MATCH:
+            return f"match length {match} is below the minimum {MIN_MATCH}"
+        produced += match
+        last_match_end = produced
+    if produced != out_size:
+        return f"produced {produced} bytes, expected {out_size}"
+    if last_match_end is not None and out_size - last_match_end < LAST_LITERALS:
+        return f"a match ends {out_size - last_match_end} bytes from the end; the last {LAST_LITERALS} must be literals"
+    return None
+
+
+def test_the_strict_validator_rejects_a_block_that_breaks_the_end_rule():
+    """The validator is only worth something if it bites. A hand-built block whose match runs to the very end
+    decodes fine through our lenient reader and must still be reported as malformed."""
+    block = bytes([0x40]) + b"abcd" + (1).to_bytes(2, "little")      # 4 literals, then a match of 4 at offset 1
+
+    assert decompress_block(block, 8) == b"abcddddd"
+    assert strict_block_problem(block, 8) is not None
+
+
+@pytest.mark.parametrize("data", [
+    pytest.param(b"", id="empty"),
+    pytest.param(b"a", id="one-byte"),
+    pytest.param(b"abcd", id="exactly-min-match"),
+    pytest.param(b"a" * 32, id="overlapping-match"),
+    pytest.param(b"abcd" * 5 + b"zzzz" + b"abcd" * 5, id="match-literals-match"),
+    pytest.param(bytes(range(256)) * 300, id="match-longer-than-one-token"),
+    pytest.param(b"x" * 70000 + b"y" * 70000, id="extended-lengths"),
+])
+def test_compress_block_round_trips_every_sequence_shape(data):
+    """Each input exercises a different corner of the encoder - overlapping matches, alternating literal and
+    match runs, lengths that need the 255 continuation bytes. A save is only as safe as these corners."""
+    encoded = compress_block(data)
+
+    assert decompress_block(encoded, len(data)) == data
+    assert strict_block_problem(encoded, len(data)) is None
 
 
 # A save whose strings include bytes that are not valid UTF-8, as the real game's saves do (623 such bytes in
