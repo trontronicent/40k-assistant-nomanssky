@@ -277,6 +277,10 @@ h3 {
 .stc-table td.stc-nowrap { white-space: nowrap; min-width: 0; }
 .stc-hinted { border-bottom: 1px dotted rgba(var(--gold-rgb), 0.45); cursor: help; }
 .stc-icon { width: 28px; height: 28px; object-fit: contain; vertical-align: middle; margin-right: 8px; flex-shrink: 0; }
+/* A portal address as the game's symbols: one 20 px picture per hex digit, in the page's own colour
+   (the artwork strokes in currentColor), with the address itself still beside them. */
+.stc-glyphs { display: inline-flex; align-items: center; gap: 2px; vertical-align: middle; margin-right: 8px; }
+.stc-glyph { width: 20px; height: 20px; flex-shrink: 0; }
 
 /* A column header is a sort button, in the head's own lettering. */
 .stc-sort {

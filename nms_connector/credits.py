@@ -50,7 +50,9 @@ class Group:
 BUILT_ON = Group(
     "The work this plugin builds on",
     "Read or ported, never redistributed: the game's own data stays in your installation, and the save "
-    "key mapping is downloaded from MBINCompiler when it is needed.",
+    "key mapping is downloaded from MBINCompiler when it is needed. The portal glyph pictures are this "
+    "plugin's own artwork, drawn after the game's symbols - no glyph files from the game or from a fan "
+    "site are shipped or downloaded.",
     (
         Credit("monkeyman192 and the MBINCompiler contributors",
                "mapping.json (the save file's key names) and the game's data layouts; downloaded at "

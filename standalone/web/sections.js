@@ -8,7 +8,13 @@
 // tests/test_host_contract.py compares the two lists.
 "use strict";
 
-const ICON_NAME_RE = /^[a-z0-9][a-z0-9._-]{0,119}\.png$/;
+const ICON_NAME_RE = /^[a-z0-9][a-z0-9._-]{0,119}\.(png|svg)$/;
+// The app's views.GLYPH_ADDRESS_RE / pluginModel.GLYPH_ADDRESS_RE: a portal address drawn as the game's
+// symbols. GLYPH_ART_VERSION must match nms_connector/glyph_art.GLYPH_ART_VERSION, which names the files.
+const GLYPH_ADDRESS_RE = /^[0-9A-Fa-f]{1,12}$/;
+const GLYPH_ART_VERSION = 1;
+const GLYPH_NAMES = ["Sunset", "Bird", "Face", "Diplo", "Eclipse", "Balloon", "Boat", "Bug",
+  "Dragonfly", "Galaxy", "Voxel", "Fish", "Tent", "Rocket", "Tree", "Atlas"];
 const NOWRAP_CHARS = 30;
 const EMPTY_TEXTS = ["–", "-", ""];
 
@@ -24,6 +30,19 @@ function cellIcon(cell) {
   if (!cell || typeof cell !== "object" || typeof cell.icon !== "string") return null;
   if (!ICON_NAME_RE.test(cell.icon)) return null;
   return "/api/assets/" + cell.icon;
+}
+
+function cellGlyphs(cell) {
+  if (!cell || typeof cell !== "object" || typeof cell.glyphs !== "string") return null;
+  return GLYPH_ADDRESS_RE.test(cell.glyphs) ? cell.glyphs : null;
+}
+
+function glyphAssetName(digit) {
+  return "glyph-" + GLYPH_ART_VERSION + "-" + String(digit).toLowerCase() + ".svg";
+}
+
+function glyphName(digit) {
+  return GLYPH_NAMES[parseInt(digit, 16)] || "";
 }
 
 function cellHint(cell) {
@@ -213,6 +232,21 @@ function cellNoWrap(cell) {
 }
 
 function appendCell(doc, host, cell) {
+  // A portal address is drawn as its glyphs before the text, exactly as the app's PluginView does; the text
+  // stays beside them, so it is still what the player copies and what shows if an image cannot be loaded.
+  const address = cellGlyphs(cell);
+  if (address) {
+    const row = el(doc, "span", "stc-glyphs");
+    for (const digit of address) {
+      const img = doc.createElement("img");
+      img.setAttribute("src", "/api/assets/" + glyphAssetName(digit));
+      img.setAttribute("alt", glyphName(digit));
+      img.setAttribute("title", glyphName(digit));
+      img.setAttribute("class", "stc-glyph");
+      row.appendChild(img);
+    }
+    host.appendChild(row);
+  }
   const url = cellIcon(cell);
   if (url) {
     const img = doc.createElement("img");

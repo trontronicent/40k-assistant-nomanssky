@@ -44,10 +44,12 @@ def test_the_manifest_stays_on_the_0_15_0_beta_line():
 
 
 def test_the_manifest_still_needs_no_newer_app():
-    """Standalone mode adds nothing the app has to provide, so `app.min_version` must not have moved -
-    an unnecessary bump would stop older apps from installing the plugin at all."""
+    """`app.min_version` moves only when the plugin really needs something a newer app brings - an
+    unnecessary bump would stop older apps from installing the plugin at all. Standalone mode itself still
+    adds nothing. 3.20.0 is needed for the `glyphs` key (portal addresses drawn as the game's symbols on a
+    view cell, a kv/stats item and an overlay area), which older apps would refuse as an unknown key."""
     manifest = json.loads((ROOT / "strategicum-plugin.json").read_text(encoding="utf-8"))
-    assert manifest["app"]["min_version"] == "3.17.0"
+    assert manifest["app"]["min_version"] == "3.20.0"
 
 
 def test_the_manifest_does_not_declare_the_standalone_files():
