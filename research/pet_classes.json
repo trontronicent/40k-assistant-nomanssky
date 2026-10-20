@@ -1704,9 +1704,10 @@
         "the_test": "Two predictions now stand. (1) Any further creature in either untameable genus above should also be untameable - a tameable one there falsifies the per-genus model outright. (2) A second flying creature should carry VP1 0xE7CAD69E2F26FF55; still untested, since the second untameable was a ground creature.",
         "result_2026_10_20_second_untameable": "The 'one flying genus' form of the hypothesis is FALSIFIED. The second untameable creature was ground-dwelling, with VP1 0x4C1604BE2666DB41, not the flyer's 0xE7CAD69E2F26FF55. Untameability therefore spans at least two archetypes and is not about flight. What SURVIVES is the weaker and more useful form: tameability looks like a per-genus property, and both untameable genera found so far are absent from the 21 tamed pets' 13 VP1 values. Nothing yet contradicts 'a genus is either tameable or not' - the open risk is still the reverse direction, since the tameable C/B/B creature also sat in a VP1 no tamed pet held.",
         "untameable_genera_so_far": {
-          "0xE7CAD69E2F26FF55": "flying; 82 of 527 records",
-          "0x4C1604BE2666DB41": "ground; 8 of 527 records"
-        }
+          "0xE7CAD69E2F26FF55": "flying; 83 of 528 records; TWO independent untameable members, on different planets",
+          "0x4C1604BE2666DB41": "ground; 8 of 528 records; one member"
+        },
+        "result_2026_10_20_prediction_held": "Prediction (2) CONFIRMED. A second flying creature was scanned and carries VP1 0xE7CAD69E2F26FF55 exactly as predicted in advance, on a different planet from the first and with a different CreatureSeed. So VP1 really is a genus constant that travels across planets, and this genus has two independent untameable members. Honest weight: that VP1 covers 16% of all records, so a single blind match would have been unremarkable - what makes it evidence is that it was named before the reading and that the two members share nothing else. Still outstanding is prediction (1), which is the one that can actually break the per-genus model: a TAMEABLE creature in either untameable genus."
       }
     },
     "calibration_result_2026_10_20": {
@@ -1784,6 +1785,16 @@
       "overall_predicted": "A",
       "note": "Ground. VP1 is the ^TRICERATOPS genus, already confirmed tameable by a tamed pet.",
       "overall_confirmed": "predicted A from sum 6 before the reading, read A"
+    },
+    {
+      "date": "2026-10-20",
+      "creature_seed": "0xD6359AD20F690244",
+      "vp1_archetype": "0xE7CAD69E2F26FF55",
+      "scanned_at": 1792482679,
+      "system": 173722894692097,
+      "planet": 2,
+      "tiers": null,
+      "note": "UNTAMEABLE FLYER. Its VP1 was PREDICTED before the reading and matched: the same 0xE7CAD69E2F26FF55 as the first flyer, on a different planet (2 vs 1) and a different CreatureSeed. The flying genus is now confirmed twice, independently."
     }
   ],
   "discovery_seed_vector": {
