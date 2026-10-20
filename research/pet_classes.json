@@ -23,7 +23,8 @@
     "The class letter and the trained number are independent quantities. Unzy reads Health C at a maxed 10/10 and Agility B at 1/10: a maxed stat in a low class still shows C, an untouched stat in a better class still shows B. So the letter is the stat's intrinsic class, fixed by the seeds, and the x/10 is treats invested within it. This is what 'training' means, and it is why no amount of it moves a letter.",
     "Unzy read B / B / C both before and after this training, a third confirmation that treats do not move the class - now on a pet where one stat went all the way to its cap.",
     "Gene modification (the Morphogenetics interface) changes Aggressiveness, Helpfulness, Size and the like - stated by the player, who performed the edits - i.e. it writes Traits and Scale, NOT the battle stats and NOT the creature seeds. This reframes both clone pairs: they are gene-edited relatives, not coincidences. Plati is a gene-modified descendant of Little Cute Monster, and the two Spiders differ by a deliberate size edit (Scale 2.181 -> 3.681). So size was not merely uncorrelated with the class - it was directly altered on one creature and the class letters did not move. Traits and Scale are player-editable; the class is not.",
-    "The x/10 numbers the Companion UI shows ARE PetBattlerTreatsEaten, not a derived stat. Unzy read Combat 8/10, Agility 1/10, Health 10/10 against the stored [10, 1, 8] - three independent values matching exactly, under the measured (Health, Agility, Combat) order. The cap of 10 is therefore the treat cap, and nothing numeric about a companion's battle stats is hidden from the save. Worth confirming on a second pet: Mantissa stores [4, 0, 6] and so must read Combat 6/10, Agility 0/10, Health 4/10."
+    "The x/10 numbers the Companion UI shows ARE PetBattlerTreatsEaten, not a derived stat. Unzy read Combat 8/10, Agility 1/10, Health 10/10 against the stored [10, 1, 8] - three independent values matching exactly, under the measured (Health, Agility, Combat) order. The cap of 10 is therefore the treat cap, and nothing numeric about a companion's battle stats is hidden from the save. Worth confirming on a second pet: Mantissa stores [4, 0, 6] and so must read Combat 6/10, Agility 0/10, Health 4/10.",
+    "Overall is computed from the three letters alone, as ceil(mean), i.e. ceil(sum/3) with C=0 B=1 A=2 S=3. It fits all 11 pets and every simpler alternative (max, min, median, floor, round) is contradicted by at least one pet. So Overall carries no information beyond the three stats and is not worth storing separately."
   ],
   "open": [
     "Overall still looks like a function of the three letters alone, scoring C=0 B=1 A=2 S=3, and is now monotone over three distinct sums: Unzy B/B/C sums 2 and reads Overall B; Mantissa, Zushetto and Callista all sum 5 and read A; Plati sums 7 and reads S. Consistent but underdetermined - the B/A boundary lies somewhere in 3..5 and the A/S boundary in 6..7, and no pet has yet read Overall C.",
@@ -249,7 +250,7 @@
             "agility": "S",
             "health": "B"
           },
-          "ui_class_overall": null
+          "ui_class_overall": "A"
         }
       ]
     },
@@ -307,7 +308,7 @@
             "agility": "A",
             "health": "S"
           },
-          "ui_class_overall": null
+          "ui_class_overall": "S"
         }
       ]
     },
@@ -514,6 +515,67 @@
       ]
     },
     {
+      "name": "Zero-Rex",
+      "slot": 11,
+      "creature_id": "^TREX",
+      "creature_type": "Predator",
+      "biome": "Weird",
+      "scale": 3.1230175495147705,
+      "seeds": {
+        "CreatureSeed": "0x5FF22BF4534502FC",
+        "CreatureSecondarySeed": "0x0",
+        "SpeciesSeed": "0x31E9EE856F78281A",
+        "GenusSeed": "0xA302587335D33A53",
+        "BoneScaleSeed": "0x5FF22BF4534502FC",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_TREX_4",
+        "^_HEAD_ALIEN",
+        "^_BLOB_2B",
+        "^_EYES_5",
+        "^_ORBSC_1",
+        "^_MOUTHW_1",
+        "^_ANTENNAS_2",
+        "^_BODY_RAT",
+        "^_RATBACK_5N",
+        "^_TAIL_TREX",
+        "^_REXTAILACC_1XRARE",
+        "^3944591236"
+      ],
+      "traits": [
+        0.28925228118896484,
+        0.7494810223579407,
+        0.2854583263397217
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 4,
+          "victories": 5,
+          "progress_to_treat": 0.40000006556510925,
+          "trust": 0.7000000476837158,
+          "ui_class": {
+            "combat_effectiveness": "A",
+            "agility": "C",
+            "health": "C"
+          },
+          "ui_class_overall": "B"
+        }
+      ]
+    },
+    {
       "name": "Zero-Bug",
       "slot": 13,
       "creature_id": "^FLYINGBEETLE",
@@ -561,7 +623,7 @@
             "agility": "C",
             "health": "S"
           },
-          "ui_class_overall": null
+          "ui_class_overall": "B"
         }
       ]
     },
@@ -619,10 +681,19 @@
           "trust": 0.7000000476837158,
           "ui_class": {
             "combat_effectiveness": "S",
-            "agility": "B",
+            "agility": "C?",
             "health": "A"
           },
-          "ui_class_overall": null
+          "ui_class_overall": "A",
+          "conflict": {
+            "field": "ui_class.agility",
+            "readings": [
+              "B (first reading)",
+              "C (second reading)"
+            ],
+            "save_record": "byte-identical between the two readings - no treats, traits, scale or seed changed",
+            "resolution": "UNRESOLVED, and recorded as such rather than silently picking one. Since nothing in the save changed, this is a transcription slip in one of the two readings, not a mechanic - no other pet has ever shown a letter move. Both values give Overall A under ceil(sum/3) (sums 6 and 5), so the Overall finding does not depend on which is right."
+          }
         }
       ]
     },
@@ -678,7 +749,7 @@
             "agility": "B",
             "health": "S"
           },
-          "ui_class_overall": null
+          "ui_class_overall": "S"
         }
       ]
     },
@@ -784,5 +855,40 @@
         "evidence": "Noted only as evidence that these secondary guides contradict each other on basic mechanics, which is why none of them is relied on above."
       }
     ]
+  },
+  "overall_formula": {
+    "formula": "Overall = ceil((combat + agility + health) / 3), scoring C=0, B=1, A=2, S=3",
+    "equivalently": "the ceiling of the mean of the three letters",
+    "fits": "all 11 pets (12 rows, counting Mandriliva under both of its conflicting agility readings)",
+    "sums_observed": [
+      2,
+      3,
+      5,
+      6,
+      7
+    ],
+    "sums_not_observed": [
+      0,
+      1,
+      4,
+      8,
+      9
+    ],
+    "predictions_for_unobserved_sums": {
+      "0": "C",
+      "1": "B",
+      "4": "A",
+      "8": "S",
+      "9": "S"
+    },
+    "alternatives_ruled_out": {
+      "max": "5 misses - Zero-Bug C/C/S would be S, read B",
+      "min": "12 misses - never matches",
+      "median": "4 misses - Zero-Rex A/C/C would be C, read B",
+      "floor(sum/3)": "9 misses - Unzy sum 2 would be C, read B",
+      "round(mean)": "3 misses - the three sum-7 pets would be A, all read S"
+    },
+    "decisive_observation": "Zero-Rex. A/C/C sums to 2, the same as Unzy's B/B/C, but has a different max (A vs B) and a different median (C vs B). Both read Overall B, which eliminates max and median at a stroke - no single-letter statistic can produce it.",
+    "caveat": "A fitted formula over 5 distinct sums, not a derivation from the game's code. Sum 4 is the one gap inside the observed range; a pet summing 4 that reads B would break it."
   }
 }
