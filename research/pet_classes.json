@@ -115,7 +115,6 @@
   "observations": [
     {
       "name": "Unzy Bunzy Bowa",
-      "slot": 0,
       "creature_id": "^COW",
       "creature_type": "Prey",
       "biome": "Lush",
@@ -198,11 +197,14 @@
           },
           "trained_since_previous_reading": "Health, +3 treats"
         }
-      ]
+      ],
+      "pet_key": "0x320E447D6296A867@1788448379",
+      "birth_time": 1788448379,
+      "present_in_save": true,
+      "slot_last_seen": 0
     },
     {
       "name": "Tippo",
-      "slot": 1,
       "creature_id": "^COW",
       "creature_type": "Prey",
       "biome": "Lush",
@@ -262,69 +264,14 @@
           "ui_weight_kg": 26.2,
           "note": "Shares Unzy Bunzy Bowa's CreatureSeed exactly but has no CreatureSecondarySeed (Unzy has 0x56427E9D16C14071) and different Descriptors - a cow hump and T-Rex feet against Unzy's feathers and long face. Predicted B/B/C before the reading. Overall was not read for this pet."
         }
-      ]
-    },
-    {
-      "name": "Hidippo",
-      "slot": 2,
-      "creature_id": "^TRICERATOPS",
-      "creature_type": "Passive",
-      "biome": "Barren",
-      "scale": 1.4193061590194702,
-      "seeds": {
-        "CreatureSeed": "0xEC57FF8FEF704002",
-        "CreatureSecondarySeed": "0x8D14D68123E49E2C",
-        "SpeciesSeed": "0x382EB71742D7497F",
-        "GenusSeed": "0x4E5DB09847F72649",
-        "BoneScaleSeed": "0xEC57FF8FEF704002",
-        "ColourBaseSeed": "0x0"
-      },
-      "descriptors": [
-        "^_HEAD_HIPPO",
-        "^_HIPEARS_2",
-        "^_HHACC_0",
-        "^_HHEAD_2",
-        "^_HHHORNS_3",
-        "^_BODY_DIPLO",
-        "^_DBACC_4",
-        "^_TAIL_HIPPO",
-        "^1571751328"
       ],
-      "traits": [
-        0.010923564434051514,
-        -0.8329117298126221,
-        -0.15554773807525635
-      ],
-      "saved_class_overrides": [
-        "C",
-        "C",
-        "C"
-      ],
-      "saved_class_overrides_in_use": false,
-      "readings": [
-        {
-          "date": "2026-10-20",
-          "treats_eaten": [
-            2,
-            2,
-            6
-          ],
-          "treats_available": 5,
-          "victories": 20,
-          "progress_to_treat": 0.6415794491767883,
-          "trust": 0.7500000596046448,
-          "ui_class": {
-            "combat_effectiveness": "A",
-            "agility": "S",
-            "health": "B"
-          },
-          "ui_class_overall": "A"
-        }
-      ]
+      "pet_key": "0x320E447D6296A867@1788448409",
+      "birth_time": 1788448409,
+      "present_in_save": true,
+      "slot_last_seen": 1
     },
     {
       "name": "Little Cute Monster",
-      "slot": 3,
       "creature_id": "^GRUNT",
       "creature_type": "Passive",
       "biome": "Lush",
@@ -378,11 +325,14 @@
           },
           "ui_class_overall": "S"
         }
-      ]
+      ],
+      "pet_key": "0xEBE89A26D590DC7F@1788455360",
+      "birth_time": 1788455360,
+      "present_in_save": true,
+      "slot_last_seen": 3
     },
     {
       "name": "Mantissa",
-      "slot": 4,
       "creature_id": "^SPIDER",
       "creature_type": "Prey",
       "biome": "Toxic",
@@ -446,11 +396,75 @@
           },
           "note": "Numeric stats read by the player: Combat 6/10, Agility 0/10, Health 4/10 - matching the stored [4, 0, 6] exactly under the measured (Health, Agility, Combat) order. Predicted before the reading, so this is a confirmation rather than a fit."
         }
-      ]
+      ],
+      "pet_key": "0xA94CC67AB47E86D0@1788624245",
+      "birth_time": 1788624245,
+      "present_in_save": true,
+      "slot_last_seen": 4
+    },
+    {
+      "name": "Hidippo",
+      "creature_id": "^TRICERATOPS",
+      "creature_type": "Passive",
+      "biome": "Barren",
+      "scale": 1.4193061590194702,
+      "seeds": {
+        "CreatureSeed": "0xEC57FF8FEF704002",
+        "CreatureSecondarySeed": "0x8D14D68123E49E2C",
+        "SpeciesSeed": "0x382EB71742D7497F",
+        "GenusSeed": "0x4E5DB09847F72649",
+        "BoneScaleSeed": "0xEC57FF8FEF704002",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_HEAD_HIPPO",
+        "^_HIPEARS_2",
+        "^_HHACC_0",
+        "^_HHEAD_2",
+        "^_HHHORNS_3",
+        "^_BODY_DIPLO",
+        "^_DBACC_4",
+        "^_TAIL_HIPPO",
+        "^1571751328"
+      ],
+      "traits": [
+        0.010923564434051514,
+        -0.8329117298126221,
+        -0.15554773807525635
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            2,
+            2,
+            6
+          ],
+          "treats_available": 5,
+          "victories": 20,
+          "progress_to_treat": 0.6415794491767883,
+          "trust": 0.7500000596046448,
+          "ui_class": {
+            "combat_effectiveness": "A",
+            "agility": "S",
+            "health": "B"
+          },
+          "ui_class_overall": "A"
+        }
+      ],
+      "pet_key": "0xEC57FF8FEF704002@1788642258",
+      "birth_time": 1788642258,
+      "present_in_save": true,
+      "slot_last_seen": 2
     },
     {
       "name": "Buzita",
-      "slot": 5,
       "creature_id": "^TWOLEGANTELOPE",
       "creature_type": "Passive",
       "biome": "Frozen",
@@ -505,11 +519,827 @@
           "ui_weight_kg": 10.7,
           "note": "Sum 4, which was an unobserved gap in the Overall fit with a predicted A."
         }
-      ]
+      ],
+      "pet_key": "0x7B9A93A18B293313@1788802914",
+      "birth_time": 1788802914,
+      "present_in_save": true,
+      "slot_last_seen": 5
+    },
+    {
+      "name": "Kaky",
+      "creature_id": "^CAT",
+      "creature_type": "Predator",
+      "biome": "Barren",
+      "scale": 1.3208385705947876,
+      "seeds": {
+        "CreatureSeed": "0xAC7185FDCC4F7036",
+        "CreatureSecondarySeed": "0x0",
+        "SpeciesSeed": "0x654BA7C55F25F10F",
+        "GenusSeed": "0x8D2C4A258332E24A",
+        "BoneScaleSeed": "0xAC7185FDCC4F7036",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_BODY_CAT",
+        "^_SHAPE_1",
+        "^_HEAD_ALIEN",
+        "^_VAR_1",
+        "^_SCALP_1",
+        "^_SOCKETS_NONE",
+        "^_TOPGUM_2",
+        "^_UPPERGUM_1",
+        "^_CHEEKS_1",
+        "^_INCHEEKS_1",
+        "^_SIDES_1",
+        "^_BROWS_1",
+        "^_EYEBALLS_1",
+        "^_TAIL_HOG",
+        "^_THA_X2",
+        "^_MESH_CAT",
+        "^_BCA_NULL",
+        "^3099660574"
+      ],
+      "traits": [
+        -0.16777771711349487,
+        0.7732040286064148,
+        -0.31194597482681274
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            1,
+            0,
+            1
+          ],
+          "treats_available": 8,
+          "victories": 14,
+          "progress_to_treat": 0.32330718636512756,
+          "trust": 0.7500000596046448,
+          "ui_class": {
+            "combat_effectiveness": "S",
+            "agility": "S",
+            "health": "S"
+          },
+          "ui_class_overall": "S",
+          "ui_size_m": 1.3,
+          "ui_weight_kg": 52.8,
+          "note": "The third Cat, on a third distinct CreatureSeed."
+        }
+      ],
+      "pet_key": "0xAC7185FDCC4F7036@1788965123",
+      "birth_time": 1788965123,
+      "present_in_save": true,
+      "slot_last_seen": 7
+    },
+    {
+      "name": "Allista",
+      "creature_id": "^ARTHROPOD",
+      "creature_type": "Predator",
+      "biome": "Radioactive",
+      "scale": 4.97562313079834,
+      "seeds": {
+        "CreatureSeed": "0x704D9606BE2FB80F",
+        "CreatureSecondarySeed": "0x20A680836BEEC182",
+        "SpeciesSeed": "0x6C15736DED74B407",
+        "GenusSeed": "0x6EF72F4954EF847E",
+        "BoneScaleSeed": "0x704D9606BE2FB80F",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_ARTHROPOD_1",
+        "^_APODLEGS_1",
+        "^_APODHEADLOWER_5",
+        "^_APOD5JAW_2",
+        "^_APODSHELL_3",
+        "^_APODABDOMEN_9",
+        "^_APODTAILTIP_1",
+        "^_APODTAILSHELL_1",
+        "^_APODHEADUPPER_3",
+        "^_APOD3ANTENNA_2",
+        "^392111638"
+      ],
+      "traits": [
+        -0.37123626470565796,
+        0.7904913425445557,
+        0.3459281921386719
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 3,
+          "victories": 3,
+          "progress_to_treat": 0.714778482913971,
+          "trust": 0.6500000357627869,
+          "ui_class": {
+            "combat_effectiveness": "B",
+            "agility": "S",
+            "health": "S"
+          },
+          "ui_class_overall": "S",
+          "ui_size_m": 5.0,
+          "ui_weight_kg": 199.0,
+          "note": "The largest companion in the save at 5.0 m / 199.0 kg."
+        }
+      ],
+      "pet_key": "0x704D9606BE2FB80F@1788981519",
+      "birth_time": 1788981519,
+      "present_in_save": true,
+      "slot_last_seen": 10
+    },
+    {
+      "name": "Strixy",
+      "creature_id": "^PROTOROLLER",
+      "creature_type": "ProtoRoller",
+      "biome": "Toxic",
+      "scale": 1.0478017330169678,
+      "seeds": {
+        "CreatureSeed": "0x923A02C8D43C703F",
+        "CreatureSecondarySeed": "0xEFD7ED641269A7AE",
+        "SpeciesSeed": "0x2E3C58D102EE0866",
+        "GenusSeed": "0x8A7D35D0475042FD",
+        "BoneScaleSeed": "0x923A02C8D43C703F",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_STRANGE_ROLL",
+        "^_ROLL_SINGLEJOINT",
+        "^_ROLL_CLOCKBALL",
+        "^2774317676"
+      ],
+      "traits": [
+        0.21795904636383057,
+        -0.8229648470878601,
+        -0.37718212604522705
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 11,
+          "victories": 13,
+          "progress_to_treat": 0.0804208368062973,
+          "trust": 0.7500000596046448,
+          "ui_class": {
+            "combat_effectiveness": "A",
+            "agility": "C",
+            "health": "B"
+          },
+          "ui_class_overall": "B",
+          "ui_size_m": 1.0,
+          "ui_weight_kg": 41.9
+        }
+      ],
+      "pet_key": "0x923A02C8D43C703F@1789056962",
+      "birth_time": 1789056962,
+      "present_in_save": true,
+      "slot_last_seen": 8
+    },
+    {
+      "name": "Zero-Rex",
+      "creature_id": "^TREX",
+      "creature_type": "Predator",
+      "biome": "Weird",
+      "scale": 3.1230175495147705,
+      "seeds": {
+        "CreatureSeed": "0x5FF22BF4534502FC",
+        "CreatureSecondarySeed": "0x0",
+        "SpeciesSeed": "0x31E9EE856F78281A",
+        "GenusSeed": "0xA302587335D33A53",
+        "BoneScaleSeed": "0x5FF22BF4534502FC",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_TREX_4",
+        "^_HEAD_ALIEN",
+        "^_BLOB_2B",
+        "^_EYES_5",
+        "^_ORBSC_1",
+        "^_MOUTHW_1",
+        "^_ANTENNAS_2",
+        "^_BODY_RAT",
+        "^_RATBACK_5N",
+        "^_TAIL_TREX",
+        "^_REXTAILACC_1XRARE",
+        "^3944591236"
+      ],
+      "traits": [
+        0.28925228118896484,
+        0.7494810223579407,
+        0.2854583263397217
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 4,
+          "victories": 5,
+          "progress_to_treat": 0.40000006556510925,
+          "trust": 0.7000000476837158,
+          "ui_class": {
+            "combat_effectiveness": "A",
+            "agility": "C",
+            "health": "C"
+          },
+          "ui_class_overall": "B"
+        }
+      ],
+      "pet_key": "0x5FF22BF4534502FC@1789196182",
+      "birth_time": 1789196182,
+      "present_in_save": true,
+      "slot_last_seen": 11
+    },
+    {
+      "name": "Uri",
+      "creature_id": "^WEIRDROLL",
+      "creature_type": "Weird",
+      "biome": "Weird",
+      "scale": 1.5,
+      "seeds": {
+        "CreatureSeed": "0x15639E64C81F4F71",
+        "CreatureSecondarySeed": "0x666FD364F388A10A",
+        "SpeciesSeed": "0x8CACAB34E1276930",
+        "GenusSeed": "0xFE503729269E8B21",
+        "BoneScaleSeed": "0x15639E64C81F4F71",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_WEIRD_ROLL",
+        "^_ROLL_SINGLEJOINT",
+        "^_ROLL_STRUCTURE",
+        "^2774317676"
+      ],
+      "traits": [
+        -0.24942123889923096,
+        0.5215873122215271,
+        0.7622592449188232
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 0,
+          "victories": 0,
+          "progress_to_treat": 0.0,
+          "trust": 0.6500000357627869,
+          "ui_class": {
+            "combat_effectiveness": "S",
+            "agility": "A",
+            "health": "A"
+          },
+          "ui_class_overall": "S",
+          "ui_size_m": 1.5,
+          "ui_weight_kg": 60.0
+        }
+      ],
+      "pet_key": "0x15639E64C81F4F71@1789337614",
+      "birth_time": 1789337614,
+      "present_in_save": true,
+      "slot_last_seen": 12
+    },
+    {
+      "name": "Zero-Bug",
+      "creature_id": "^FLYINGBEETLE",
+      "creature_type": "FlyingBeetle",
+      "biome": "Lava",
+      "scale": 0.8684042692184448,
+      "seeds": {
+        "CreatureSeed": "0xC0294779D9C77F6A",
+        "CreatureSecondarySeed": "0x1B95AC9738A681DA",
+        "SpeciesSeed": "0x469C43CDB6B79759",
+        "GenusSeed": "0x70975D789FF0EB52",
+        "BoneScaleSeed": "0xC0294779D9C77F6A",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_SHELL_SPIKY",
+        "^_HEAD_ROUND",
+        "^81185448"
+      ],
+      "traits": [
+        0.7831048965454102,
+        0.2522045373916626,
+        -0.1886027455329895
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 0,
+          "victories": 0,
+          "progress_to_treat": 0.0,
+          "trust": 0.6000000238418579,
+          "ui_class": {
+            "combat_effectiveness": "C",
+            "agility": "C",
+            "health": "S"
+          },
+          "ui_class_overall": "B"
+        }
+      ],
+      "pet_key": "0xC0294779D9C77F6A@1789420551",
+      "birth_time": 1789420551,
+      "present_in_save": true,
+      "slot_last_seen": 13
+    },
+    {
+      "name": "Gosy",
+      "creature_id": "^ANTELOPE",
+      "creature_type": "Prey",
+      "biome": "Barren",
+      "scale": 0.40085074305534363,
+      "seeds": {
+        "CreatureSeed": "0x486C2837F5A6A615",
+        "CreatureSecondarySeed": "0x0",
+        "SpeciesSeed": "0xD8F84C3625484D77",
+        "GenusSeed": "0x2FC92ED0E17FAE80",
+        "BoneScaleSeed": "0x486C2837F5A6A615",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_HEAD_BUFF",
+        "^_BHHORNS_3",
+        "^_BHNOSE_NULL",
+        "^_BHEARS_4",
+        "^_HDACC_NONE",
+        "^_HBTEETH_1",
+        "^_BODY_FAT",
+        "^_FATACC_3N",
+        "^_FA3N_1",
+        "^_TAIL_ALIEN5",
+        "^696409119"
+      ],
+      "traits": [
+        -0.7642549276351929,
+        -0.4672622084617615,
+        0.15075457096099854
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 2,
+          "victories": 3,
+          "progress_to_treat": 0.49228399991989136,
+          "trust": 0.7000000476837158,
+          "ui_class": {
+            "combat_effectiveness": "S",
+            "agility": "S",
+            "health": "B"
+          },
+          "ui_class_overall": "S",
+          "ui_size_m": 0.4,
+          "ui_weight_kg": 16.0
+        }
+      ],
+      "pet_key": "0x486C2837F5A6A615@1789429560",
+      "birth_time": 1789429560,
+      "present_in_save": true,
+      "slot_last_seen": 14
+    },
+    {
+      "name": "Buza",
+      "creature_id": "^TWOLEGANTELOPE",
+      "creature_type": "Prey",
+      "biome": "Barren",
+      "scale": 1.0470043420791626,
+      "seeds": {
+        "CreatureSeed": "0xD6F72E2D0BAE3948",
+        "CreatureSecondarySeed": "0xAD4E412E10E2DCF4",
+        "SpeciesSeed": "0xA8756C8392A93430",
+        "GenusSeed": "0x1BBE26C12F58A684",
+        "BoneScaleSeed": "0xD6F72E2D0BAE3948",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_HEAD_BUFF",
+        "^_HBTEETH_2",
+        "^_BHHORNS_3",
+        "^_BHEARS_4",
+        "^_HDACC_NONE",
+        "^_BHNOSE_NULL",
+        "^_BODY_BUFF",
+        "^_B2LB_11",
+        "^_TAIL_3",
+        "^_FIN_0B",
+        "^2504188552"
+      ],
+      "traits": [
+        -0.3786977529525757,
+        -0.8731489777565002,
+        0.28781676292419434
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 0,
+          "victories": 1,
+          "progress_to_treat": 0.8483245968818665,
+          "trust": 0.7000000476837158,
+          "ui_class": {
+            "combat_effectiveness": "B",
+            "agility": "B",
+            "health": "S"
+          },
+          "ui_class_overall": "A",
+          "ui_size_m": 1.0,
+          "ui_weight_kg": 41.9
+        }
+      ],
+      "pet_key": "0xD6F72E2D0BAE3948@1789529672",
+      "birth_time": 1789529672,
+      "present_in_save": true,
+      "slot_last_seen": 15
+    },
+    {
+      "name": "Mandriliva",
+      "creature_id": "^CAT",
+      "creature_type": "PlayerPredator",
+      "biome": "Lush",
+      "scale": 0.8201854228973389,
+      "seeds": {
+        "CreatureSeed": "0x6CC82534F2B5E58E",
+        "CreatureSecondarySeed": "0x0",
+        "SpeciesSeed": "0xB06DA7DA5563CDD6",
+        "GenusSeed": "0x4EFF39DB431411E1",
+        "BoneScaleSeed": "0x6CC82534F2B5E58E",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_BODY_CAT",
+        "^_SHAPE_1",
+        "^_HEAD_CAT",
+        "^_HCACC_B",
+        "^_CATTOP_1",
+        "^_HCTOPB_E",
+        "^_CHEARS2_C5",
+        "^_TAIL_HOG",
+        "^_THA_X2",
+        "^_MESH_LIZ",
+        "^_BLBACK_7",
+        "^1965814830"
+      ],
+      "traits": [
+        -0.201734721660614,
+        0.6254950165748596,
+        0.2385120391845703
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 1,
+          "victories": 2,
+          "progress_to_treat": 0.7142857313156128,
+          "trust": 0.7000000476837158,
+          "ui_class": {
+            "combat_effectiveness": "S",
+            "agility": "C",
+            "health": "A"
+          },
+          "ui_class_overall": "A",
+          "note": "Agility double-checked by the player as C. An earlier reading of this pet said B; the save record was byte-identical across both, so that was a misreading and has been discarded rather than kept as a conflict. The corrected S/C/A sums to 5 and gives Overall A, which is what was read."
+        }
+      ],
+      "pet_key": "0x6CC82534F2B5E58E@1789636695",
+      "birth_time": 1789636695,
+      "present_in_save": true,
+      "slot_last_seen": 16
+    },
+    {
+      "name": "Milkinny",
+      "creature_id": "^RODENT",
+      "creature_type": "Predator",
+      "biome": "Lush",
+      "scale": 1.7485989332199097,
+      "seeds": {
+        "CreatureSeed": "0xB325A4755F82833E",
+        "CreatureSecondarySeed": "0x0",
+        "SpeciesSeed": "0xEF66D67BB68BD9A",
+        "GenusSeed": "0x6897640E92B09C9E",
+        "BoneScaleSeed": "0xB325A4755F82833E",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_HEAD_GDANE",
+        "^_GDAC_0",
+        "^_HGDEARS_2",
+        "^_BODY_LIZARD",
+        "^_LIZBOD_4",
+        "^_TAIL_RODENT",
+        "^1972634999"
+      ],
+      "traits": [
+        0.14005202054977417,
+        0.8850517272949219,
+        0.28726279735565186
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 1,
+          "victories": 2,
+          "progress_to_treat": 0.7142857313156128,
+          "trust": 0.6500000357627869,
+          "ui_class": {
+            "combat_effectiveness": "S",
+            "agility": "B",
+            "health": "S"
+          },
+          "ui_class_overall": "S"
+        }
+      ],
+      "pet_key": "0xB325A4755F82833E@1789639756",
+      "birth_time": 1789639756,
+      "present_in_save": true,
+      "slot_last_seen": 17
+    },
+    {
+      "name": "Callista",
+      "creature_id": "^WEIRDFLOAT",
+      "creature_type": "Weird",
+      "biome": "Weird",
+      "scale": 1.4999998807907104,
+      "seeds": {
+        "CreatureSeed": "0x15CD939B68CAC0EA",
+        "CreatureSecondarySeed": "0x22091470B83C6FBE",
+        "SpeciesSeed": "0xFCE72F19A6D6FB92",
+        "GenusSeed": "0x931FB82022C3DEA7",
+        "BoneScaleSeed": "0x15CD939B68CAC0EA",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_WEIRD_FLOAT",
+        "^_FLOAT_WIRECELL",
+        "^2774317676"
+      ],
+      "traits": [
+        0.8288738131523132,
+        -0.5290979743003845,
+        -0.44100871682167053
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 0,
+          "victories": 0,
+          "progress_to_treat": 0.0,
+          "trust": 0.6500000357627869,
+          "ui_class": {
+            "combat_effectiveness": "A",
+            "agility": "B",
+            "health": "A"
+          },
+          "ui_class_overall": "A"
+        }
+      ],
+      "pet_key": "0x15CD939B68CAC0EA@1790036172",
+      "birth_time": 1790036172,
+      "present_in_save": true,
+      "slot_last_seen": 24
+    },
+    {
+      "name": "Wolverine",
+      "creature_id": "^CAT",
+      "creature_type": "Predator",
+      "biome": "Barren",
+      "scale": 0.7572673559188843,
+      "seeds": {
+        "CreatureSeed": "0x31FA691FD601B06C",
+        "CreatureSecondarySeed": "0x0",
+        "SpeciesSeed": "0xBAC37658DBF06000",
+        "GenusSeed": "0xB2E9FF4E881ACBD3",
+        "BoneScaleSeed": "0x31FA691FD601B06C",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_BODY_CAT",
+        "^_SHAPE_1",
+        "^_HEAD_WOLF",
+        "^_HWACC_A",
+        "^_WOLFTOP_2",
+        "^_HWTOP_F",
+        "^_HWEARS_E1",
+        "^_TAIL_WOLF",
+        "^_MESH_LIZ",
+        "^_BLBACK_NULL",
+        "^4258439961"
+      ],
+      "traits": [
+        0.48923516273498535,
+        0.30742743611335754,
+        -0.7783952951431274
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "note": "Freshly tamed, untrained. The player also read the displayed size and weight.",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 0,
+          "victories": 0,
+          "progress_to_treat": 0.0,
+          "trust": 0.6500000357627869,
+          "ui_class": {
+            "combat_effectiveness": "S",
+            "agility": "S",
+            "health": "S"
+          },
+          "ui_class_overall": "S",
+          "ui_size_m": 0.8,
+          "ui_weight_kg": 30.3
+        }
+      ],
+      "pet_key": "0x31FA691FD601B06C@1790048646",
+      "birth_time": 1790048646,
+      "present_in_save": true,
+      "slot_last_seen": 25
+    },
+    {
+      "name": "Alia",
+      "creature_id": "^TWOLEGANTELOPE",
+      "creature_type": "Prey",
+      "biome": "Barren",
+      "scale": 1.025970220565796,
+      "seeds": {
+        "CreatureSeed": "0xBC54E1F2573708C8",
+        "CreatureSecondarySeed": "0x0",
+        "SpeciesSeed": "0x17A2939342EC560E",
+        "GenusSeed": "0x3146BF1096C800F3",
+        "BoneScaleSeed": "0xBC54E1F2573708C8",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_HEAD_DEER",
+        "^_HDTEETH_1",
+        "^_HDEARS_NULL",
+        "^_HDHORNS_2",
+        "^_BODY_DEER",
+        "^_B2LD_5",
+        "^_TAIL_3",
+        "^_FIN_0B",
+        "^693582224"
+      ],
+      "traits": [
+        0.1973334550857544,
+        -0.6795653104782104,
+        0.16196036338806152
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "note": "Freshly tamed, untrained. The player also read the displayed size and weight.",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 0,
+          "victories": 0,
+          "progress_to_treat": 0.0,
+          "trust": 0.6000000238418579,
+          "ui_class": {
+            "combat_effectiveness": "C",
+            "agility": "S",
+            "health": "C"
+          },
+          "ui_class_overall": "B",
+          "ui_size_m": 1.0,
+          "ui_weight_kg": 41.0
+        }
+      ],
+      "pet_key": "0xBC54E1F2573708C8@1790049058",
+      "birth_time": 1790049058,
+      "present_in_save": true,
+      "slot_last_seen": 26
     },
     {
       "name": "Plati",
-      "slot": 6,
       "creature_id": "^GRUNT",
       "creature_type": "Passive",
       "biome": "Lush",
@@ -583,136 +1413,14 @@
           "ui_class_overall": "S",
           "trained_since_previous_reading": "Combat Effectiveness, +8 treats"
         }
-      ]
-    },
-    {
-      "name": "Kaky",
-      "slot": 7,
-      "creature_id": "^CAT",
-      "creature_type": "Predator",
-      "biome": "Barren",
-      "scale": 1.3208385705947876,
-      "seeds": {
-        "CreatureSeed": "0xAC7185FDCC4F7036",
-        "CreatureSecondarySeed": "0x0",
-        "SpeciesSeed": "0x654BA7C55F25F10F",
-        "GenusSeed": "0x8D2C4A258332E24A",
-        "BoneScaleSeed": "0xAC7185FDCC4F7036",
-        "ColourBaseSeed": "0x0"
-      },
-      "descriptors": [
-        "^_BODY_CAT",
-        "^_SHAPE_1",
-        "^_HEAD_ALIEN",
-        "^_VAR_1",
-        "^_SCALP_1",
-        "^_SOCKETS_NONE",
-        "^_TOPGUM_2",
-        "^_UPPERGUM_1",
-        "^_CHEEKS_1",
-        "^_INCHEEKS_1",
-        "^_SIDES_1",
-        "^_BROWS_1",
-        "^_EYEBALLS_1",
-        "^_TAIL_HOG",
-        "^_THA_X2",
-        "^_MESH_CAT",
-        "^_BCA_NULL",
-        "^3099660574"
       ],
-      "traits": [
-        -0.16777771711349487,
-        0.7732040286064148,
-        -0.31194597482681274
-      ],
-      "saved_class_overrides": [
-        "C",
-        "C",
-        "C"
-      ],
-      "saved_class_overrides_in_use": false,
-      "readings": [
-        {
-          "date": "2026-10-20",
-          "treats_eaten": [
-            1,
-            0,
-            1
-          ],
-          "treats_available": 8,
-          "victories": 14,
-          "progress_to_treat": 0.32330718636512756,
-          "trust": 0.7500000596046448,
-          "ui_class": {
-            "combat_effectiveness": "S",
-            "agility": "S",
-            "health": "S"
-          },
-          "ui_class_overall": "S",
-          "ui_size_m": 1.3,
-          "ui_weight_kg": 52.8,
-          "note": "The third Cat, on a third distinct CreatureSeed."
-        }
-      ]
-    },
-    {
-      "name": "Strixy",
-      "slot": 8,
-      "creature_id": "^PROTOROLLER",
-      "creature_type": "ProtoRoller",
-      "biome": "Toxic",
-      "scale": 1.0478017330169678,
-      "seeds": {
-        "CreatureSeed": "0x923A02C8D43C703F",
-        "CreatureSecondarySeed": "0xEFD7ED641269A7AE",
-        "SpeciesSeed": "0x2E3C58D102EE0866",
-        "GenusSeed": "0x8A7D35D0475042FD",
-        "BoneScaleSeed": "0x923A02C8D43C703F",
-        "ColourBaseSeed": "0x0"
-      },
-      "descriptors": [
-        "^_STRANGE_ROLL",
-        "^_ROLL_SINGLEJOINT",
-        "^_ROLL_CLOCKBALL",
-        "^2774317676"
-      ],
-      "traits": [
-        0.21795904636383057,
-        -0.8229648470878601,
-        -0.37718212604522705
-      ],
-      "saved_class_overrides": [
-        "C",
-        "C",
-        "C"
-      ],
-      "saved_class_overrides_in_use": false,
-      "readings": [
-        {
-          "date": "2026-10-20",
-          "treats_eaten": [
-            0,
-            0,
-            0
-          ],
-          "treats_available": 11,
-          "victories": 13,
-          "progress_to_treat": 0.0804208368062973,
-          "trust": 0.7500000596046448,
-          "ui_class": {
-            "combat_effectiveness": "A",
-            "agility": "C",
-            "health": "B"
-          },
-          "ui_class_overall": "B",
-          "ui_size_m": 1.0,
-          "ui_weight_kg": 41.9
-        }
-      ]
+      "pet_key": "0xEBE89A26D590DC7F@1791342576",
+      "birth_time": 1791342576,
+      "present_in_save": true,
+      "slot_last_seen": 6
     },
     {
       "name": "Zushetto",
-      "slot": 9,
       "creature_id": "^SPIDER",
       "creature_type": "Prey",
       "biome": "Toxic",
@@ -773,656 +1481,11 @@
           "ui_weight_kg": 147.3,
           "note": "Size and weight read as the falsifier for the 40 kg per unit of Scale: a 3.7 m mantis is the most differently built creature in the save from the Cat and Two-leg Antelope the constant was derived from. Predicted 3.7 m / 147.3 kg before the reading; both exact."
         }
-      ]
-    },
-    {
-      "name": "Allista",
-      "slot": 10,
-      "creature_id": "^ARTHROPOD",
-      "creature_type": "Predator",
-      "biome": "Radioactive",
-      "scale": 4.97562313079834,
-      "seeds": {
-        "CreatureSeed": "0x704D9606BE2FB80F",
-        "CreatureSecondarySeed": "0x20A680836BEEC182",
-        "SpeciesSeed": "0x6C15736DED74B407",
-        "GenusSeed": "0x6EF72F4954EF847E",
-        "BoneScaleSeed": "0x704D9606BE2FB80F",
-        "ColourBaseSeed": "0x0"
-      },
-      "descriptors": [
-        "^_ARTHROPOD_1",
-        "^_APODLEGS_1",
-        "^_APODHEADLOWER_5",
-        "^_APOD5JAW_2",
-        "^_APODSHELL_3",
-        "^_APODABDOMEN_9",
-        "^_APODTAILTIP_1",
-        "^_APODTAILSHELL_1",
-        "^_APODHEADUPPER_3",
-        "^_APOD3ANTENNA_2",
-        "^392111638"
       ],
-      "traits": [
-        -0.37123626470565796,
-        0.7904913425445557,
-        0.3459281921386719
-      ],
-      "saved_class_overrides": [
-        "C",
-        "C",
-        "C"
-      ],
-      "saved_class_overrides_in_use": false,
-      "readings": [
-        {
-          "date": "2026-10-20",
-          "treats_eaten": [
-            0,
-            0,
-            0
-          ],
-          "treats_available": 3,
-          "victories": 3,
-          "progress_to_treat": 0.714778482913971,
-          "trust": 0.6500000357627869,
-          "ui_class": {
-            "combat_effectiveness": "B",
-            "agility": "S",
-            "health": "S"
-          },
-          "ui_class_overall": "S",
-          "ui_size_m": 5.0,
-          "ui_weight_kg": 199.0,
-          "note": "The largest companion in the save at 5.0 m / 199.0 kg."
-        }
-      ]
-    },
-    {
-      "name": "Zero-Rex",
-      "slot": 11,
-      "creature_id": "^TREX",
-      "creature_type": "Predator",
-      "biome": "Weird",
-      "scale": 3.1230175495147705,
-      "seeds": {
-        "CreatureSeed": "0x5FF22BF4534502FC",
-        "CreatureSecondarySeed": "0x0",
-        "SpeciesSeed": "0x31E9EE856F78281A",
-        "GenusSeed": "0xA302587335D33A53",
-        "BoneScaleSeed": "0x5FF22BF4534502FC",
-        "ColourBaseSeed": "0x0"
-      },
-      "descriptors": [
-        "^_TREX_4",
-        "^_HEAD_ALIEN",
-        "^_BLOB_2B",
-        "^_EYES_5",
-        "^_ORBSC_1",
-        "^_MOUTHW_1",
-        "^_ANTENNAS_2",
-        "^_BODY_RAT",
-        "^_RATBACK_5N",
-        "^_TAIL_TREX",
-        "^_REXTAILACC_1XRARE",
-        "^3944591236"
-      ],
-      "traits": [
-        0.28925228118896484,
-        0.7494810223579407,
-        0.2854583263397217
-      ],
-      "saved_class_overrides": [
-        "C",
-        "C",
-        "C"
-      ],
-      "saved_class_overrides_in_use": false,
-      "readings": [
-        {
-          "date": "2026-10-20",
-          "treats_eaten": [
-            0,
-            0,
-            0
-          ],
-          "treats_available": 4,
-          "victories": 5,
-          "progress_to_treat": 0.40000006556510925,
-          "trust": 0.7000000476837158,
-          "ui_class": {
-            "combat_effectiveness": "A",
-            "agility": "C",
-            "health": "C"
-          },
-          "ui_class_overall": "B"
-        }
-      ]
-    },
-    {
-      "name": "Uri",
-      "slot": 12,
-      "creature_id": "^WEIRDROLL",
-      "creature_type": "Weird",
-      "biome": "Weird",
-      "scale": 1.5,
-      "seeds": {
-        "CreatureSeed": "0x15639E64C81F4F71",
-        "CreatureSecondarySeed": "0x666FD364F388A10A",
-        "SpeciesSeed": "0x8CACAB34E1276930",
-        "GenusSeed": "0xFE503729269E8B21",
-        "BoneScaleSeed": "0x15639E64C81F4F71",
-        "ColourBaseSeed": "0x0"
-      },
-      "descriptors": [
-        "^_WEIRD_ROLL",
-        "^_ROLL_SINGLEJOINT",
-        "^_ROLL_STRUCTURE",
-        "^2774317676"
-      ],
-      "traits": [
-        -0.24942123889923096,
-        0.5215873122215271,
-        0.7622592449188232
-      ],
-      "saved_class_overrides": [
-        "C",
-        "C",
-        "C"
-      ],
-      "saved_class_overrides_in_use": false,
-      "readings": [
-        {
-          "date": "2026-10-20",
-          "treats_eaten": [
-            0,
-            0,
-            0
-          ],
-          "treats_available": 0,
-          "victories": 0,
-          "progress_to_treat": 0.0,
-          "trust": 0.6500000357627869,
-          "ui_class": {
-            "combat_effectiveness": "S",
-            "agility": "A",
-            "health": "A"
-          },
-          "ui_class_overall": "S",
-          "ui_size_m": 1.5,
-          "ui_weight_kg": 60.0
-        }
-      ]
-    },
-    {
-      "name": "Zero-Bug",
-      "slot": 13,
-      "creature_id": "^FLYINGBEETLE",
-      "creature_type": "FlyingBeetle",
-      "biome": "Lava",
-      "scale": 0.8684042692184448,
-      "seeds": {
-        "CreatureSeed": "0xC0294779D9C77F6A",
-        "CreatureSecondarySeed": "0x1B95AC9738A681DA",
-        "SpeciesSeed": "0x469C43CDB6B79759",
-        "GenusSeed": "0x70975D789FF0EB52",
-        "BoneScaleSeed": "0xC0294779D9C77F6A",
-        "ColourBaseSeed": "0x0"
-      },
-      "descriptors": [
-        "^_SHELL_SPIKY",
-        "^_HEAD_ROUND",
-        "^81185448"
-      ],
-      "traits": [
-        0.7831048965454102,
-        0.2522045373916626,
-        -0.1886027455329895
-      ],
-      "saved_class_overrides": [
-        "C",
-        "C",
-        "C"
-      ],
-      "saved_class_overrides_in_use": false,
-      "readings": [
-        {
-          "date": "2026-10-20",
-          "treats_eaten": [
-            0,
-            0,
-            0
-          ],
-          "treats_available": 0,
-          "victories": 0,
-          "progress_to_treat": 0.0,
-          "trust": 0.6000000238418579,
-          "ui_class": {
-            "combat_effectiveness": "C",
-            "agility": "C",
-            "health": "S"
-          },
-          "ui_class_overall": "B"
-        }
-      ]
-    },
-    {
-      "name": "Gosy",
-      "slot": 14,
-      "creature_id": "^ANTELOPE",
-      "creature_type": "Prey",
-      "biome": "Barren",
-      "scale": 0.40085074305534363,
-      "seeds": {
-        "CreatureSeed": "0x486C2837F5A6A615",
-        "CreatureSecondarySeed": "0x0",
-        "SpeciesSeed": "0xD8F84C3625484D77",
-        "GenusSeed": "0x2FC92ED0E17FAE80",
-        "BoneScaleSeed": "0x486C2837F5A6A615",
-        "ColourBaseSeed": "0x0"
-      },
-      "descriptors": [
-        "^_HEAD_BUFF",
-        "^_BHHORNS_3",
-        "^_BHNOSE_NULL",
-        "^_BHEARS_4",
-        "^_HDACC_NONE",
-        "^_HBTEETH_1",
-        "^_BODY_FAT",
-        "^_FATACC_3N",
-        "^_FA3N_1",
-        "^_TAIL_ALIEN5",
-        "^696409119"
-      ],
-      "traits": [
-        -0.7642549276351929,
-        -0.4672622084617615,
-        0.15075457096099854
-      ],
-      "saved_class_overrides": [
-        "C",
-        "C",
-        "C"
-      ],
-      "saved_class_overrides_in_use": false,
-      "readings": [
-        {
-          "date": "2026-10-20",
-          "treats_eaten": [
-            0,
-            0,
-            0
-          ],
-          "treats_available": 2,
-          "victories": 3,
-          "progress_to_treat": 0.49228399991989136,
-          "trust": 0.7000000476837158,
-          "ui_class": {
-            "combat_effectiveness": "S",
-            "agility": "S",
-            "health": "B"
-          },
-          "ui_class_overall": "S",
-          "ui_size_m": 0.4,
-          "ui_weight_kg": 16.0
-        }
-      ]
-    },
-    {
-      "name": "Buza",
-      "slot": 15,
-      "creature_id": "^TWOLEGANTELOPE",
-      "creature_type": "Prey",
-      "biome": "Barren",
-      "scale": 1.0470043420791626,
-      "seeds": {
-        "CreatureSeed": "0xD6F72E2D0BAE3948",
-        "CreatureSecondarySeed": "0xAD4E412E10E2DCF4",
-        "SpeciesSeed": "0xA8756C8392A93430",
-        "GenusSeed": "0x1BBE26C12F58A684",
-        "BoneScaleSeed": "0xD6F72E2D0BAE3948",
-        "ColourBaseSeed": "0x0"
-      },
-      "descriptors": [
-        "^_HEAD_BUFF",
-        "^_HBTEETH_2",
-        "^_BHHORNS_3",
-        "^_BHEARS_4",
-        "^_HDACC_NONE",
-        "^_BHNOSE_NULL",
-        "^_BODY_BUFF",
-        "^_B2LB_11",
-        "^_TAIL_3",
-        "^_FIN_0B",
-        "^2504188552"
-      ],
-      "traits": [
-        -0.3786977529525757,
-        -0.8731489777565002,
-        0.28781676292419434
-      ],
-      "saved_class_overrides": [
-        "C",
-        "C",
-        "C"
-      ],
-      "saved_class_overrides_in_use": false,
-      "readings": [
-        {
-          "date": "2026-10-20",
-          "treats_eaten": [
-            0,
-            0,
-            0
-          ],
-          "treats_available": 0,
-          "victories": 1,
-          "progress_to_treat": 0.8483245968818665,
-          "trust": 0.7000000476837158,
-          "ui_class": {
-            "combat_effectiveness": "B",
-            "agility": "B",
-            "health": "S"
-          },
-          "ui_class_overall": "A",
-          "ui_size_m": 1.0,
-          "ui_weight_kg": 41.9
-        }
-      ]
-    },
-    {
-      "name": "Mandriliva",
-      "slot": 16,
-      "creature_id": "^CAT",
-      "creature_type": "PlayerPredator",
-      "biome": "Lush",
-      "scale": 0.8201854228973389,
-      "seeds": {
-        "CreatureSeed": "0x6CC82534F2B5E58E",
-        "CreatureSecondarySeed": "0x0",
-        "SpeciesSeed": "0xB06DA7DA5563CDD6",
-        "GenusSeed": "0x4EFF39DB431411E1",
-        "BoneScaleSeed": "0x6CC82534F2B5E58E",
-        "ColourBaseSeed": "0x0"
-      },
-      "descriptors": [
-        "^_BODY_CAT",
-        "^_SHAPE_1",
-        "^_HEAD_CAT",
-        "^_HCACC_B",
-        "^_CATTOP_1",
-        "^_HCTOPB_E",
-        "^_CHEARS2_C5",
-        "^_TAIL_HOG",
-        "^_THA_X2",
-        "^_MESH_LIZ",
-        "^_BLBACK_7",
-        "^1965814830"
-      ],
-      "traits": [
-        -0.201734721660614,
-        0.6254950165748596,
-        0.2385120391845703
-      ],
-      "saved_class_overrides": [
-        "C",
-        "C",
-        "C"
-      ],
-      "saved_class_overrides_in_use": false,
-      "readings": [
-        {
-          "date": "2026-10-20",
-          "treats_eaten": [
-            0,
-            0,
-            0
-          ],
-          "treats_available": 1,
-          "victories": 2,
-          "progress_to_treat": 0.7142857313156128,
-          "trust": 0.7000000476837158,
-          "ui_class": {
-            "combat_effectiveness": "S",
-            "agility": "C",
-            "health": "A"
-          },
-          "ui_class_overall": "A",
-          "note": "Agility double-checked by the player as C. An earlier reading of this pet said B; the save record was byte-identical across both, so that was a misreading and has been discarded rather than kept as a conflict. The corrected S/C/A sums to 5 and gives Overall A, which is what was read."
-        }
-      ]
-    },
-    {
-      "name": "Milkinny",
-      "slot": 17,
-      "creature_id": "^RODENT",
-      "creature_type": "Predator",
-      "biome": "Lush",
-      "scale": 1.7485989332199097,
-      "seeds": {
-        "CreatureSeed": "0xB325A4755F82833E",
-        "CreatureSecondarySeed": "0x0",
-        "SpeciesSeed": "0xEF66D67BB68BD9A",
-        "GenusSeed": "0x6897640E92B09C9E",
-        "BoneScaleSeed": "0xB325A4755F82833E",
-        "ColourBaseSeed": "0x0"
-      },
-      "descriptors": [
-        "^_HEAD_GDANE",
-        "^_GDAC_0",
-        "^_HGDEARS_2",
-        "^_BODY_LIZARD",
-        "^_LIZBOD_4",
-        "^_TAIL_RODENT",
-        "^1972634999"
-      ],
-      "traits": [
-        0.14005202054977417,
-        0.8850517272949219,
-        0.28726279735565186
-      ],
-      "saved_class_overrides": [
-        "C",
-        "C",
-        "C"
-      ],
-      "saved_class_overrides_in_use": false,
-      "readings": [
-        {
-          "date": "2026-10-20",
-          "treats_eaten": [
-            0,
-            0,
-            0
-          ],
-          "treats_available": 1,
-          "victories": 2,
-          "progress_to_treat": 0.7142857313156128,
-          "trust": 0.6500000357627869,
-          "ui_class": {
-            "combat_effectiveness": "S",
-            "agility": "B",
-            "health": "S"
-          },
-          "ui_class_overall": "S"
-        }
-      ]
-    },
-    {
-      "name": "Callista",
-      "slot": 24,
-      "creature_id": "^WEIRDFLOAT",
-      "creature_type": "Weird",
-      "biome": "Weird",
-      "scale": 1.4999998807907104,
-      "seeds": {
-        "CreatureSeed": "0x15CD939B68CAC0EA",
-        "CreatureSecondarySeed": "0x22091470B83C6FBE",
-        "SpeciesSeed": "0xFCE72F19A6D6FB92",
-        "GenusSeed": "0x931FB82022C3DEA7",
-        "BoneScaleSeed": "0x15CD939B68CAC0EA",
-        "ColourBaseSeed": "0x0"
-      },
-      "descriptors": [
-        "^_WEIRD_FLOAT",
-        "^_FLOAT_WIRECELL",
-        "^2774317676"
-      ],
-      "traits": [
-        0.8288738131523132,
-        -0.5290979743003845,
-        -0.44100871682167053
-      ],
-      "saved_class_overrides": [
-        "C",
-        "C",
-        "C"
-      ],
-      "saved_class_overrides_in_use": false,
-      "readings": [
-        {
-          "date": "2026-10-20",
-          "treats_eaten": [
-            0,
-            0,
-            0
-          ],
-          "treats_available": 0,
-          "victories": 0,
-          "progress_to_treat": 0.0,
-          "trust": 0.6500000357627869,
-          "ui_class": {
-            "combat_effectiveness": "A",
-            "agility": "B",
-            "health": "A"
-          },
-          "ui_class_overall": "A"
-        }
-      ]
-    },
-    {
-      "name": "Wolverine",
-      "slot": 25,
-      "creature_id": "^CAT",
-      "creature_type": "Predator",
-      "biome": "Barren",
-      "scale": 0.7572673559188843,
-      "seeds": {
-        "CreatureSeed": "0x31FA691FD601B06C",
-        "CreatureSecondarySeed": "0x0",
-        "SpeciesSeed": "0xBAC37658DBF06000",
-        "GenusSeed": "0xB2E9FF4E881ACBD3",
-        "BoneScaleSeed": "0x31FA691FD601B06C",
-        "ColourBaseSeed": "0x0"
-      },
-      "descriptors": [
-        "^_BODY_CAT",
-        "^_SHAPE_1",
-        "^_HEAD_WOLF",
-        "^_HWACC_A",
-        "^_WOLFTOP_2",
-        "^_HWTOP_F",
-        "^_HWEARS_E1",
-        "^_TAIL_WOLF",
-        "^_MESH_LIZ",
-        "^_BLBACK_NULL",
-        "^4258439961"
-      ],
-      "traits": [
-        0.48923516273498535,
-        0.30742743611335754,
-        -0.7783952951431274
-      ],
-      "saved_class_overrides": [
-        "C",
-        "C",
-        "C"
-      ],
-      "saved_class_overrides_in_use": false,
-      "readings": [
-        {
-          "date": "2026-10-20",
-          "note": "Freshly tamed, untrained. The player also read the displayed size and weight.",
-          "treats_eaten": [
-            0,
-            0,
-            0
-          ],
-          "treats_available": 0,
-          "victories": 0,
-          "progress_to_treat": 0.0,
-          "trust": 0.6500000357627869,
-          "ui_class": {
-            "combat_effectiveness": "S",
-            "agility": "S",
-            "health": "S"
-          },
-          "ui_class_overall": "S",
-          "ui_size_m": 0.8,
-          "ui_weight_kg": 30.3
-        }
-      ]
-    },
-    {
-      "name": "Alia",
-      "slot": 26,
-      "creature_id": "^TWOLEGANTELOPE",
-      "creature_type": "Prey",
-      "biome": "Barren",
-      "scale": 1.025970220565796,
-      "seeds": {
-        "CreatureSeed": "0xBC54E1F2573708C8",
-        "CreatureSecondarySeed": "0x0",
-        "SpeciesSeed": "0x17A2939342EC560E",
-        "GenusSeed": "0x3146BF1096C800F3",
-        "BoneScaleSeed": "0xBC54E1F2573708C8",
-        "ColourBaseSeed": "0x0"
-      },
-      "descriptors": [
-        "^_HEAD_DEER",
-        "^_HDTEETH_1",
-        "^_HDEARS_NULL",
-        "^_HDHORNS_2",
-        "^_BODY_DEER",
-        "^_B2LD_5",
-        "^_TAIL_3",
-        "^_FIN_0B",
-        "^693582224"
-      ],
-      "traits": [
-        0.1973334550857544,
-        -0.6795653104782104,
-        0.16196036338806152
-      ],
-      "saved_class_overrides": [
-        "C",
-        "C",
-        "C"
-      ],
-      "saved_class_overrides_in_use": false,
-      "readings": [
-        {
-          "date": "2026-10-20",
-          "note": "Freshly tamed, untrained. The player also read the displayed size and weight.",
-          "treats_eaten": [
-            0,
-            0,
-            0
-          ],
-          "treats_available": 0,
-          "victories": 0,
-          "progress_to_treat": 0.0,
-          "trust": 0.6000000238418579,
-          "ui_class": {
-            "combat_effectiveness": "C",
-            "agility": "S",
-            "health": "C"
-          },
-          "ui_class_overall": "B",
-          "ui_size_m": 1.0,
-          "ui_weight_kg": 41.0
-        }
-      ]
+      "pet_key": "0xA94CC67AB47E86D0@1791404147",
+      "birth_time": 1791404147,
+      "present_in_save": true,
+      "slot_last_seen": 9
     }
   ],
   "save_treats_order": {
@@ -1573,5 +1636,36 @@
       "S": 21
     },
     "note": "Clone pairs carry no information here: ^COW, ^GRUNT and ^SPIDER each have two pets sharing one CreatureSeed, so their agreement is the seed, not the archetype."
+  },
+  "record_keeping": {
+    "standing_instruction": "The player may delete companions when slots run out, and will keep sending new pets to read. Every pet's seeds and readings are to be kept permanently for further analysis, including for pets that no longer exist in the save.",
+    "identity": "pet_key = '<CreatureSeed>@<BirthTime>'. CreatureSeed alone is NOT unique - clones and gene-modified descendants share one (Little Cute Monster/Plati, Mantissa/Zushetto, Unzy/Tippo) - and BirthTime separates them. Names are not identities either: the player renames pets, and a name can be reused.",
+    "slot_is_not_an_identity": "The Pets array is a fixed 30-entry list and a freed slot is reused, so a new pet can land on a deleted pet's index. The old 'slot' field is kept as 'slot_last_seen' for locating a pet in the save at the time it was read, and must never be used to match a pet across reads.",
+    "when_a_pet_is_gone": "Set present_in_save to false and leave everything else untouched. A deleted pet's seed and tier readings stay valid evidence - the tier is a function of CreatureSeed, which does not care whether the player still owns the animal. Never delete an observation.",
+    "how_to_add_a_reading": [
+      "Re-read the save and match each pet by pet_key, not by slot and not by name.",
+      "A pet already recorded gets a new entry appended to its 'readings' array, never an overwrite - that is what makes before/after training diffs possible.",
+      "A pet not recorded yet gets a new observation with its full seed set, descriptors, traits, scale and the save-side battle record, plus the player's UI reading.",
+      "Check every new reading against the standing predictions before writing it down: Overall == ceil((combat+agility+health)/3); the x/10 numbers == PetBattlerTreatsEaten in the order (Health, Agility, Combat Effectiveness); size == round(Scale,1) m; weight == round(40*Scale,1) kg; and pets sharing a CreatureSeed must share all three letters. Report any miss rather than quietly fitting.",
+      "Mark any pet no longer in the save as present_in_save false in the same pass."
+    ],
+    "what_more_pets_can_still_settle": [
+      "A fourth Cat: all three so far read Combat S, which is about a 1-in-27 coincidence and is the only archetype pattern left standing (see archetype_bias).",
+      "Sums 0, 1 and 8, the three Overall values never yet observed (predicted C, B, S).",
+      "Two creatures of the SAME species - same SpeciesSeed, different CreatureSeed. Still absent from the save. Not needed for the tier source any more (Tippo settled that), but it would confirm directly that two same-species animals can hold different tiers.",
+      "NOT the CreatureSeed -> tier function: that is closed, see creature_seed_search. More pets cannot recover a hash, and two null-tested searches have already come back empty.",
+      "Taming a creature that was scanned earlier: its CreatureSeed is already in the discovery store, so its tiers can be recorded against a seed that was known before the pet existed. Of no analytical use while the function is unknown, but it is the one way a tier reading could ever be predicted rather than observed."
+    ],
+    "deleted_pets_and_seeds": "A deleted pet keeps its CreatureSeed recoverable through its discovery record (see scanned_creatures), but nothing else. Scale, Traits, treats, victories, trust, BirthTime and the UI readings exist only here."
+  },
+  "scanned_creatures": {
+    "date": "2026-10-20",
+    "finding": "Every creature the player has SCANNED carries its CreatureSeed in the discovery store, whether or not it was ever tamed. Measured on the real save: 3,201 discovery records, 520 of kind Animal, 519 of those with a creature seed, 515 distinct. 433 are the player's own scans, 86 another player's.",
+    "where": "DiscoveryManagerData['DiscoveryData-v1'].Store.Record, kind 'Animal', field DD.VP - a vector of 4 or 5 validation seeds. VP[0] is the CreatureSeed; discoveries.parse() exposes it as row['s'] and DiscoveryBook.animal_by_seed() keys on VP[0].",
+    "proof_that_vp0_is_the_creature_seed": "All 21 tamed pets join onto a discovery record on VP[0] == CreatureSeed - 21 of 21, no misses. Previously this join was relied on by pets.first_scan() without that many confirmations.",
+    "untamed_seeds_available": 497,
+    "why_this_does_NOT_help_crack_the_tier": "These 497 seeds are UNLABELLED: a creature that was only scanned has no Companion UI tier to read, because tiers are shown for companions. Unlabelled inputs cannot constrain a function whose outputs are unknown, so this does not revive creature_seed_search. It would only matter if the function were already known, in which case it would let the plugin predict a wild creature's tiers before taming it - which is exactly the thing that is not recoverable.",
+    "why_it_matters_anyway": "A deleted companion's CreatureSeed is not lost. Its discovery record stays in the save, so the seed - the one field the tier depends on - remains recoverable for any pet whose species the player ever scanned, which is all 21 so far. What the discovery record does NOT keep is the pet-only data: Scale, Traits, treats, victories, trust, BirthTime, and the player's UI readings. For those, research/pet_classes.json is the only surviving source once a pet is deleted, which is why observations are never removed from it.",
+    "if_a_wild_seed_list_is_ever_wanted": "Regenerate it from the save rather than storing 497 hex strings here: parse the Animal records and subtract the tamed pets' seeds. It is derived data and would go stale as the player scans more."
   }
 }
