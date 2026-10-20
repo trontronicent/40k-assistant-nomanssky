@@ -1,0 +1,688 @@
+{
+  "researched": "2026-10-20",
+  "codeword": "pet feature",
+  "note": "What a companion's three stat classes are, and where they do NOT come from. Read by the player from the in-game Companion UI and paired with the exact save-file record of the same pet. The save's own PetBattlerCoreStatClassOverrides is inert and must never be shown as the class.",
+  "method": [
+    "Pets read from BaseContext.PlayerStateData.Pets of save2.hg (slot index kept, it is a fixed 30-entry array).",
+    "The player read Combat Effectiveness / Agility / Health, and sometimes Overall, from the Companion UI.",
+    "Two same-species clone pairs in this save isolate one variable each; see 'experiments'.",
+    "To add a later reading after training a pet, append to that pet's 'readings' array - do not overwrite."
+  ],
+  "conclusions": [
+    "PetBattlerCoreStatClassOverrides is [C, C, C] with PetBattlerUseCoreStatClassOverrides false for every pet in the save, including brand-new ones, while the UI shows anything from C to S. It is an override slot the game ignores, not the pet's class.",
+    "Training does not change the class. Proven on the Grunt clone pair (slots 3 and 6): identical CreatureSeed, SpeciesSeed, GenusSeed, BoneScaleSeed, Descriptors and Scale; 8/10/10 treats and 44 victories versus 1/0/2 treats and 15 victories; both read A / A / S.",
+    "Size does not change the class. Proven on the Spider clone pair (slots 4 and 9): identical seeds and descriptors, Scale 2.181 versus 3.681 (69 percent bigger); both read B / A / A.",
+    "The class is therefore intrinsic and fixed at hatch - a function of the creature seeds, which the two clone pairs reading identically also demonstrates directly.",
+    "The derivation is not in the game's data tables: gccreatureglobals.mbin holds no stat, class, tier or rank strings, and the only petbattler tables are petbattlermovestable.mbin and petbattlermovesetstable.mbin (moves, not stats). It is computed in engine code.",
+    "Traits are not the stats. Using abs(trait) with a 0.50 cut fitted Callista's A/A/B exactly, then failed on all four pets it was used to predict (Mantissa predicted A/B/C, read B/A/A; three C/A/C predictions all wrong). Traits and the class are probably both seed-derived, hence correlated, not causal.",
+    "A search of every nibble, byte and 16-bit word of all six seeds for a field monotone with the observed letters found nothing for Combat or Agility, and only overlapping bits of SpeciesSeed for Health - 8 samples against about 144 candidate fields, so treated as coincidence, not a finding."
+  ],
+  "open": [
+    "Overall looks like a function of the three letters alone, scoring C=0 B=1 A=2 S=3: Mantissa B/A/A, Zushetto B/A/A and Callista A/B/A all sum to 5 and all read Overall A, while Plati A/A/S sums to 7 and reads Overall S. Four data points and only two distinct sums, so this is a lead, not a rule; the A/S boundary is somewhere in 6..7 and the B and C boundaries are unobserved.",
+    "The exact seed -> class function. Would need engine-code reverse engineering, or many more labelled pets than this save holds.",
+    "Whether treats raise the numeric stat within a class (plausible, and what 'training' would then mean) - the UI letters are all that has been read so far.",
+    "Scale looks like a seeded base plus a discrete step: the Spider clones differ by exactly 1.500 with an identical fractional part, and Callista's Scale is 1.4999999. The younger Spider is the bigger one, so it is not growth with age."
+  ],
+  "experiments": [
+    {
+      "name": "Grunt clone pair - isolates training",
+      "slots": [
+        3,
+        6
+      ],
+      "pets": [
+        "Little Cute Monster",
+        "Plati"
+      ],
+      "identical": [
+        "CreatureSeed",
+        "CreatureSecondarySeed",
+        "SpeciesSeed",
+        "GenusSeed",
+        "BoneScaleSeed",
+        "Descriptors",
+        "Scale",
+        "CreatureID"
+      ],
+      "differs": [
+        "PetBattlerTreatsEaten",
+        "PetBattlerVictories",
+        "PetBattlerTreatsAvailable",
+        "PetBattleProgressToTreat",
+        "BirthTime",
+        "Moods",
+        "Traits",
+        "CustomName"
+      ],
+      "result": "Both A / A / S. Training does not move the class.",
+      "player_note": "Plati is a gene-modified descendant of Little Cute Monster, which is why the seeds match."
+    },
+    {
+      "name": "Spider clone pair - isolates size",
+      "slots": [
+        4,
+        9
+      ],
+      "pets": [
+        "Mantissa",
+        "Zushetto"
+      ],
+      "identical": [
+        "CreatureSeed",
+        "CreatureSecondarySeed",
+        "SpeciesSeed",
+        "GenusSeed",
+        "BoneScaleSeed",
+        "Descriptors",
+        "CreatureID"
+      ],
+      "differs": [
+        "Scale",
+        "ColourBaseSeed",
+        "AllowUnmodifiedReroll",
+        "PetBattlerTreatsEaten",
+        "PetBattlerVictories",
+        "BirthTime",
+        "Moods",
+        "Traits",
+        "CustomName"
+      ],
+      "result": "Both B / A / A. Size does not move the class.",
+      "player_note": "The player's impression that smaller creatures are more agile and larger ones tougher is not visible in the class letters; if it is real it must act on the numeric stats."
+    }
+  ],
+  "ui_class_order": [
+    "Combat Effectiveness",
+    "Agility",
+    "Health"
+  ],
+  "save_override_order": [
+    "Combat Effectiveness",
+    "Health",
+    "Agility"
+  ],
+  "save_path": "BaseContext.PlayerStateData.Pets",
+  "observations": [
+    {
+      "name": "Unzy Bunzy Bowa",
+      "slot": 0,
+      "creature_id": "^COW",
+      "creature_type": "Prey",
+      "biome": "Lush",
+      "scale": 0.6560065150260925,
+      "seeds": {
+        "CreatureSeed": "0x320E447D6296A867",
+        "CreatureSecondarySeed": "0x56427E9D16C14071",
+        "SpeciesSeed": "0x269DB40F01A2201D",
+        "GenusSeed": "0xAA78C244162F491A",
+        "BoneScaleSeed": "0x320E447D6296A867",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_TAIL_THIN",
+        "^_COW_NORMAL",
+        "^_BODY_COW",
+        "^_BCA_BLANK1",
+        "^_TYPE_COW",
+        "^_ACC_FEATHERS",
+        "^_HEAD_ALIENTYPE",
+        "^_WEIRD_LONG",
+        "^_FACELONG_1",
+        "^_EARSL1_NONE",
+        "^_EYESL1_B",
+        "^_DIVIDE_1",
+        "^951974636"
+      ],
+      "traits": [
+        0.2489224672317505,
+        -0.7318943738937378,
+        -0.16034090518951416
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            7,
+            1,
+            8
+          ],
+          "treats_available": 7,
+          "victories": 27,
+          "progress_to_treat": 0.36273816227912903,
+          "trust": 0.8000000715255737,
+          "ui_class": {
+            "combat_effectiveness": "B",
+            "agility": "B",
+            "health": "C"
+          },
+          "ui_class_overall": null
+        }
+      ]
+    },
+    {
+      "name": "Hidippo",
+      "slot": 2,
+      "creature_id": "^TRICERATOPS",
+      "creature_type": "Passive",
+      "biome": "Barren",
+      "scale": 1.4193061590194702,
+      "seeds": {
+        "CreatureSeed": "0xEC57FF8FEF704002",
+        "CreatureSecondarySeed": "0x8D14D68123E49E2C",
+        "SpeciesSeed": "0x382EB71742D7497F",
+        "GenusSeed": "0x4E5DB09847F72649",
+        "BoneScaleSeed": "0xEC57FF8FEF704002",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_HEAD_HIPPO",
+        "^_HIPEARS_2",
+        "^_HHACC_0",
+        "^_HHEAD_2",
+        "^_HHHORNS_3",
+        "^_BODY_DIPLO",
+        "^_DBACC_4",
+        "^_TAIL_HIPPO",
+        "^1571751328"
+      ],
+      "traits": [
+        0.010923564434051514,
+        -0.8329117298126221,
+        -0.15554773807525635
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            2,
+            2,
+            6
+          ],
+          "treats_available": 5,
+          "victories": 20,
+          "progress_to_treat": 0.6415794491767883,
+          "trust": 0.7500000596046448,
+          "ui_class": {
+            "combat_effectiveness": "A",
+            "agility": "S",
+            "health": "B"
+          },
+          "ui_class_overall": null
+        }
+      ]
+    },
+    {
+      "name": "Little Cute Monster",
+      "slot": 3,
+      "creature_id": "^GRUNT",
+      "creature_type": "Passive",
+      "biome": "Lush",
+      "scale": 0.5854020118713379,
+      "seeds": {
+        "CreatureSeed": "0xEBE89A26D590DC7F",
+        "CreatureSecondarySeed": "0x4328B47B5CBDB631",
+        "SpeciesSeed": "0x3F9128F0FCC217F1",
+        "GenusSeed": "0x48189FF9B1CF60E7",
+        "BoneScaleSeed": "0xEBE89A26D590DC7F",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_HEAD_GRUNT",
+        "^_GHACCS_1",
+        "^_GH1ACCS_B",
+        "^_BODY_GRUNT",
+        "^_MESH_GRUNT",
+        "^_BGH_CLAWSLONG",
+        "^_BGF_CLAWSSHORT",
+        "^_BGM_NONE",
+        "^3021524063"
+      ],
+      "traits": [
+        -0.2327820062637329,
+        -0.768478512763977,
+        -0.16446548700332642
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            8,
+            10,
+            10
+          ],
+          "treats_available": 1,
+          "victories": 44,
+          "progress_to_treat": 0.42828381061553955,
+          "trust": 0.8500000834465027,
+          "ui_class": {
+            "combat_effectiveness": "A",
+            "agility": "A",
+            "health": "S"
+          },
+          "ui_class_overall": null
+        }
+      ]
+    },
+    {
+      "name": "Mantissa",
+      "slot": 4,
+      "creature_id": "^SPIDER",
+      "creature_type": "Prey",
+      "biome": "Toxic",
+      "scale": 2.1813371181488037,
+      "seeds": {
+        "CreatureSeed": "0xA94CC67AB47E86D0",
+        "CreatureSecondarySeed": "0x0",
+        "SpeciesSeed": "0xE8C1E6A2A4368EF4",
+        "GenusSeed": "0xC0F3119AB216E666",
+        "BoneScaleSeed": "0xA94CC67AB47E86D0",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_MANTIS_A",
+        "^_ARMS_2",
+        "^_BODY_2",
+        "^_NECK_MANTIS",
+        "^_HEAD_MANTIS",
+        "^_MHACC_NULL",
+        "^_MEYES_2",
+        "^_MANTENNA_NULL",
+        "^_MARM_A",
+        "^_TAIL_NULL",
+        "^_ACM_NONE",
+        "^_LEGS_2",
+        "^835472030"
+      ],
+      "traits": [
+        -0.794701099395752,
+        -0.38245975971221924,
+        0.19994258880615234
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            4,
+            0,
+            6
+          ],
+          "treats_available": 3,
+          "victories": 20,
+          "progress_to_treat": 0.09305011481046677,
+          "trust": 0.7500000596046448,
+          "ui_class": {
+            "combat_effectiveness": "B",
+            "agility": "A",
+            "health": "A"
+          },
+          "ui_class_overall": "A"
+        }
+      ]
+    },
+    {
+      "name": "Plati",
+      "slot": 6,
+      "creature_id": "^GRUNT",
+      "creature_type": "Passive",
+      "biome": "Lush",
+      "scale": 0.5854020118713379,
+      "seeds": {
+        "CreatureSeed": "0xEBE89A26D590DC7F",
+        "CreatureSecondarySeed": "0x4328B47B5CBDB631",
+        "SpeciesSeed": "0x3F9128F0FCC217F1",
+        "GenusSeed": "0x48189FF9B1CF60E7",
+        "BoneScaleSeed": "0xEBE89A26D590DC7F",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_HEAD_GRUNT",
+        "^_GHACCS_1",
+        "^_GH1ACCS_B",
+        "^_BODY_GRUNT",
+        "^_MESH_GRUNT",
+        "^_BGH_CLAWSLONG",
+        "^_BGF_CLAWSSHORT",
+        "^_BGM_NONE",
+        "^3021524063"
+      ],
+      "traits": [
+        -0.03278200328350067,
+        -0.768478512763977,
+        -0.36446547508239746
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            1,
+            0,
+            2
+          ],
+          "treats_available": 9,
+          "victories": 15,
+          "progress_to_treat": 0.29641926288604736,
+          "trust": 0.8500000238418579,
+          "ui_class": {
+            "combat_effectiveness": "A",
+            "agility": "A",
+            "health": "S"
+          },
+          "ui_class_overall": "S"
+        }
+      ]
+    },
+    {
+      "name": "Zushetto",
+      "slot": 9,
+      "creature_id": "^SPIDER",
+      "creature_type": "Prey",
+      "biome": "Toxic",
+      "scale": 3.6813371181488037,
+      "seeds": {
+        "CreatureSeed": "0xA94CC67AB47E86D0",
+        "CreatureSecondarySeed": "0x0",
+        "SpeciesSeed": "0xE8C1E6A2A4368EF4",
+        "GenusSeed": "0xC0F3119AB216E666",
+        "BoneScaleSeed": "0xA94CC67AB47E86D0",
+        "ColourBaseSeed": "0x56EBBBB09A788A71"
+      },
+      "descriptors": [
+        "^_MANTIS_A",
+        "^_ARMS_2",
+        "^_BODY_2",
+        "^_NECK_MANTIS",
+        "^_HEAD_MANTIS",
+        "^_MHACC_NULL",
+        "^_MEYES_2",
+        "^_MANTENNA_NULL",
+        "^_MARM_A",
+        "^_TAIL_NULL",
+        "^_ACM_NONE",
+        "^_LEGS_2",
+        "^835472030"
+      ],
+      "traits": [
+        -0.6854354739189148,
+        -0.20995976030826569,
+        0.043848827481269836
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 4,
+          "victories": 6,
+          "progress_to_treat": 0.46188610792160034,
+          "trust": 0.800000011920929,
+          "ui_class": {
+            "combat_effectiveness": "B",
+            "agility": "A",
+            "health": "A"
+          },
+          "ui_class_overall": "A"
+        }
+      ]
+    },
+    {
+      "name": "Zero-Bug",
+      "slot": 13,
+      "creature_id": "^FLYINGBEETLE",
+      "creature_type": "FlyingBeetle",
+      "biome": "Lava",
+      "scale": 0.8684042692184448,
+      "seeds": {
+        "CreatureSeed": "0xC0294779D9C77F6A",
+        "CreatureSecondarySeed": "0x1B95AC9738A681DA",
+        "SpeciesSeed": "0x469C43CDB6B79759",
+        "GenusSeed": "0x70975D789FF0EB52",
+        "BoneScaleSeed": "0xC0294779D9C77F6A",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_SHELL_SPIKY",
+        "^_HEAD_ROUND",
+        "^81185448"
+      ],
+      "traits": [
+        0.7831048965454102,
+        0.2522045373916626,
+        -0.1886027455329895
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 0,
+          "victories": 0,
+          "progress_to_treat": 0.0,
+          "trust": 0.6000000238418579,
+          "ui_class": {
+            "combat_effectiveness": "C",
+            "agility": "C",
+            "health": "S"
+          },
+          "ui_class_overall": null
+        }
+      ]
+    },
+    {
+      "name": "Mandriliva",
+      "slot": 16,
+      "creature_id": "^CAT",
+      "creature_type": "PlayerPredator",
+      "biome": "Lush",
+      "scale": 0.8201854228973389,
+      "seeds": {
+        "CreatureSeed": "0x6CC82534F2B5E58E",
+        "CreatureSecondarySeed": "0x0",
+        "SpeciesSeed": "0xB06DA7DA5563CDD6",
+        "GenusSeed": "0x4EFF39DB431411E1",
+        "BoneScaleSeed": "0x6CC82534F2B5E58E",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_BODY_CAT",
+        "^_SHAPE_1",
+        "^_HEAD_CAT",
+        "^_HCACC_B",
+        "^_CATTOP_1",
+        "^_HCTOPB_E",
+        "^_CHEARS2_C5",
+        "^_TAIL_HOG",
+        "^_THA_X2",
+        "^_MESH_LIZ",
+        "^_BLBACK_7",
+        "^1965814830"
+      ],
+      "traits": [
+        -0.201734721660614,
+        0.6254950165748596,
+        0.2385120391845703
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 1,
+          "victories": 2,
+          "progress_to_treat": 0.7142857313156128,
+          "trust": 0.7000000476837158,
+          "ui_class": {
+            "combat_effectiveness": "S",
+            "agility": "B",
+            "health": "A"
+          },
+          "ui_class_overall": null
+        }
+      ]
+    },
+    {
+      "name": "Milkinny",
+      "slot": 17,
+      "creature_id": "^RODENT",
+      "creature_type": "Predator",
+      "biome": "Lush",
+      "scale": 1.7485989332199097,
+      "seeds": {
+        "CreatureSeed": "0xB325A4755F82833E",
+        "CreatureSecondarySeed": "0x0",
+        "SpeciesSeed": "0xEF66D67BB68BD9A",
+        "GenusSeed": "0x6897640E92B09C9E",
+        "BoneScaleSeed": "0xB325A4755F82833E",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_HEAD_GDANE",
+        "^_GDAC_0",
+        "^_HGDEARS_2",
+        "^_BODY_LIZARD",
+        "^_LIZBOD_4",
+        "^_TAIL_RODENT",
+        "^1972634999"
+      ],
+      "traits": [
+        0.14005202054977417,
+        0.8850517272949219,
+        0.28726279735565186
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 1,
+          "victories": 2,
+          "progress_to_treat": 0.7142857313156128,
+          "trust": 0.6500000357627869,
+          "ui_class": {
+            "combat_effectiveness": "S",
+            "agility": "B",
+            "health": "S"
+          },
+          "ui_class_overall": null
+        }
+      ]
+    },
+    {
+      "name": "Callista",
+      "slot": 24,
+      "creature_id": "^WEIRDFLOAT",
+      "creature_type": "Weird",
+      "biome": "Weird",
+      "scale": 1.4999998807907104,
+      "seeds": {
+        "CreatureSeed": "0x15CD939B68CAC0EA",
+        "CreatureSecondarySeed": "0x22091470B83C6FBE",
+        "SpeciesSeed": "0xFCE72F19A6D6FB92",
+        "GenusSeed": "0x931FB82022C3DEA7",
+        "BoneScaleSeed": "0x15CD939B68CAC0EA",
+        "ColourBaseSeed": "0x0"
+      },
+      "descriptors": [
+        "^_WEIRD_FLOAT",
+        "^_FLOAT_WIRECELL",
+        "^2774317676"
+      ],
+      "traits": [
+        0.8288738131523132,
+        -0.5290979743003845,
+        -0.44100871682167053
+      ],
+      "saved_class_overrides": [
+        "C",
+        "C",
+        "C"
+      ],
+      "saved_class_overrides_in_use": false,
+      "readings": [
+        {
+          "date": "2026-10-20",
+          "treats_eaten": [
+            0,
+            0,
+            0
+          ],
+          "treats_available": 0,
+          "victories": 0,
+          "progress_to_treat": 0.0,
+          "trust": 0.6500000357627869,
+          "ui_class": {
+            "combat_effectiveness": "A",
+            "agility": "B",
+            "health": "A"
+          },
+          "ui_class_overall": "A"
+        }
+      ]
+    }
+  ]
+}
