@@ -1610,7 +1610,15 @@
       "0x320E447D6296A867 - Unzy Bunzy Bowa (B/B/C) and the unnamed Cow in slot 1 (UNREAD)"
     ],
     "open_test": "The unnamed Cow in slot 1 is the one discriminating pet in the save. It shares Unzy's CreatureSeed, SpeciesSeed and GenusSeed and has the same Scale, but differs in CreatureSecondarySeed (Unzy 0x56427E9D16C14071, slot 1 absent) and in its Descriptors - a visibly different animal with different body parts. If the tier is a function of CreatureSeed alone it must read exactly B/B/C like Unzy; if CreatureSecondarySeed or the descriptors enter the derivation, it can differ. Reading its three letters tests the player's statement in its strict form, and it is the only such test available without new pets.",
-    "measured_2026_10_20": "CONFIRMED that the tier is a function of CreatureSeed alone. Tippo (slot 1) shares Unzy Bunzy Bowa's CreatureSeed byte for byte while differing in CreatureSecondarySeed (Unzy 0x56427E9D16C14071, Tippo none) and in its Descriptors - a visibly different animal, cow hump and T-Rex feet against feathers and a long face - and reads B/B/C, identical to Unzy, as predicted before the reading. So neither the secondary seed nor the descriptors enter the derivation. The player's statement now has a measurement behind it, and the earlier caveat that this save could not isolate which seed is resolved."
+    "measured_2026_10_20": "SUPERSEDED - see FALSIFIED_2026_10_20_by_save_oracle. This recorded Tippo as confirming that CreatureSeed alone determines the tier. The reading was right and the inference was wrong: Tippo and Unzy share BoneScaleSeed as well as CreatureSeed, and the save oracle has since shown CreatureSeed does not matter. Kept visible so the confound is not repeated.",
+    "FALSIFIED_2026_10_20_by_save_oracle": {
+      "verdict": "The claim 'the tier is a function of CreatureSeed alone' is FALSIFIED. CreatureSeed does not enter the tier at all.",
+      "the_experiment": "Nine pets were written into the save's free slots, every one an exact clone of Tippo (B/B/C) with only CustomName, BirthTime and CreatureSeed changed. Seeds were Tippo's own (control), 0x0, and single bits 1<<0, 1<<8, 1<<16, 1<<24, 1<<32, 1<<40, 1<<48.",
+      "the_result": "ALL NINE read B/B/C, Overall B - identical to the donor, including the pet with CreatureSeed 0x0. The control also read B/B/C, which proves a hand-written pet is treated as genuine, so this is a real negative and not a rejected edit.",
+      "what_creature_seed_DOES_drive": "Colour and the displayed 'Typ' label, and nothing else visible. The nine pets were the SAME creature visually, differing only in colour, with Typ values Rational, Primus, Weiblich, Unbestimmt, Orthogonal, Ungleichmaessig, Rational, Exotisch, Vektorisiert in slot order. Note the control and the 1<<32 pet both read Rational, so bit 32 may not reach the Typ either. The body comes from Descriptors, which were Tippo's.",
+      "why_the_earlier_evidence_misled": "BoneScaleSeed is byte-identical to CreatureSeed in all 21 natural pets - 21 of 21, no exceptions - so the two fields are perfectly confounded in observational data. The Tippo/Unzy pair, which was the decisive evidence, shares BOTH. No number of naturally caught creatures could ever have separated them; only a written save could, which is exactly what route 1 was for.",
+      "where_the_tier_must_live": "In a field the nine clones shared with Tippo. Ranked by suspicion: BoneScaleSeed (still holding Tippo's 0x320E447D6296A867 in every test pet, and the field the old CreatureSeed evidence actually implicated), then SpeciesSeed, GenusSeed, Descriptors, Traits, CreatureSecondarySeed, ColourBaseSeed. The game normalised nothing on load, so whatever is written is what is used."
+    }
   },
   "creature_seed_search": {
     "date": "2026-10-20",
@@ -1821,7 +1829,7 @@
       "why_it_is_decisive": "With chosen seeds the structure falls out in a few dozen readings instead of hundreds - seed 0, 1, 2, then single bits 1<<0 .. 1<<63. If a tier flips when one bit flips, that bit's role is immediate. Random samples can never do this, however many are collected.",
       "first_step": "One reading: change a disposable pet's seed and see whether the tiers move at all. That also re-tests the 'CreatureSeed alone' claim independently - if they do not move, tiers are cached at hatch and everything downstream needs revising.",
       "safety": "Needs the player's go-ahead. Work on a copied save slot with a backup, never the live one.",
-      "status": "NOT STARTED - awaiting consent."
+      "status": "RUNNING and already decisive: batch 1 falsified the CreatureSeed hypothesis in one game load, after two underpowered searches and 21 observations had pointed the wrong way for a day. Batch 2 is a field hunt."
     },
     "route_2_known_prngs": {
       "priority": "HIGH, and free",
