@@ -15,7 +15,10 @@
     "The class is therefore intrinsic and fixed at hatch - a function of the creature seeds, which the two clone pairs reading identically also demonstrates directly.",
     "The derivation is not in the game's data tables: gccreatureglobals.mbin holds no stat, class, tier or rank strings, and the only petbattler tables are petbattlermovestable.mbin and petbattlermovesetstable.mbin (moves, not stats). It is computed in engine code.",
     "Traits are not the stats. Using abs(trait) with a 0.50 cut fitted Callista's A/A/B exactly, then failed on all four pets it was used to predict (Mantissa predicted A/B/C, read B/A/A; three C/A/C predictions all wrong). Traits and the class are probably both seed-derived, hence correlated, not causal.",
-    "A search of every nibble, byte and 16-bit word of all six seeds for a field monotone with the observed letters found nothing for Combat or Agility, and only overlapping bits of SpeciesSeed for Health - 8 samples against about 144 candidate fields, so treated as coincidence, not a finding."
+    "A search of every nibble, byte and 16-bit word of all six seeds for a field monotone with the observed letters found nothing for Combat or Agility, and only overlapping bits of SpeciesSeed for Health - 8 samples against about 144 candidate fields, so treated as coincidence, not a finding.",
+    "PetBattlerTreatsEaten index 2 is Combat Effectiveness, measured: the player spent 8 treats on Combat and all 8 appeared at index 2 (2 -> 10), with indices 0 and 1 unchanged. The plugin's pets.STAT_NAMES claims index 2 is Agility and is therefore WRONG about at least that index; indices 0 and 1 are still unidentified. Note this is measured for PetBattlerTreatsEaten only - whether PetBattlerCoreStatClassOverrides shares the same order is untested, and cannot be tested while every pet reads [C, C, C].",
+    "A stat caps at 10 treats eaten: Plati's Combat stopped at exactly 10 with a treat still available, which also explains Little Cute Monster's [8, 10, 10].",
+    "Training confirmed a second time, now as a before/after on one pet rather than across clones: Plati went from 2 to 10 treats on Combat Effectiveness and still reads A / A / S with Overall S. Treats do not move the class letters."
   ],
   "open": [
     "Overall looks like a function of the three letters alone, scoring C=0 B=1 A=2 S=3: Mantissa B/A/A, Zushetto B/A/A and Callista A/B/A all sum to 5 and all read Overall A, while Plati A/A/S sums to 7 and reads Overall S. Four data points and only two distinct sums, so this is a lead, not a rule; the A/S boundary is somewhere in 6..7 and the B and C boundaries are unobserved.",
@@ -96,11 +99,7 @@
     "Agility",
     "Health"
   ],
-  "save_override_order": [
-    "Combat Effectiveness",
-    "Health",
-    "Agility"
-  ],
+  "save_override_order": "Unverified. pets.STAT_NAMES claims Combat Effectiveness / Health / Agility, but the measured PetBattlerTreatsEaten order contradicts that at index 2. See save_treats_order.",
   "save_path": "BaseContext.PlayerStateData.Pets",
   "observations": [
     {
@@ -398,6 +397,26 @@
             "health": "S"
           },
           "ui_class_overall": "S"
+        },
+        {
+          "date": "2026-10-20",
+          "note": "After the player spent every remaining treat on Combat Effectiveness. 8 treats left the pool (9 -> 1) and all 8 landed on PetBattlerTreatsEaten index 2, which rose 2 -> 10 and stopped there, leaving 1 treat unspendable on that stat.",
+          "treats_eaten": [
+            1,
+            0,
+            10
+          ],
+          "treats_available": 1,
+          "victories": 15,
+          "progress_to_treat": 0.29641926288604736,
+          "trust": 0.8500000238418579,
+          "ui_class": {
+            "combat_effectiveness": "A",
+            "agility": "A",
+            "health": "S"
+          },
+          "ui_class_overall": "S",
+          "trained_since_previous_reading": "Combat Effectiveness, +8 treats"
         }
       ]
     },
@@ -684,5 +703,11 @@
         }
       ]
     }
-  ]
+  ],
+  "save_treats_order": {
+    "0": "unidentified",
+    "1": "unidentified",
+    "2": "Combat Effectiveness (measured 2026-10-20)",
+    "cap_per_stat": 10
+  }
 }
