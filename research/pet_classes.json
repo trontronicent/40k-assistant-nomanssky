@@ -1570,7 +1570,8 @@
     },
     "decisive_observation": "Zero-Rex. A/C/C sums to 2, the same as Unzy's B/B/C, but has a different max (A vs B) and a different median (C vs B). Both read Overall B, which eliminates max and median at a stroke - no single-letter statistic can produce it.",
     "caveat": "Fitted over 7 distinct sums ([2, 3, 4, 5, 6, 7, 9]) rather than derived from the game's code, but it has now predicted two previously unobserved sums correctly in advance. Gaps: [0, 1, 8].",
-    "confirmed_predictions": "Two sums have now been predicted before any pet existed at them and then read correctly: sum 9 (Wolverine S/S/S -> S) and sum 4 (Buzita S/C/B -> A). Only sums 0, 1 and 8 remain unobserved."
+    "confirmed_predictions": "Two sums have now been predicted before any pet existed at them and then read correctly: sum 9 (Wolverine S/S/S -> S) and sum 4 (Buzita S/C/B -> A). Only sums 0, 1 and 8 remain unobserved.",
+    "holds_for_scanner_readings": "CONFIRMED on the scanner, not just the Companion UI. Two scanned creatures - 0x83CC0566F2749CC3 B/S/C (sum 4) and 0xD125D18A66E15CA1 A/B/S (sum 6) - were both predicted A before the player read Overall, and both read A. Neither sum was new, so this adds nothing to the formula itself; what it adds is that the scanner's Overall obeys the same ceil(sum/3) relation as a companion's. Weak but real support for the scanner and Companion tiers being the same quantity, which the scan-then-tame test is meant to settle properly. The third scanned creature (0xEF14141CC68D3873, C/B/B, sum 2) still has an UNREAD Overall with a standing prediction of B."
   },
   "size_and_weight": {
     "date": "2026-10-20",
@@ -1762,9 +1763,10 @@
         "agility": "S",
         "health": "C"
       },
-      "overall_read": null,
+      "overall_read": "A",
       "overall_predicted": "A",
-      "note": "Ground. VP1 is the ^ANTELOPE genus, already confirmed tameable by a tamed pet."
+      "note": "Ground. VP1 is the ^ANTELOPE genus, already confirmed tameable by a tamed pet.",
+      "overall_confirmed": "predicted A from sum 4 before the reading, read A"
     },
     {
       "date": "2026-10-20",
@@ -1778,9 +1780,10 @@
         "agility": "B",
         "health": "S"
       },
-      "overall_read": null,
+      "overall_read": "A",
       "overall_predicted": "A",
-      "note": "Ground. VP1 is the ^TRICERATOPS genus, already confirmed tameable by a tamed pet."
+      "note": "Ground. VP1 is the ^TRICERATOPS genus, already confirmed tameable by a tamed pet.",
+      "overall_confirmed": "predicted A from sum 6 before the reading, read A"
     }
   ],
   "discovery_seed_vector": {
