@@ -1635,6 +1635,26 @@
       "why_every_earlier_search_failed": "Both bit-field searches and the whole seed-cracking plan used CreatureSeed as the input. That was the wrong input entirely, so the searches were not merely underpowered - they could never have succeeded. The null tests were right to reject their hits.",
       "what_it_unlocks": "SpeciesSeed and GenusSeed are VP2 and VP3 of every Animal discovery record, so they are known for all ~528 scanned creatures, tamed or not. If the joint function is recovered, tiers become predictable for every creature the player has ever scanned - including before taming.",
       "typ_label": "The Typ label tracks the changed field too (ungleichmaessig for Tippo's own pair, alpha for Kaky's species, unbekannt for Kaky's genus, assymmetrisch for full Kaky), and testBONE and testCOL both read rational while being tier-identical to Tippo - so Typ is not a tier proxy."
+    },
+    "HASH_CONFIRMED_2026_10_20": {
+      "verdict": "The tier function is a MIXED HASH of (SpeciesSeed, GenusSeed). Bit-by-bit probing cannot map it, so that line of attack is closed.",
+      "the_experiment": "Batch 3: Tippo clones with ONE bit flipped in SpeciesSeed or GenusSeed, bits 0/16/32/48 of each, from Tippo's own B/B/C baseline. testCTRL3 reproduced B/B/C, so the batch is valid.",
+      "the_result": "Every one of the 8 flips changed the tiers, and all 8 produced a different triple. 19 of 24 stat slots changed, 79%, against the 75% expected if a flip simply redraws each stat at random. That is textbook avalanche: a one-bit input change propagates to all outputs.",
+      "readings": {
+        "testS00": "B/C/B",
+        "testS16": "S/A/A",
+        "testS32": "S/B/B",
+        "testS48": "S/A/B",
+        "testG00": "A/B/A",
+        "testG16": "C/B/C",
+        "testG32": "A/C/A",
+        "testG48": "A/A/A"
+      },
+      "what_this_closes": "Mapping the function by probing. There is no bit whose role can be isolated, so no amount of single-bit or multi-bit probing builds up a picture of the function.",
+      "what_the_oracle_is_still_good_for": "Generating labels on demand - 9 arbitrary (SpeciesSeed, GenusSeed) pairs per game load, with chosen inputs. That is exactly what route 2 needs, and route 2 has never yet been run with the CORRECT inputs: every previous attempt fed it CreatureSeed.",
+      "other_fields_this_batch_pinned_down": "No colour and no model change this time, and the displayed SPECIES NAME changed (e.g. 'D. Winkridii'). So: CreatureSeed drives colour and nothing else structural; SpeciesSeed drives the species name as well as feeding the tier; Descriptors drive the body. The Typ label moved in both batches, so it is derived from several seeds and is not a tier proxy - testCTRL3 and testG32 both read 'keins' while differing in every tier. Displayed age tracked the BirthTime offsets, as expected.",
+      "the_practical_catch": "SpeciesSeed is distinct for all 524 Animal records, so every creature has a unique (SpeciesSeed, GenusSeed) pair. A lookup table of observed pairs would therefore never hit twice: predicting a wild creature's tiers REQUIRES the function itself, not a cache.",
+      "next": "Route 2 with the right inputs - test candidate hash and PRNG constructions against the 18 natural pets' (species, genus) -> tier labels, generating more labels through the oracle as needed. If that comes back empty, route 4, static analysis, is now far better targeted: the inputs are known, so the search is for a function consuming those two seeds."
     }
   },
   "creature_seed_search": {
