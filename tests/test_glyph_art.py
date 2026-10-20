@@ -57,3 +57,23 @@ def test_glyph_index_out_of_range_is_refused():
     """An index outside 0..15 raises rather than wrapping around to another glyph."""
     with pytest.raises(IndexError):
         glyph_art.glyph_svg(16)
+
+
+def test_the_sixteen_shapes_are_all_different():
+    """No two glyphs share their artwork. A copy-pasted entry would show the player the wrong symbol for a
+    digit, which is the one failure this feature must never have."""
+    seen = {}
+    for index, subpaths in enumerate(glyph_art.GLYPHS):
+        key = tuple(subpaths)
+        assert key not in seen, f"glyph {index:X} has the same art as {seen[key]:X}"
+        seen[key] = index
+
+
+def test_each_glyph_is_named_by_the_existing_table():
+    """glyph_name reuses craftable.GLYPHS, so the names in a tooltip, an alt text and a chat answer can
+    never drift apart."""
+    from nms_connector import craftable
+
+    assert glyph_art.glyph_name(0) == "Sunset"
+    assert glyph_art.glyph_name(15) == "Atlas"
+    assert [glyph_art.glyph_name(i) for i in range(16)] == list(craftable.GLYPHS)
