@@ -1694,7 +1694,40 @@
       "why_it_matters": "It breaks the naive pairing rule. 'The Nth reading pairs with the Nth new Animal record' assumed one reading per new record. An untameable creature still creates a discovery record but produces no reading, so from that point on every later pairing in the batch would be shifted by one and silently wrong - the worst kind of error here, because the seeds would still look plausible.",
       "protocol_fix": "Report EVERY scan in order, including the ones with no tiers, as an explicit 'no tiers' entry rather than skipping them. The positional pairing then stays aligned, and the untameable seeds are recorded as what they are instead of being omitted.",
       "analytical_value_of_a_no_tier_scan": "Not zero, but close. It says nothing about the seed->tier function, since the creature has no tier. It is worth recording only so the pairing stays aligned and so the labelable subset of the 497 untamed seeds can be estimated - the practical sample size for the reopened search is smaller than 497 by however many scanned creatures are flying, swimming or otherwise untameable, and that fraction is not yet known.",
-      "open_question": "Whether a creature's record itself reveals tameability - if it does, the untameable seeds could be filtered out of the save without the player having to look at each one. Not yet investigated; the Animal record's fields are a timestamp, the seeds, the system and the planet, so it may well not."
+      "open_question": "Whether a creature's record itself reveals tameability - if it does, the untameable seeds could be filtered out of the save without the player having to look at each one. Not yet investigated; the Animal record's fields are a timestamp, the seeds, the system and the planet, so it may well not.",
+      "can_the_record_reveal_tameability": "NO - measured and closed. The flying creature's record is structurally identical to a tameable one: same fields, no name, empty f, a 4-element seed vector. The seed vector length does not mark it either: over all 524 Animal records it is 4 for 300 and 5 for 224, and the 18 tamed pets split 9/9 between the two. So the untameable seeds cannot be filtered out of the save automatically; the labelable fraction of the ~497 untamed seeds has to be learned by scanning."
+    },
+    "calibration_result_2026_10_20": {
+      "verdict": "The method works. Confirmed on a 2-creature batch rather than the planned 3.",
+      "evidence": "Before the save: 522 Animal records, newest 2026-10-20 03:56. After the save: 524, with exactly two new records on a new system (173722894692097, planet 1) at 09:31:37 and 09:33:54 - two scans, two records, in the order the player reported them. So scanning does create an Animal record, the count matches the number of scans, and ascending timestamp order matches report order.",
+      "a_scan_needs_a_save": "Measured: immediately after the first scan the count was still 522. The record only reaches the save file when the game saves, so always confirm a save before pairing.",
+      "still_untested": "Whether RE-scanning an already-discovered creature creates a record or refreshes its timestamp. Both calibration creatures were new, on a planet never visited. Until this is known, only scans of creatures the player has not scanned before can be paired safely."
     }
-  }
+  },
+  "scanned_readings": [
+    {
+      "date": "2026-10-20",
+      "creature_seed": "0x5172C5CF1A1B8699",
+      "scanned_at": 1792481497,
+      "system": 173722894692097,
+      "planet": 1,
+      "tiers": null,
+      "note": "A FLYING creature: scannable, not tameable, so it has no tiers at all. Recorded to keep the positional pairing aligned and to count against the labelable fraction - it carries no information about the seed->tier function."
+    },
+    {
+      "date": "2026-10-20",
+      "creature_seed": "0xEF14141CC68D3873",
+      "scanned_at": 1792481634,
+      "system": 173722894692097,
+      "planet": 1,
+      "tiers": {
+        "combat_effectiveness": "C",
+        "agility": "B",
+        "health": "B"
+      },
+      "overall_read": null,
+      "overall_predicted": "B",
+      "note": "Read with the scanner, never tamed. Overall was not read; the formula predicts B from sum 2. This is the first tier label in the dataset that does not come from a Companion UI, so it is kept here rather than in observations until scan-then-tame validation."
+    }
+  ]
 }
