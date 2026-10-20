@@ -1695,7 +1695,13 @@
       "protocol_fix": "Report EVERY scan in order, including the ones with no tiers, as an explicit 'no tiers' entry rather than skipping them. The positional pairing then stays aligned, and the untameable seeds are recorded as what they are instead of being omitted.",
       "analytical_value_of_a_no_tier_scan": "Not zero, but close. It says nothing about the seed->tier function, since the creature has no tier. It is worth recording only so the pairing stays aligned and so the labelable subset of the 497 untamed seeds can be estimated - the practical sample size for the reopened search is smaller than 497 by however many scanned creatures are flying, swimming or otherwise untameable, and that fraction is not yet known.",
       "open_question": "Whether a creature's record itself reveals tameability - if it does, the untameable seeds could be filtered out of the save without the player having to look at each one. Not yet investigated; the Animal record's fields are a timestamp, the seeds, the system and the planet, so it may well not.",
-      "can_the_record_reveal_tameability": "NO - measured and closed. The flying creature's record is structurally identical to a tameable one: same fields, no name, empty f, a 4-element seed vector. The seed vector length does not mark it either: over all 524 Animal records it is 4 for 300 and 5 for 224, and the 18 tamed pets split 9/9 between the two. So the untameable seeds cannot be filtered out of the save automatically; the labelable fraction of the ~497 untamed seeds has to be learned by scanning."
+      "can_the_record_reveal_tameability": "REVISED - see tameability_candidate. The first answer (no) was based on record structure and the 4/5 seed vector length, both of which are genuinely useless. But VP1, the archetype seed, is a candidate: the untameable flyer's VP1 is 0xE7CAD69E2F26FF55, which no tamed pet holds and which is the single most common value in the save at 82 of 524 records.",
+      "tameability_candidate": {
+        "hypothesis": "VP1 == 0xE7CAD69E2F26FF55 is the flying genus and is untameable. If so, 82 of the 524 Animal records (16%) are unlabelable, and they can be excluded from the seed search without the player looking at any of them.",
+        "evidence_for": "The flyer holds it; none of the 21 tamed pets do; and it is the most frequent VP1 in the save, which fits birds being ubiquitous. VP1 is established as a per-genus constant on 14 archetypes, so one member's value characterises the genus.",
+        "evidence_against_overreach": "It rests on ONE untameable creature. And the inverse rule is already false: the tameable C/B/B creature's VP1 (0xA3B91CE4065B1E29, 4 records) is also absent from the tamed set, so 'VP1 not seen among tamed' does NOT mean untameable. Only 13 of 48 VP1 values are confirmed tameable; the other 34 are simply unknown.",
+        "the_test": "Scan a second flying creature. The hypothesis predicts VP1 == 0xE7CAD69E2F26FF55 before the reading. A flyer with a different VP1 kills the simple one-genus story; a tameable creature with that VP1 kills the hypothesis outright."
+      }
     },
     "calibration_result_2026_10_20": {
       "verdict": "The method works. Confirmed on a 2-creature batch rather than the planned 3.",
@@ -1729,5 +1735,13 @@
       "overall_predicted": "B",
       "note": "Read with the scanner, never tamed. Overall was not read; the formula predicts B from sum 2. This is the first tier label in the dataset that does not come from a Companion UI, so it is kept here rather than in observations until scan-then-tame validation."
     }
-  ]
+  ],
+  "discovery_seed_vector": {
+    "date": "2026-10-20",
+    "finding": "The Animal record's DD.VP vector is fully decoded, 21/21 against the tamed pets: VP0 = CreatureSeed (always byte-identical to BoneScaleSeed), VP1 = an ARCHETYPE seed, VP2 = the save's SpeciesSeed, VP3 = the save's GenusSeed, VP4 = CreatureSecondarySeed when the creature has one (9 of 21 pets; Wolverine has a VP4 matching no pet field).",
+    "the_save_field_names_are_misleading": "SpeciesSeed is NOT a species identifier: it is distinct for all 524 Animal records, i.e. unique per creature. GenusSeed is near-unique too (413 distinct over 524). Neither groups creatures. Concretely: the three Cats hold three distinct (SpeciesSeed, GenusSeed) pairs, as do the three Two-leg Antelopes - only the clone pairs share one, which is the clone, not the species.",
+    "vp1_is_the_real_grouping": "VP1 has only 48 distinct values over 524 records and maps one-to-one onto the CreatureID archetype: each of the 14 tamed archetypes has exactly one VP1 value, and all three Cats share theirs. The one merge is ^WEIRDFLOAT and ^WEIRDROLL, which share 0x711E4D20ED4E1D52 - so VP1 is slightly coarser than CreatureID, a genus rather than an archetype. 13 of the 48 values are confirmed tameable.",
+    "why_this_matters": "CreatureID ('^CAT') exists only on a tamed pet. VP1 is the same information for a creature that was merely scanned, so the 497 untamed seeds CAN be grouped by kind without taming anything - which is what the archetype_bias question needs at scale, and what makes a tameability filter possible.",
+    "same_species_question_resolved": "The standing wish for 'two creatures of the same species, different CreatureSeed' is already satisfied and was mis-specified: SpeciesSeed never repeats, so it could never have identified a species. By VP1 the save already holds three Cats and three Two-leg Antelopes on distinct CreatureSeeds, and they scatter across every tier - which is the confirmation that was wanted."
+  }
 }
