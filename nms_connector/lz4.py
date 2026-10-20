@@ -68,3 +68,21 @@ def decompress_block(src: bytes, out_size: int) -> bytes:
     if len(dst) != out_size:
         raise LZ4Error(f"decoded {len(dst)} bytes, expected {out_size}")
     return bytes(dst)
+
+
+def compress_block(data: bytes) -> bytes:
+    """Encode `data` as one LZ4 block of literals only - the encoder the savegame editor writes with.
+
+    A block whose single sequence is all literals and no match is valid LZ4 that any decompressor accepts, so
+    this needs no match finding and is correct by construction. Compression is deliberately not attempted: the
+    save grows by the length bytes alone, and a save that is certainly readable beats a smaller one.
+    """
+    n = len(data)
+    out = bytearray([min(n, 15) << 4])
+    if n >= 15:
+        rest = n - 15
+        while rest >= 255:
+            out.append(255)
+            rest -= 255
+        out.append(rest)
+    return bytes(out) + data
