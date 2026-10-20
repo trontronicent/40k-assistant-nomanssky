@@ -1674,6 +1674,24 @@
         "tooling_on_disk": "None. mapping.json came from MBINCompiler but no extractor is installed locally."
       },
       "next": "Route 4, and it is now the only live route. Two sub-paths, cheapest first: (a) extract NMSARC.globals.pak and look for the pet-battler stat-class table - it would give the tier names, weights or thresholds, and a weight table plus a known PRNG may be the whole answer; (b) if the table is data-driven but the roll is not, locate the function in NMS.exe, which is now far better targeted because the two inputs are known. The oracle stays available as a label generator to confirm whatever either sub-path produces."
+    },
+    "MECHANISM_NAMED_2026_10_20": {
+      "verdict": "The mechanism is now named from the game's own reflection strings. A per-pet PetBattlerSeed is rolled against a WEIGHTED CoreStatClassRollTable to pick each core stat's class. The tier is therefore a weighted table lookup on a rolled seed, not a uniform bit field - which is exactly why the route 2 search failed.",
+      "how_it_was_found": "Built a working HGPAK v2 extractor (the format is undocumented here; see hgpak_format below), extracted the archives, found no pet-battler stat data in any of them, then read the reflection strings out of NMS.exe.",
+      "the_named_fields": {
+        "PetBattlerSeed": "A real per-pet seed, and a serialised field of cGcGameTablePetData (alongside BoneScaleSeed, Babify, DescriptorSeed, DescriptorSecondarySeed, StatTreatsEaten, ThumbnailIndex, MoveInitDataList, MovesList, UseCoreStatClassOverrides, CoreStatClassOverrides). It is NOT in the player's save pet struct, which has 35 keys and none of them is this - so for a wild pet it is DERIVED at runtime. Our experiments say it is derived from SpeciesSeed and GenusSeed jointly.",
+        "CoreStatClassRollTable": "The weighted table the roll is resolved against. This is what picks C/B/A/S.",
+        "CoreStatClassRangeTable": "Per-class numeric ranges - presumably the actual stat values behind a class.",
+        "CoreStatClassPerLevelBoosts": "Per-class growth, which fits the tier being a rate of return on treats.",
+        "CoreStatScaleVarianceMul": "A variance multiplier on the rolled stat scale.",
+        "PetMaxLevel": "Confirms a level cap exists as a global, consistent with the cap-10 observation.",
+        "GcPetBattlerCoreStatRollData": "The struct holding a roll entry.",
+        "GcPetBattlerCoreStatRangeData": "The struct holding a range entry."
+      },
+      "why_route_2_failed_structurally": "The search assumed three uniform 2-bit fields plus a permutation, i.e. each tier equally likely. A weighted roll table cannot be expressed that way, so the correct function was never in the search space. The negative result stands, but it was the wrong family, not the wrong inputs.",
+      "the_weights_are_probably_measurable": "Batch 3's chosen-input readings gave C 19%, B 33%, A 37%, S 11% (n=27). If that is the roll table's weighting, it is estimable directly from chosen-input oracle batches without touching the binary - 9 labels per game load. This is a NEW and cheap route, and it also predicts the rarity of a wild S pet, which is the thing the player actually wants to know.",
+      "where_the_table_lives": "NMS.exe, compiled in. Every shipped archive was checked: all ~95 NMSARC paks had their manifests read (audio.pak excepted, being 5.5 GB of audio) and not one contains a core-stat or stat-class data file. The only pet-battler data files in the whole game are UI textures and metadata/simulation/gametables/petbattler/petbattlermovestable.mbin plus petbattlermovesetstable.mbin, i.e. moves, not stats. gccreatureglobals.mbin holds pet climate, temperament and diet strings but no battler stats.",
+      "next": "Two routes, and the first needs no reverse engineering at all. (5) Measure the roll table: run chosen-input oracle batches purely to estimate the C/B/A/S weights, which answers the practical question directly. (4b) Static analysis of NMS.exe for the compiled-in default of CoreStatClassRollTable - now a well-posed search for a small float table referenced near the pet battler globals, rather than a hunt for an unknown function."
     }
   },
   "creature_seed_search": {
@@ -1938,5 +1956,22 @@
       "The game normalises nothing on load: what is written is what is used."
     ],
     "still_untested_side_experiment": "PetBattlerUseCoreStatClassOverrides set true with [S,S,S] - one slot would finally say what that inert field does. Not yet spent."
+  },
+  "hgpak_format": {
+    "why_this_matters": "The game's archives changed to an undocumented HGPAK format. This is a complete, working description, validated by extracting every shipped pak - 49,948 files out of NMSARC.MetadataEtc.pak alone. It is reusable for any future game-data work.",
+    "layout": {
+      "0x00": "'HGPAK\\0\\0\\0'",
+      "0x08": "u64 version (2)",
+      "0x10": "u64 file count",
+      "0x18": "u64 chunk count",
+      "0x20": "u64 1",
+      "0x28": "u64 data start (0x840 in globals.pak)",
+      "0x30": "u64 archive hash",
+      "0x38": "file table, 32 bytes per file: [u64 name hash, u64 offset, u64 size, u64 content hash]. The offsets index the DECOMPRESSED stream in the same address space as the file, so data begins at the data-start value there too, and consecutive entries chain exactly (offset + size = next offset, with 16-byte alignment).",
+      "after the file table": "u64 compressed size per chunk. NOTE: these values did not line up with reality in globals.pak - they appear shifted by one entry. Do not rely on them.",
+      "data": "back-to-back zstd frames, each decompressing to 64 KiB (the last to less). Take the frame boundaries by scanning for the zstd magic 28 B5 2F FD: the number of magics matched the header's chunk count exactly in every archive tested."
+    },
+    "file_0_is_the_manifest": "File 0 is a plaintext whitespace-separated list of the OTHER files' names, in table order, so file table entry i+1 is named by manifest line i. This is why a raw ASCII scan of the pak finds nothing: the manifest is inside the compressed stream.",
+    "extractor": "J:/nms-save-backups/oracle-batches/hgpak5.py - takes a pak path, writes every file out."
   }
 }
