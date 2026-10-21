@@ -58,6 +58,7 @@ HEADINGS = {
                 "planet_names": "Planet names the game uses", "weather": "Weather", "extreme": "extreme weather - storms",
                 "climate_word": "The game's word for this climate: **{word}**.", "biomes": "Planet records call this biome: {b}.",
                 "gas": "{harvester} gas: {gas}", "source": "Source: {s}.", "worlds": "Worlds",
+                "stars": "Star classes that generate such a world: {s}.",
                 "base_value": "Base value: {value} units each (what the game says one unit is worth).",
                 "value_unknown": "The game gives this no base value."},
     "german": {"where_from": "Fundort", "about": "Beschreibung", "refined": "Raffinerie-Rezepte",
@@ -71,6 +72,7 @@ HEADINGS = {
                "climate_word": "Das Wort des Spiels für dieses Klima: **{word}**.",
                "biomes": "Im Planetenverzeichnis heißt dieses Biom: {b}.",
                "gas": "Gas für die {harvester}: {gas}", "source": "Quelle: {s}.", "worlds": "Welten",
+               "stars": "Sternklassen, die solche Welten erzeugen: {s}.",
                "base_value": "Grundwert: {value} Units pro Stück (was ein Stück im Spiel wert ist).",
                "value_unknown": "Das Spiel gibt dafür keinen Grundwert an."},
 }

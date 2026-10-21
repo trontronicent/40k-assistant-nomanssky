@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from . import galaxies, galaxy, guilds, planet_search, positions, starmap, trade
+from . import galaxies, galaxy, guilds, planet_search, positions, star_class, starmap, trade, worlds
 from .glyphs import glyph_digits
 from .summary import address_portal, galaxy_name, unpack_address
 
@@ -26,6 +26,8 @@ BIOME_COLORS = {"Lush": "#5fbf6a", "Swamp": "#4f8f5a", "Toxic": "#b5c93a", "Scor
                 "Exotic": "#d36bd8", "Exotic (red)": "#e0505a", "Exotic (green)": "#4fe0a0", "Exotic (blue)": "#5a7cff",
                 "Waterworld": "#3a7fd6", "Gas giant": "#d8b07a"}
 SIZE_SCALE = {"Giant": 2.2, "Large": 1.5, "Medium": 1.15, "Small": 0.9, "Moon": 0.6}
+WORLD_SUMMARIES = star_class.world_summaries(worlds.WORLD_TYPES)   # biome -> what such a world is like
+
 STAR_COLOR = "#ffd27a"
 PURPLE_STAR = "#b77cff"
 
@@ -308,11 +310,21 @@ def _sentinel(planet: dict, sentinel_index: int):
     return sentinels[sentinel_index] if 0 <= sentinel_index < len(sentinels) else None
 
 
+def planet_type_cell(texts: Texts, planet: dict):
+    """A planet's Type cell: the game's own description, with the planetary-class tooltip.
+
+    One place builds it, because the Planets table, the planet search's hits and a system map's side panel
+    all show the same cell - and the tooltip is the only explanation of what the game's type word means."""
+    info = planet.get("info") or {}
+    text = texts.description(info) or planet.get("biome")
+    return star_class.planet_type_cell(text, planet, WORLD_SUMMARIES.get(planet.get("biome") or ""))
+
+
 def _planet_row(texts: Texts, planet: dict, visit: dict | None, sentinel_index: int, system_cell=None) -> list:
     """A planet's PLANET_COLUMNS cells; `system_cell` goes right after the name (the Planets tab's System column)."""
     info = planet.get("info") or {}
     row = [_planet_name(planet, visit)] + ([] if system_cell is None else [system_cell])
-    row += [texts.description(info) or planet.get("biome"), texts.key(info.get("weather")),
+    row += [planet_type_cell(texts, planet), texts.key(info.get("weather")),
             texts.item(planet.get("common")), texts.item(planet.get("uncommon")), texts.item(planet.get("rare")),
             texts.items(planet.get("extra")), texts.item(planet_gas(planet)), texts.key(info.get("flora"), info.get("fauna")),
             texts.key(info.get("fauna"), info.get("flora")), texts.key(_sentinel(planet, sentinel_index)),
@@ -456,6 +468,20 @@ class Context:
         key = trade.CONFLICT_KEYS.get(conflict)
         entry = self.texts.gamedata.text(key) if key else None
         return self.texts.both(entry["en"], entry["local"]) if entry else conflict
+
+    def star_cell(self, key: int):
+        """A system's star as a cell - its colour and spectral class with the explaining tooltip, or None
+        when no star record was read for it yet. The galaxy index picks the weight row: yellow stars
+        generate different worlds in a lush or an empty galaxy."""
+        e = self.economies.get(key) or {}
+        addr = unpack_address(key) or {}
+        colour = e.get("star") or ("Purple" if addr.get("SolarSystemIndex") in PURPLE_SYSTEMS else None)
+        if not colour:
+            return None
+        source = ("predicted by the game's generation rules" if e.get("predicted")
+                  else "read from the game's galaxy map" if e.get("source") == "galaxy map"
+                  else "read in the game" if e.get("star") else "the system index of a purple system")
+        return star_class.star_cell(colour, addr.get("RealityIndex"), source)
 
     def economy_summary(self, key: int) -> str | None:
         """'Trading (Average)' for a system with a recorded economy, else None.
@@ -679,6 +705,8 @@ def _star(key: int, visit: dict, planets: list[dict], ctx: Context) -> dict:
         {"label": "Galaxy", "value": galaxy_name(addr.get("RealityIndex"))},
         {"label": "Region (voxel X, Y, Z)", "value": f"{addr.get('VoxelX')}, {addr.get('VoxelY')}, {addr.get('VoxelZ')}"},
         {"label": "System index", "value": f"{index} (0x{index:03X})" if isinstance(index, int) else None},
+        {"label": "Star", "value": ctx.star_cell(key)
+         or "not read yet - visit the system while the game runs, or read it on the galaxy map"},
         {"label": "Planets known", "value": f"{len(known)} ({len(planets)} with resources)" if known else "none yet"},
         {"label": "Named by", "value": visit.get("named_by")},
         {"label": "Discovered", "value": visit.get("discovered_at")},
@@ -708,7 +736,7 @@ def _body(planet: dict | None, index: int, saved: dict, visit: dict, ctx: Contex
     if planet:
         weather = texts.key(info.get("weather"))
         items += [
-            {"label": "Type", "value": texts.description(info) or biome},
+            {"label": "Type", "value": planet_type_cell(texts, planet)},
             {"label": "Weather", "value": f"{weather} (extreme)" if weather and planet.get("extreme_weather") else weather},
             {"label": "Resources", "value": ", ".join(n for n in (texts.name(planet.get(k)) for k in ("common", "uncommon", "rare")) if n)},
             {"label": "Plants", "value": texts.items(planet.get("extra"))},
@@ -794,20 +822,21 @@ def visited_systems_sections(ctx: Context, selected: int | None) -> list[dict]:
         planets = ctx.recorded.get(key, [])
         named = sum(1 for p in (visit.get("planets") or {}).values() if p.get("name"))
         row = [_system_label(key, visit), portal_cell(address_portal(addr)), galaxy_name(addr.get("RealityIndex")),
-               len(planets) or None, named or None, visit.get("named_by"), _last_seen(key, ctx) or None,
-               "yes" if key == ctx.live.current_system else "",
+               ctx.star_cell(key), len(planets) or None, named or None, visit.get("named_by"),
+               _last_seen(key, ctx) or None, "yes" if key == ctx.live.current_system else "",
                ctx.economy_display(key), ctx.conflict_cell((ctx.economies.get(key) or {}).get("conflict")),
                guilds.cell(ctx.guild(key))]
         entries.append((row, key))
     # Current system first, then systems with recorded resources, each newest first (sorts are stable).
-    entries.sort(key=lambda e: e[0][6] or "", reverse=True)
-    entries.sort(key=lambda e: (e[0][7] != "yes", e[0][3] is None))
+    # The cell positions are the Star column's: it sits between Galaxy and Planets with resources.
+    entries.sort(key=lambda e: e[0][7] or "", reverse=True)
+    entries.sort(key=lambda e: (e[0][8] != "yes", e[0][4] is None))
     shown = _shown_system(ctx, selected)
     out = []
     if shown is not None:
         out.append(system_map(shown, ctx, SYSTEM_MAP_ID, "System map"))
     out.append({"type": "table", "title": f"Visited systems ({len(entries)})",
-                "columns": ["System", "Portal address", "Galaxy", "Planets with resources", "Named planets",
+                "columns": ["System", "Portal address", "Galaxy", "Star", "Planets with resources", "Named planets",
                             "Named by", "Last seen / discovered", "Here", "Economy", "Conflict", "Guild envoy"],
                 "rows": [row for row, _ in entries], "row_action": OPEN_SYSTEM,
                 "row_keys": [system_key_text(key) for _, key in entries],

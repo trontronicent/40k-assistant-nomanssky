@@ -479,7 +479,10 @@ def test_tables_show_the_current_system_and_every_visited_system(tmp_path):
     assert current_map["type"] == "orbit" and current_map["id"] == "current-map"
     assert current["title"] == "Planets of Delta Sol (live from the game)" and "Gas" in current["columns"]
     row = current["rows"][0]
-    assert row[:3] == ["Corrodia (Yaksh Primus)", "Noxious Planet (Ungesunder Planet)", "Poison Rain (Giftregen)"]
+    assert row[0] == "Corrodia (Yaksh Primus)" and row[2] == "Poison Rain (Giftregen)"
+    # 0.15.0: the Type cell carries the planetary-class tooltip (star_class.planet_type_cell).
+    assert row[1]["text"] == "Noxious Planet (Ungesunder Planet)"
+    assert "Planetary class" in row[1]["hint"] and "world type: Toxic" in row[1]["hint"]
     assert row[3] == {"text": "Copper (Kupfer)", "icon": "substance.yellow.2.png"} and row[5] == "Sodium (Natrium)"
     assert row[6] == "Fungal Mould" and row[7] == "Nitrogen (Stickstoff)"
     assert row[10] == "Require Obedience (Erwarten Gehorsam)"
@@ -489,8 +492,10 @@ def test_tables_show_the_current_system_and_every_visited_system(tmp_path):
     system_map, systems, guild_form = tabs["tabs"][1]["sections"]     # the guild form sits under the table
     assert guild_form["id"] == "region-guild"
     assert tabs["tabs"][1]["badge"] == 2
-    assert systems["title"] == "Visited systems (2)" and systems["rows"][0][0] == "Delta Sol" and systems["rows"][0][7] == "yes"
-    assert systems["rows"][1][0] == "System 007302925E80" and systems["rows"][1][3] is None
+    # 0.15.0: a Star column sits between Galaxy and Planets with resources, so Here is cell 8.
+    assert systems["title"] == "Visited systems (2)" and systems["rows"][0][0] == "Delta Sol" and systems["rows"][0][8] == "yes"
+    assert systems["columns"][3] == "Star"
+    assert systems["rows"][1][0] == "System 007302925E80" and systems["rows"][1][4] is None
     assert systems["row_action"] == "open_system" and systems["row_keys"] == [f"{SYSTEM_98:x}", f"{SYSTEM_115:x}"]
     assert systems["selected_key"] == f"{SYSTEM_98:x}" and system_map["id"] == "system-map"
     planets = tabs["tabs"][2]["sections"][-1]          # after the search form

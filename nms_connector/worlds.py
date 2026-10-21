@@ -24,7 +24,7 @@ import json
 import re
 from dataclasses import dataclass, field
 
-from . import game_terms, mbin
+from . import game_terms, mbin, star_class
 from .planet_search import QUESTION_WORDS, fold, stem
 
 MIN_WORD = 4
@@ -305,6 +305,7 @@ class WorldBook:
         if climate:
             lines += [h("climate_word", word=pick(climate)), ""]
         lines += [h("biomes", b=", ".join(wt.biomes)), ""]
+        lines += _star_lines(wt, h)
         lines += _facts_lines(wt, language, h)
         lines += _resource_lines(wt, lookup, terms, language, h)
         if w.get("names"):
@@ -327,6 +328,20 @@ def _world_title(wt: WorldType, climate: dict | None, language: str) -> str:
     if language != "english" and climate and climate.get("local"):
         return f"{climate['local']} ({wt.title})"
     return wt.title
+
+
+def _star_lines(wt: WorldType, h) -> list[str]:
+    """Which star classes generate this world type, from the game's biome weights (`star_class.stars_for`).
+
+    The colours stay English in every language: the class letters are language-neutral and the plugin has no
+    translated star-colour words, so a German document names "Yellow (class F or G)" as the game's classes."""
+    named = []
+    for biome in wt.biomes:
+        for colour, more in star_class.stars_for(biome):
+            text = (star_class.class_text(colour) or colour) + (" - more likely" if more else "")
+            if text not in named:
+                named.append(text)
+    return [h("stars", s=", ".join(named)), ""] if named else []
 
 
 def _facts_lines(wt: WorldType, language: str, h) -> list[str]:

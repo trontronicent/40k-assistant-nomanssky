@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.15.0-beta.11 (beta; needs app 3.20.0)
+
+- **A system's spectral class, and what it says about its planets.** *Systems -> Visited systems* has a new
+  **Star** column, and a system map's star now has a **Star** row: *Yellow (class F or G)*, *Red (class K or
+  M)*, *Green (class E)*, *Blue (class O or B)*, *Purple (class X or Y)*. Hover it and the tooltip says what
+  the galaxy map's own analysis panel calls that star, which hyperdrive upgrade reaches it (the game's item
+  descriptions name the colours: Cadmium -> red, Emeril -> green, Indium -> blue, Atlantid -> purple), which
+  worlds it makes more likely than other stars, and where the colour was read (galaxy map, in the game, or
+  predicted). It also says plainly that the digit and the suffix of a class string (*G2f*, *K3p*) are rolled
+  per system and that no source confirms an effect in play.
+
+  The class string itself is **not** in the save or in the galaxy map's star record - the game builds it at
+  display time (`GLXY_ANALYSIS_SPECTRAL` = "Class %PROCSPEC%"), and only the star *type* (the colour) is
+  stored. So the plugin shows the colour with the class letters of that colour and claims nothing about the
+  digit.
+
+- **A planet's planetary class, explained.** Every *Type* cell - in the Planets tables, the planet search's
+  hits and a system map's side panel - now carries a tooltip: what the game's own type word means (the type
+  name with *Planet*, *Moon* or *Planetoid* for its size class, from `PLANETCLASS1-3`), the world type and
+  size class recorded, one line on what such worlds are like, and which star classes generate them.
+
+- **Researched: which worlds a star class generates.** The game's own weight table
+  (`METADATA/SIMULATION/SOLARSYSTEM/BIOMES/BIOMELISTPERSTARTYPE.MBIN`) was decoded into
+  `research/star_classes.json` - seven rows of 2 x 17 weights (one per star type in the game's order, plus
+  two extra yellow rows for lush and for empty galaxies; normal planets and prime planets separately) - and
+  **measured against 2,673 recorded planets** of a real save. Everything colour-specific agrees: red, green
+  and blue exotic worlds occur only at a star of that colour, swamp and lava worlds only as prime planets,
+  lush worlds are the most common type at a yellow star. Two slots do **not**: `Dead` weighs 2 at every
+  colour yet not one of the 2,673 planets is a dead world, and `Exotic` is 0 for yellow stars in a normal
+  galaxy yet 10% of their planets are exotic (gas giants and water worlds are missing from the table
+  altogether). The generator decides those elsewhere, so no tooltip and no document promises a dead or an
+  exotic world from these weights.
+
+- **The knowledge base got it too.** A new shipped Codex document, *No Man's Sky Star Classes and Planet
+  Classes*, holds the whole picture with its sources and its limits (game files, the save measurement, and
+  the community wikis for the class letters, which the game files do not hold). Each generated world-type
+  document also gains a line naming the star classes that generate such a world.
+
+- No app change is needed: hints on a key/value value are rendered by app 3.21.0 and ignored by older ones,
+  and the standalone host already shows them.
+
 ## 0.15.0-beta.10 (beta; needs app 3.20.0)
 
 - **Companion battle stats: the treats you invested, instead of a letter that was always wrong.** Hovering a

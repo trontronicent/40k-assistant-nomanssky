@@ -24,7 +24,7 @@ On a phone every table of three or more columns is shown as a list of cards (the
 The tabs:
 
 - **Overview** - **Search your save** (one box over *everything* read from your save: systems, planets, items in every inventory, ships, bases, settlements, discoveries, companions and more - results come back grouped by kind and stay clickable as in their own tab), **timers** (when your settlement buildings are finished and your frigate expeditions return), units, nanites, quicksilver, health, where you were at the last save, where you are now, your fleet and companions: the **primary ship** with its estimated warp range and the star colours it reaches, your **settlements** at a glance (construction, a decision waiting), the **freighter** with its warp range, and the current mission in the game's words.
-- **Systems** - *Current system* (live from the game, with a map), *Visited systems* (every system from your save; click one to see its map), *Planets* (every planet whose resources were read, with a **search**: type what a planet is like - *sengend heiß*, *toxic*, *Ammoniak* - in English or the game's language, and narrow it by **Has the resource** and by the planet's **type**), *Galaxy* (the galaxy map and the nearest planet with each resource), *Galaxies* (which galaxy you are in, what kind it is and what that changes, and every galaxy your save has reached) and *Trade* (economies and trade routes), *Route* (the route planner) and *Star positions (prototype)* (exact positions of stars you lock on the galaxy map).
+- **Systems** - *Current system* (live from the game, with a map), *Visited systems* (every system from your save, each with its **Star** - *Yellow (class F or G)*, *Red (class K or M)* and so on; click one to see its map), *Planets* (every planet whose resources were read, with a **search**: type what a planet is like - *sengend heiß*, *toxic*, *Ammoniak* - in English or the game's language, and narrow it by **Has the resource** and by the planet's **type**), *Galaxy* (the galaxy map and the nearest planet with each resource), *Galaxies* (which galaxy you are in, what kind it is and what that changes, and every galaxy your save has reached) and *Trade* (economies and trade routes), *Route* (the route planner) and *Star positions (prototype)* (exact positions of stars you lock on the galaxy map).
 - **Inventory** - exosuit, starship, freighter, **storage containers** (0-9, numbered as in the game) and **Equipment**. **Search all inventories** at the top finds an item in every inventory at once by its name, category or id, in English or the game's language (*Kupfer*, *trade goods*): every matching stack with the inventory it is in, biggest stack first, and above them each item's total and what everything found is worth in units. Every word must match, a word also finds longer ones, and a place word narrows it (*copper freighter*, *Kobalt Lager*). Each item with its icon, its name in English and in the game's language, its **category** and what it is worth: **Value (stack)** is the whole stack at the base value, **Value (each)** one unit - the two numbers the game's own tooltip shows ("Insgesamt 6.426 Units", "Je 6 Units"). Sort by *Value (stack)* to see what is worth most. Technology and upgrade modules have no base value, so their cells stay empty. Hover an item's name for its description (in English and in the game's language) and its **base value** (what the game says one unit is worth); **trade goods** also tell which economies pay well for them, the nearest such system you know (or that you have not found one yet) and where they are cheap to buy. Planet resources have the same tooltip. See *Equipment* below.
 - **Ships & bases** - your ships (type, class, estimated **warp range**, the star colours they can reach, base stats, slots), **every ship's technology** (one tab per ship) and your **bases**: where each one stands (the planet for a planet base, the system for a freighter base or a ship interior), how many parts it has, what it is built from (hover for every part, named in English and in the game's language) and when you last built on it, newest first. See *Ships* below.
 - **Settlements** - the economy of each settlement you run: see *Settlements* below.
@@ -365,6 +365,25 @@ plant resource, the gas an atmosphere harvester collects, flora, fauna and
 sentinels. Every planet it sees is remembered, so the *Planets* tab grows as you
 travel. Planet resources are not stored in the save, so systems you visited
 before using the plugin show their names, but no resources until you go back.
+
+**Star class and planet class.** Every system shows its star as *Yellow (class F
+or G)*, *Red (class K or M)*, *Green (class E)*, *Blue (class O or B)* or
+*Purple (class X or Y)* - in the *Star* column of *Visited systems* and in the
+*Star* row of a system map. Rest the pointer on it: the tooltip says which
+hyperdrive upgrade reaches such a star (Cadmium, Emeril, Indium, Atlantid),
+which worlds it makes more likely than other stars, and where the colour was
+read - from the galaxy map, in the game, or predicted from the game's own
+generation rules. The game adds a digit and sometimes a letter to the class on
+its analysis panel (*G2f*, *K3p*); those are rolled per system and nothing is
+known to depend on them, so the plugin does not invent them.
+
+Every planet's **Type** has a tooltip too: what the game's own type word means
+(the type name with *Planet*, *Moon* or *Planetoid* for its size class), what
+was recorded for this planet, what such worlds are like and which star classes
+generate them. The Codex library gets the whole picture as a document, *No Man's
+Sky Star Classes and Planet Classes*, including which planet types the game's
+own tables tie to which star - and which of those readings a measurement against
+2,673 recorded planets does **not** confirm.
 
 Systems nobody renamed show the **name the game made up** for them (for example
 *Ulebsk*), read from the galaxy map's data while the game runs. The game only

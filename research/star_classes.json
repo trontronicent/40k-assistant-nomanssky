@@ -1,0 +1,293 @@
+{
+  "measured_at": "2026-10-21",
+  "game_build": "25732212",
+  "source_file": "metadata/simulation/solarsystem/biomes/biomelistperstartype.mbin",
+  "layout": {
+    "first_array": 32,
+    "floats_per_array": 17,
+    "arrays": "normal planets, then prime planets, per row",
+    "rows": [
+      "Yellow",
+      "Green",
+      "Blue",
+      "Red",
+      "Purple",
+      "Yellow (empty galaxy)",
+      "Yellow (lush galaxy)"
+    ],
+    "biome_order": [
+      "Lush",
+      "Toxic",
+      "Scorched",
+      "Radioactive",
+      "Frozen",
+      "Barren",
+      "Dead",
+      "Exotic",
+      "Exotic (red)",
+      "Exotic (green)",
+      "Exotic (blue)",
+      "Test",
+      "Swamp",
+      "Lava",
+      "Waterworld",
+      "Gas giant",
+      "All"
+    ]
+  },
+  "weights": {
+    "Yellow": {
+      "normal": {
+        "Lush": 2.0,
+        "Toxic": 1.0,
+        "Scorched": 1.0,
+        "Radioactive": 1.0,
+        "Frozen": 1.0,
+        "Barren": 1.0,
+        "Dead": 2.0
+      },
+      "prime": {
+        "Lush": 2.0,
+        "Toxic": 0.5,
+        "Scorched": 1.0,
+        "Radioactive": 0.5,
+        "Frozen": 1.0,
+        "Barren": 1.0,
+        "Dead": 0.5,
+        "Swamp": 1.0,
+        "Lava": 1.0
+      }
+    },
+    "Green": {
+      "normal": {
+        "Lush": 1.0,
+        "Toxic": 1.0,
+        "Scorched": 1.0,
+        "Radioactive": 1.0,
+        "Frozen": 1.0,
+        "Barren": 1.0,
+        "Dead": 2.0,
+        "Exotic": 1.0,
+        "Exotic (green)": 1.0
+      },
+      "prime": {
+        "Lush": 1.0,
+        "Toxic": 1.0,
+        "Scorched": 1.0,
+        "Radioactive": 0.5,
+        "Frozen": 1.0,
+        "Barren": 1.0,
+        "Dead": 0.5,
+        "Exotic": 0.5,
+        "Exotic (green)": 3.0,
+        "Swamp": 2.0
+      }
+    },
+    "Blue": {
+      "normal": {
+        "Lush": 1.0,
+        "Toxic": 1.0,
+        "Scorched": 1.0,
+        "Radioactive": 1.0,
+        "Frozen": 1.0,
+        "Barren": 1.0,
+        "Dead": 2.0,
+        "Exotic": 2.0,
+        "Exotic (blue)": 1.0
+      },
+      "prime": {
+        "Lush": 1.0,
+        "Toxic": 0.5,
+        "Scorched": 1.0,
+        "Radioactive": 0.5,
+        "Frozen": 1.0,
+        "Barren": 1.0,
+        "Dead": 0.5,
+        "Exotic": 0.5,
+        "Exotic (blue)": 3.0,
+        "Swamp": 1.0,
+        "Lava": 1.0
+      }
+    },
+    "Red": {
+      "normal": {
+        "Lush": 1.0,
+        "Toxic": 1.0,
+        "Scorched": 1.0,
+        "Radioactive": 1.0,
+        "Frozen": 1.0,
+        "Barren": 1.0,
+        "Dead": 2.0,
+        "Exotic": 3.0,
+        "Exotic (red)": 1.0
+      },
+      "prime": {
+        "Lush": 1.0,
+        "Toxic": 1.0,
+        "Scorched": 1.0,
+        "Radioactive": 0.5,
+        "Frozen": 1.0,
+        "Barren": 1.0,
+        "Dead": 0.5,
+        "Exotic": 0.5,
+        "Exotic (red)": 3.0,
+        "Lava": 2.0
+      }
+    },
+    "Purple": {
+      "normal": {
+        "Lush": 1.0,
+        "Toxic": 1.0,
+        "Scorched": 1.0,
+        "Radioactive": 1.0,
+        "Frozen": 1.0,
+        "Barren": 1.0,
+        "Dead": 1.0,
+        "Exotic": 1.0,
+        "Exotic (red)": 0.6600000262260437,
+        "Exotic (green)": 0.6600000262260437,
+        "Exotic (blue)": 0.6600000262260437,
+        "Swamp": 0.20000000298023224,
+        "Lava": 0.20000000298023224,
+        "Waterworld": 0.6600000262260437
+      },
+      "prime": {
+        "Lush": 1.0,
+        "Toxic": 1.0,
+        "Scorched": 1.0,
+        "Radioactive": 1.0,
+        "Frozen": 1.0,
+        "Barren": 1.0,
+        "Dead": 1.0,
+        "Exotic": 1.0,
+        "Exotic (red)": 0.6600000262260437,
+        "Exotic (green)": 0.6600000262260437,
+        "Exotic (blue)": 0.6600000262260437,
+        "Swamp": 0.20000000298023224,
+        "Lava": 0.20000000298023224,
+        "Waterworld": 0.6600000262260437
+      }
+    },
+    "Yellow (empty galaxy)": {
+      "normal": {
+        "Lush": 1.0,
+        "Toxic": 1.0,
+        "Scorched": 1.0,
+        "Radioactive": 1.0,
+        "Frozen": 1.0,
+        "Barren": 1.0,
+        "Dead": 4.0,
+        "Exotic": 1.0
+      },
+      "prime": {
+        "Lush": 1.0,
+        "Toxic": 0.5,
+        "Scorched": 1.0,
+        "Radioactive": 0.5,
+        "Frozen": 1.0,
+        "Barren": 1.0,
+        "Dead": 0.5,
+        "Exotic (red)": 1.0,
+        "Exotic (green)": 1.0,
+        "Exotic (blue)": 1.0,
+        "Swamp": 1.0,
+        "Lava": 1.0
+      }
+    },
+    "Yellow (lush galaxy)": {
+      "normal": {
+        "Lush": 4.0,
+        "Toxic": 1.0,
+        "Scorched": 1.0,
+        "Radioactive": 1.0,
+        "Frozen": 1.0,
+        "Barren": 1.0,
+        "Dead": 0.5,
+        "Exotic": 1.0
+      },
+      "prime": {
+        "Lush": 4.0,
+        "Toxic": 0.5,
+        "Scorched": 1.0,
+        "Radioactive": 0.5,
+        "Frozen": 1.0,
+        "Barren": 1.0,
+        "Dead": 0.5,
+        "Exotic": 0.5,
+        "Exotic (red)": 1.0,
+        "Exotic (green)": 1.0,
+        "Exotic (blue)": 1.0,
+        "Swamp": 1.0,
+        "Lava": 1.0
+      }
+    }
+  },
+  "save_cross_check": {
+    "Yellow": {
+      "planets": 2186,
+      "biomes": {
+        "Lush": 459,
+        "Scorched": 311,
+        "Frozen": 299,
+        "Toxic": 291,
+        "Radioactive": 283,
+        "Barren": 250,
+        "Exotic": 186,
+        "Lava": 54,
+        "Swamp": 53
+      }
+    },
+    "Red": {
+      "planets": 135,
+      "biomes": {
+        "Exotic": 34,
+        "Toxic": 19,
+        "Barren": 17,
+        "Frozen": 14,
+        "Exotic (red)": 12,
+        "Scorched": 12,
+        "Radioactive": 11,
+        "Lush": 10,
+        "Lava": 6
+      }
+    },
+    "Green": {
+      "planets": 132,
+      "biomes": {
+        "Exotic (green)": 26,
+        "Lush": 19,
+        "Exotic": 18,
+        "Toxic": 16,
+        "Scorched": 14,
+        "Frozen": 13,
+        "Barren": 13,
+        "Radioactive": 9,
+        "Swamp": 4
+      }
+    },
+    "Blue": {
+      "planets": 175,
+      "biomes": {
+        "Exotic (blue)": 37,
+        "Barren": 24,
+        "Exotic": 22,
+        "Frozen": 19,
+        "Toxic": 18,
+        "Radioactive": 17,
+        "Lush": 16,
+        "Scorched": 15,
+        "Lava": 5,
+        "Swamp": 2
+      }
+    },
+    "Purple": {
+      "planets": 4,
+      "biomes": {
+        "Radioactive": 1,
+        "Frozen": 1,
+        "Toxic": 1,
+        "Lava": 1
+      }
+    }
+  }
+}
