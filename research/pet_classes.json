@@ -2089,5 +2089,24 @@
     "how": "The exe's MBIN reflection data gives cGcGameTableGlobals' layout: 136 field descriptors of 0x58 bytes at .data offset 0x04F4DA70, each holding [name ptr, name hash, (type,size), (type,offset in struct), element descriptor ptr]. cGcPetBattlerCoreStatRollData has a single 4-byte field 'Roll' in a 16-byte struct, and RangeData an 8-byte 'Range' in 32 bytes - i.e. both are 4-element arrays, one slot per class. The MBIN is that struct serialised; the data offset is 0x20, found by fitting all 136 fields at once (every 1-byte bool must read 0 or 1): 100% of bools and 98.8% of scalars sane, no other shift close. Guessing the header size field-by-field gave several plausible but WRONG readings first - the global fit is what settled it.",
     "CORRECTS_OUR_MEASUREMENT": "Our oracle estimate put S at 7.6-8.3% with a 95% CI of [4.7%, 14.3%]. The true value is 15%, just outside that interval: we observed 11 S where 19.8 were expected, about 2 sigma low. The table still fits the 132 measured symbols overall (chi2 5.15, not rejected), so the method was sound and the interval merely unlucky - but the earlier 'S is about 8%' conclusion, and the 3:3:3:1 / 4:4:4:1 candidates that fit better than the truth, are SUPERSEDED.",
     "practical": "P(a stat rolls S) = 15%. P(a stat is A or better) = 40%. P(all three S) = 0.3375%, i.e. 1 in 296 - six times commoner than the 1 in 1,700 we estimated. The player's tamed pets show S at 33%, so his hunting over-represented S by about 2.2x, not 4x."
+  },
+  "TODO_show_tiers_in_the_ui": {
+    "status": "AGREED AS A LATER TASK, not started (2026-10-21). The player asked for it; nothing is built yet.",
+    "what_the_player_wants": "The plugin UI to show each existing pet's C/B/A/S tiers - not assumed, not manually entered at display time.",
+    "the_hard_constraint": "Tiers are NOT in the save and CANNOT be computed: the roll table is known exactly but the PetBattlerSeed mixing is not, and that search is closed (see ROUTE2_CORRECTED_NEGATIVE_2026_10_21). So every tier shown in the UI must come from a reading of the game's own Companion screen. There is no save-only path.",
+    "what_is_already_possible": "All 21 of the player's current pets ALREADY have real measured tiers, read from the Companion UI in earlier sessions and stored in this file's `observations`. The UI can show those today.",
+    "the_design_to_build": [
+      "Key the stored readings by (SpeciesSeed, GenusSeed), NOT by CustomName: names change, seeds do not, and the pair is the whole tier input. This also survives renames and slot moves.",
+      "Show provenance with each value - read from the game UI, with the date - so it never reads as computed.",
+      "Show 'not measured' for any pet without a reading, and never fall back to PetBattlerCoreStatClassOverrides, which is inert and would be a plausible-looking lie.",
+      "A measurement is reusable: if a new pet shares a seed pair with a measured one, fill it in automatically. Proven safe - three such pairs among the player's pets all match exactly - but it will rarely fire, since pairs are near-unique across all 544 scanned creatures.",
+      "Offer the derived Overall as ceil((c+a+h)/3) only when all three letters are known."
+    ],
+    "closing_the_gap_for_new_pets": {
+      "one_reading_per_pet": "Cheap and reliable: the player reads the Companion screen once and it is stored by seed pair forever. Manual only at the moment of taming.",
+      "oracle_prescreening": "The save oracle evaluates any (SpeciesSeed, GenusSeed) pair, 9 per game load, so a planet's creatures can be screened BEFORE taming - 94% of the player's 130 scanned planets have 9 or fewer creatures, so one load per planet. Creature seeds come from the discovery records (544 Animal records carry VP2/VP3, each tagged with planet DD.UA and scan time OWS.TS; records hold no creature name, so identification is by planet and scan order).",
+      "ocr_the_companion_screen": "The only fully automatic option: screen capture plus text recognition. Needs the game running on that screen, is fragile against UI and language changes (this player's game is German), and is substantial work for one letter per pet. NOT recommended as a starting point; scope separately if the player insists on full automation."
+    },
+    "also_fix_while_there": "nms_connector/pets.py's module docstring is now partly wrong. It says the tier derivation is 'engine code, not a game data table' - the TABLE is game data and is now known (C 30 / B 30 / A 25 / S 15 from gcgametableglobals.mbin); only the seed mixing is code. It also still says 11 pets and 4 eggs, where the player now has 21 pets. The 'must never be shown as the tier' rule about PetBattlerCoreStatClassOverrides remains correct and must stay."
   }
 }

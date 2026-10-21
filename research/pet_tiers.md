@@ -251,3 +251,43 @@ Test pet naming: `W` = batch 4, `X` = batch 5. Nine test pets currently occupy s
    what that inert save field actually does.
 5. **Scan-then-tame validation** — confirm scanner tiers equal companion tiers before pooling
    `scanned_readings` with `observations`.
+
+## TODO: show the tiers in the plugin UI (agreed 2026-10-21, not started)
+
+The player wants each existing pet's tiers in the UI, not assumed and not typed in at display time.
+
+**The constraint that shapes the whole design:** tiers are not in the save and cannot be computed —
+the roll table is known but the `PetBattlerSeed` mixing is not, and that search is closed. So every
+tier the UI shows must originate in a reading of the game's own Companion screen. There is no
+save-only path, and `PetBattlerCoreStatClassOverrides` must never be used as a fallback: it is inert
+and would be a plausible-looking lie.
+
+**What is already possible:** all 21 of the player's current pets have real measured tiers in
+`pet_classes.json` under `observations`, read from the Companion UI in earlier sessions. Those can be
+displayed today.
+
+**Design**
+
+- Key stored readings by `(SpeciesSeed, GenusSeed)`, never by `CustomName` — names change, seeds do
+  not, and the pair is the whole tier input. This survives renames and slot reuse.
+- Show provenance (read from the game UI, with the date) so a value never reads as computed.
+- Show "not measured" when there is no reading. No fallbacks.
+- Reuse a measurement when a new pet shares a seed pair — proven safe (three such pairs among the
+  player's pets match exactly), though near-unique pairs mean it will rarely fire.
+- Derive Overall as `ceil((c+a+h)/3)` only when all three letters are known.
+
+**Closing the gap for newly tamed pets**, cheapest first:
+
+1. **One reading per pet** — stored by seed pair forever; manual only at the moment of taming.
+2. **Oracle pre-screening** — the save oracle evaluates any seed pair, 9 per game load, so a planet's
+   creatures can be checked *before* taming. 94% of the player's 130 scanned planets hold 9 or fewer
+   creatures, so roughly one load per planet. Seeds come from the discovery records (544 Animal
+   records carry VP2/VP3 with planet `DD.UA` and scan time `OWS.TS`; they hold no creature name, so
+   identification is by planet and scan order).
+3. **OCR the Companion screen** — the only fully automatic option, and not recommended as a starting
+   point: it needs the game running on that screen, is fragile against UI and language changes (this
+   player's game is German), and is substantial work for one letter per pet.
+
+**Also fix while there:** `nms_connector/pets.py`'s docstring says the derivation is "engine code, not
+a game data table". The table *is* game data and is now known; only the mixing is code. It also still
+says 11 pets where the player has 21. The "never show the overrides as the tier" rule stays.
