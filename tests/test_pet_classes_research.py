@@ -17,6 +17,29 @@ def _data():
     return json.loads(RESEARCH.read_text(encoding="utf-8"))
 
 
+def test_the_file_opens_with_one_authoritative_answer():
+    """CURRENT_ANSWER is the first key, so a reader does not have to date-sort eleven tier_source entries to
+    find what is true now. It must carry the real table, the probabilities and the one open question."""
+    d = _data()
+    assert next(iter(d)) == "CURRENT_ANSWER", "the authoritative answer must come first in the file"
+    a = d["CURRENT_ANSWER"]
+    assert "30, 30, 25, 15" in a["the_table"]["CoreStatClassRollTable"]
+    assert "1 in 296" in a["probabilities"] and "15%" in a["probabilities"]
+    assert "PetBattlerSeed" in a["still_open"], "the remaining gap must be named"
+    assert "33%" in a["never_do"], "the selection-bias warning must survive"
+
+
+def test_falsified_claims_are_not_left_phrased_as_truth():
+    """`conclusions` and `open` read as current fact, so a falsified entry there must carry its marker. The
+    CreatureSeed claim and the 'compiled into the exe' claim were both believed and both wrong."""
+    d = _data()
+    creature = [c for c in d["conclusions"] if "CreatureSeed ALONE" in c]
+    assert creature and all(c.startswith("FALSIFIED") for c in creature),         "the CreatureSeed conclusion must be marked falsified, not deleted and not left bare"
+    where = d["tier_source"]["MECHANISM_NAMED_2026_10_20"]["where_the_table_lives"]
+    assert where.startswith("WRONG"), "the compiled-into-the-exe claim must be marked wrong"
+    assert "gcgametableglobals.mbin" in where, "and corrected to where the table really ships"
+
+
 def test_the_research_file_parses_and_keeps_its_core_sections():
     """pet_classes.json is valid JSON and still carries the sections the write-up and the persona rely on:
     a hand-edited file losing `tier_source` or `observations` would quietly strip the whole finding."""
