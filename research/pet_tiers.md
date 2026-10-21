@@ -87,11 +87,13 @@ no pairwise correlation beyond noise). No simple arithmetic of the seeds (mod 10
 popcount) tracks any stat. Together: a function of the pair seeds an RNG that draws three times
 against one weighted table.
 
-**That model was then searched directly and failed.** 368,640 seeded-RNG constructions — ten
-combiners, eight RNGs including xorshift128+/xoroshiro128+ seeded with the pair, weighted 3:3:3:1 and
-4:4:4:1 tables, skipped draws, every stat and tier order — scored at best 77 of 186 symbols, squarely
-inside the 74-79 that the same search finds on shuffled labels. The game's construction is outside
-every standard family.
+**That model was then searched directly, twice, and failed both times.** The first run (368,640
+constructions) used the estimated tables and no mod-100 roll, so its negative was not trustworthy. The
+corrected run — **443,520 constructions** with the real 30:30:25:15 cuts and `rng % 100` included,
+twelve combiners, nine RNGs (xorshift128+/xoroshiro128+ seeded with the pair among them), skipped
+draws, every stat and class order — scored **76 of 186**, against shuffled-label nulls of 74-79. The
+real data sits dead centre of the noise and beats only 5 of 12 shuffles. **The mixing is custom or
+salted; this line is closed.**
 
 **The function itself.** Predicting a *specific* creature's tiers from its scanned seeds remains
 impossible. Probing is closed, and the roll table is compiled into `NMS.exe` — every shipped archive
