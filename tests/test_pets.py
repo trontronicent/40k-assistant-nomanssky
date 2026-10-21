@@ -248,3 +248,84 @@ def test_personality_reads_the_three_values_as_the_games_percentages():
     assert pets.personality_text(mantissa, german) == "Verspieltheit 79% / Sanftmut 38% / Selbstständigkeit 20%"
     assert pets.personality_text(pets.compact({"Traits": [0.1, 0.77, 0.3]}), pets.PetBook()) == "Helpfulness 10% / Aggression 77% / Independence 30%"
     assert pets.personality_text(pets.compact({}), pets.PetBook()) == "–"
+
+
+# ---- the egg timers (measured 2026-10-21 on the real save; see pets.py "the egg timers") -------------------
+
+DAY = pets.SECONDS_PER_DAY
+
+
+def test_a_duration_shows_the_two_biggest_units_that_are_not_zero():
+    """Countdowns are read at a glance, so a wait is '6 d 4 h', '23 h 50 min' or '10 min' - never seconds and
+    never a trailing zero unit. A negative wait is already over and reads as 0."""
+    assert pets.duration_text(4 * DAY + 15 * 3600) == "4 d 15 h"
+    assert pets.duration_text(2 * DAY) == "2 d"
+    assert pets.duration_text(23 * 3600 + 59 * 60) == "23 h 59 min"
+    assert pets.duration_text(3600) == "1 h"
+    assert pets.duration_text(600) == "10 min"
+    assert pets.duration_text(-5) == "0 min"
+
+
+def test_an_egg_is_hatchable_24_h_after_it_was_laid():
+    """An egg's BirthTime is the moment it was laid and the game shows it as hatchable 24 h later (confirmed in
+    the game, 2026-10-21). The countdown is what tells the player when to go and hatch it."""
+    laid = 1_792_567_712
+    egg = pets.compact(raw_pet(BirthTime=laid, LastEggTime=1_790_048_646))
+    assert pets.hatch_at(egg) == laid + DAY
+    assert pets.hatch_text(egg, laid + 100) == "in 23 h 58 min"
+    assert pets.hatch_text(egg, laid + DAY) == "Ready to hatch"
+    assert pets.hatch_text(egg, laid + 30 * DAY) == "Ready to hatch"
+
+
+def test_an_egg_without_a_laying_time_says_so_instead_of_counting_from_zero():
+    """A damaged or empty record has no BirthTime; without it there is no countdown to show, and 1970 must never
+    be presented as 'ready'."""
+    egg = pets.compact(raw_pet(BirthTime=0))
+    assert pets.hatch_at(egg) is None and pets.hatch_text(egg, NOW) == "–"
+
+
+def test_an_egg_names_the_companion_it_came_from():
+    """An egg stores its parent's BirthTime in its own LastEggTime (measured: all four egg/pet pairs in the real
+    save), which is the only link between the two records - it is how the Eggs table shows a parent."""
+    mother = pets.compact(raw_pet(CustomName="Unzy Bunzy Bowa", BirthTime=1_788_448_379))
+    other = pets.compact(raw_pet(CustomName="Tippo", BirthTime=1_788_448_409))
+    egg = pets.compact(raw_pet(BirthTime=1_791_140_250, LastEggTime=1_788_448_379))
+    assert pets.parent_of(egg, [other, mother]) is mother
+    assert pets.parent_of(egg, [other]) is None
+    assert pets.parent_of(pets.compact(raw_pet(LastEggTime=0)), [mother, other]) is None
+
+
+def test_a_companion_lays_its_first_egg_at_28_days_old():
+    """Measured: every pet under 28 days has LastEggTime == BirthTime, every older one that never laid is stamped
+    at exactly BirthTime + 28 d. Until then the game refuses with 'Too young to lay eggs', so the row must say
+    that rather than count a cooldown that cannot apply yet."""
+    born = 1_792_561_292
+    young = pets.compact(raw_pet(BirthTime=born, LastEggTime=born))
+    assert pets.lay_at(young) == born + 28 * DAY
+    assert pets.lay_text(young, born + DAY) == "Too young (in 27 d)"
+    assert pets.lay_text(young, born + 28 * DAY) == "Ready"
+
+
+def test_the_wait_between_two_eggs_counts_from_the_last_egg():
+    """A pet's LastEggTime is the moment it last produced an egg (measured within 12 s on four egg/pet pairs), so
+    the next egg is due LAY_COOLDOWN after it - the age gate is already long past for such a pet."""
+    born, laid = 1_788_448_379, 1_791_140_239
+    mother = pets.compact(raw_pet(BirthTime=born, LastEggTime=laid))
+    assert pets.lay_at(mother) == laid + pets.LAY_COOLDOWN
+    assert pets.lay_text(mother, laid + 2 * DAY) == "in 12 d"
+    assert pets.lay_text(mother, laid + pets.LAY_COOLDOWN) == "Ready"
+
+
+def test_a_companion_whose_egg_is_still_unhatched_shows_that_instead_of_a_countdown():
+    """The game refuses a second egg while one is nearby ('Another egg nearby'), so a parent whose egg is still in
+    the player's hands must not be reported as ready - that would send the player looking for an egg that the
+    game will not give."""
+    mother = pets.compact(raw_pet(BirthTime=1_788_448_379, LastEggTime=1_791_140_239))
+    assert pets.lay_text(mother, NOW + 40 * DAY, has_egg=True) == "Egg waiting"
+
+
+def test_a_pet_without_the_saves_times_gets_no_egg_countdown():
+    """A record with no BirthTime or no LastEggTime cannot be dated, and an invented countdown would be worse
+    than none."""
+    assert pets.lay_at(pets.compact(raw_pet(BirthTime=0))) is None
+    assert pets.lay_text(pets.compact(raw_pet(LastEggTime=0)), NOW) == "–"

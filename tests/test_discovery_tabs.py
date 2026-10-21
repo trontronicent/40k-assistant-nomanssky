@@ -151,9 +151,61 @@ def test_eggs_are_listed_and_the_move_table_error_is_shown_not_hidden():
     broken = pets.PetBook(error="RuntimeError: table moved")
     out = companions_view.sections(snap, Ctx(), broken, DiscoveryBook(snap["discoveries"]), NOW)
     eggs = next(s for s in out if s.get("id") == "companions-eggs")
-    assert [row[0] for row in eggs["rows"]] == ["Fiend"] and eggs["rows"][0][3]["text"] == "70 %"
+    row = dict(zip(eggs["columns"], eggs["rows"][0], strict=True))
+    assert [r[0] for r in eggs["rows"]] == ["Fiend"] and row["Trust"]["text"] == "70 %"
     note = next(s for s in out if s["type"] == "notice")
     assert "table moved" in note["text"]
+
+
+def hatch_snapshot():
+    """A save whose egg belongs to the cow pet: laid 6 hours before NOW, so it is still developing."""
+    snap = snapshot()
+    pets_list = snap["companions"]["pets"]
+    snap["companions"]["eggs"] = [pets.compact(raw_pet(
+        CustomName="", CreatureID="^COW", Trust=0.7,
+        BirthTime=int(NOW) - 6 * 3600, LastEggTime=pets_list[0]["born"]))]
+    pets_list[0]["egg"] = int(NOW) - 6 * 3600
+    return snap
+
+
+def test_an_egg_shows_when_it_can_be_hatched_and_which_companion_laid_it():
+    """The Eggs table answers "is an egg ready?" without the game: 24 h after it was laid it reads "Ready to
+    hatch", before that the wait left, and the parent column names the companion whose BirthTime the egg stores.
+    It sorts by the moment it becomes hatchable, so the next one to collect is one click away."""
+    snap = hatch_snapshot()
+    out = companions_view.sections(snap, Ctx(), book(), DiscoveryBook(snap["discoveries"]), NOW)
+    eggs = next(s for s in out if s.get("id") == "companions-eggs")
+    row = dict(zip(eggs["columns"], eggs["rows"][0], strict=True))
+    assert row["Hatches"]["text"] == "in 18 h" and row["Hatches"]["sort"] == int(NOW) + 18 * 3600
+    assert "Laid 6 h ago" in row["Hatches"]["hint"] and "24 h" in row["Hatches"]["hint"]
+    assert row["Parent"]["text"] == "Unzy Bunzy Bowa"
+
+
+def test_a_companion_shows_when_it_can_lay_again_and_admits_what_the_save_cannot_see():
+    """The roster's Next egg column is the other half of the wish: a parent holding an unhatched egg reads "Egg
+    waiting" rather than a countdown, and the tooltip names the game's own blockers (hunger, mood, climate) plus
+    the fact that the 14-day interval is an estimate - so a quiet row is never read as a bug."""
+    snap = hatch_snapshot()
+    out = companions_view.sections(snap, Ctx(), book(), DiscoveryBook(snap["discoveries"]), NOW)
+    roster = next(s for s in out if s.get("id") == "companions-roster")
+    cow = dict(zip(roster["columns"], roster["rows"][0], strict=True))
+    assert cow["Next egg"]["text"] == "Egg waiting"
+    assert "28 days old" in cow["Next egg"]["hint"] and "estimate" in cow["Next egg"]["hint"]
+    assert "Feeling hungry" in cow["Next egg"]["hint"]
+
+
+def test_the_counters_say_how_many_eggs_and_companions_are_waiting():
+    """The stats row is the at-a-glance answer: how many of the eggs can be hatched now, and how many companions
+    can lay. A companion that already has an egg out is not counted as able to lay."""
+    snap = hatch_snapshot()
+    out = companions_view.sections(snap, Ctx(), book(), DiscoveryBook(snap["discoveries"]), NOW)
+    values = {i["label"]: i["value"] for i in next(s for s in out if s.get("title") == "Companions")["items"]}
+    assert values["Ready to hatch"] == "0 of 1", "the egg is six hours old"
+    assert values["Can lay an egg"] == "0", "the cow holds an egg; the other pet laid five days ago"
+    later = companions_view.sections(snap, Ctx(), book(), DiscoveryBook(snap["discoveries"]), NOW + 10 * 86_400)
+    values = {i["label"]: i["value"] for i in next(s for s in later if s.get("title") == "Companions")["items"]}
+    assert values["Ready to hatch"] == "1 of 1", "ten days later the egg is long hatchable"
+    assert values["Can lay an egg"] == "1", "the other pet is past its interval; the cow still holds its egg"
 
 
 def test_no_companions_say_so_and_no_save_says_so():

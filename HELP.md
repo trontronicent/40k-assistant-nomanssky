@@ -53,13 +53,32 @@ save.
 
 The **Companions** tab lists your pets and eggs: name, creature, type, biome, **size** (the metres the game
 shows, with the weight in its tooltip; the column sorts by the real stored scale, so your largest companion
-sorts largest), trust, age, arena wins, **abilities** (five
+sorts largest), trust, age, **next egg**, arena wins, **abilities** (five
 per pet; hover for the game's description of each), the **harvest** (what the creature gives and the product), the raw
 **personality** (three percentages in the game's own words, e.g. *Playfulness 23% / Gentleness 77% / Devotion 16%*; hover for the three axes and the stored values), the **type** (hover: what Passive / Prey / Predator mean), **where its kind was first scanned** and its origin. Hover a companion's **name** for the **treats** you have
 invested in each battle stat, named and ordered as the game shows them (*Combat Effectiveness 7/10, Agility
 0/10, Health 6/10*), how many are left to give, and its seeds.
 
-What the plugin cannot know is not invented: how long an egg needs, the species name the game shows, and the
+### Eggs: when one can be hatched, and when a companion lays again
+
+The counters above the tables say **Ready to hatch** (how many of your eggs you can hatch right now) and
+**Can lay an egg** (how many companions are due one), so one look answers both questions.
+
+The **Eggs** table gives each egg a **Hatches** column - *Ready to hatch*, or the wait left (*in 18 h*) -
+and a **Parent** column naming the companion it came from. An egg can be hatched **24 h after it was laid**;
+the save keeps the moment of laying, and the egg also stores its parent's birth time, which is how the two
+are matched. The column sorts by the moment an egg becomes hatchable, so the next one to collect is on top.
+
+The roster's **Next egg** column is the other side: *Ready*, the wait left, *Too young* for a companion under
+28 days old, or *Egg waiting* while an egg of its own is still unhatched (the game will not give a second one
+then). A companion lays its first egg at **28 days old** - measured on the save - and needs roughly **14 days**
+between eggs. That interval is the game's own 14-day creature constant and is not yet confirmed against the
+game, so the tooltip calls it an estimate. The game also refuses an egg when a companion is hungry, sad, out
+of its native climate or wants more nutrition, and none of that is written to the save: if the time has come
+and no egg appears, feed your companion and take it to its own kind of planet. Ask the persona *"are any eggs
+ready?"* and it answers from the same numbers.
+
+What the plugin cannot know is not invented: the species name the game shows and the
 **C/B/A/S tier** of each battle stat. A stat's tier decides how much benefit it gets from every treat you
 spend on it, and it is fixed when a companion hatches - measured over eleven companions, nothing moves it:
 not treats, not gene editing, not resizing - but the save does not hold it. So the treats you invested are

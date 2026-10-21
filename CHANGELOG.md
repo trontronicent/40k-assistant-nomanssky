@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.15.0-beta.13 (beta; needs app 3.20.0)
+
+- **An egg now says when it can be hatched, and a companion when it can lay again.** The save held both all
+  along and the plugin threw them away: an egg's `BirthTime` is the moment it was **laid** (not its age as a
+  creature) and its `LastEggTime` is its **parent's** birth time, which pairs every egg with the companion it
+  came from - confirmed on all four egg/pet pairs in a real save, where the pet's own `LastEggTime` is 2-12 s
+  before its egg appears. The *Eggs* table gains **Hatches** (*Ready to hatch*, or *in 18 h*; an egg is
+  hatchable **24 h after it was laid**, confirmed in the game) and **Parent**; the roster gains **Next egg**
+  (*Ready*, the wait left, *Too young*, or *Egg waiting* while that companion's egg is still unhatched, which
+  the game itself refuses to add to). Two counters, **Ready to hatch** and **Can lay an egg**, answer both
+  questions at a glance, and the persona answers *"are any eggs ready?"* from the same numbers instead of
+  refusing the subject.
+- **The egg constants were found in the game files.** The previous claim that there is no egg constant was
+  wrong - `gccreatureglobals.mbin` sits in `NMSARC.globals.pak`. A companion lays its first egg at **28 days
+  old**, measured on the save: every pet under 28 days has `LastEggTime == BirthTime`, every older one that
+  never laid is stamped at exactly birth + 28 days, and one that crossed 28 days three hours before the save
+  was stamped at birth + 28 days rather than at that moment. The interval between two eggs is shown as about
+  **14 days** - the game's own 14-day creature constant - and is labelled an estimate wherever it appears,
+  because an mbin carries no field names. Hunger, sadness, the wrong climate and missing nutrition also delay
+  an egg and are not in the save, so the tooltip names them rather than promising an egg that will not come.
+  The measurements are written up in `research/egg_timers.md`.
+
 ## 0.15.0-beta.12 (beta; needs app 3.20.0)
 
 - **Your bases and other players' bases are told apart.** The save keeps both in one list: besides the bases
