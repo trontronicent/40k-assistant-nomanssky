@@ -1,6 +1,6 @@
 # Pet battle tiers: what determines a companion's C/B/A/S
 
-Status as of 2026-10-20. The machine-readable record is `pet_classes.json`; this file is the
+Status as of 2026-10-21. The machine-readable record is `pet_classes.json`; this file is the
 readable account of what is settled, what is not, and how it was established. Codeword for this
 line of work: **"pet feature"**.
 
@@ -10,7 +10,7 @@ line of work: **"pet feature"**.
 SpeciesSeed + GenusSeed  ->  PetBattlerSeed  ->  rolled against CoreStatClassRollTable  ->  C/B/A/S per stat
 ```
 
-and that roll table weights **C, B and A equally at about 30% each, with S alone rare at about 7%**.
+and that roll table — **read directly from game data** — weights **C 30%, B 30%, A 25%, S 15%**.
 A single shared table rolls all three stats.
 
 ## What is settled
@@ -58,7 +58,12 @@ treats**, not a cap — which the existence of `CoreStatClassPerLevelBoosts` ind
 **S's exact share — the single open parameter.** These candidate tables all fit the 78 chosen-input
 symbols and are not distinguishable from each other:
 
-S is **about 8%** [CI 4.7-14.3], down to two leading candidates. At n=132:
+**RESOLVED 2026-10-21 by static analysis — this section is kept only to show what the oracle got
+right and wrong.** The true table is 30:30:25:15, so S = **15%**, just outside the CI below. The
+measurement was sound (the table still fits our 132 symbols, chi2 5.15) but S came in about 2 sigma
+low, which made 3:3:3:1 and 4:4:4:1 fit better than the truth.
+
+The estimate was S **about 8%** [CI 4.7-14.3]. At n=132:
 
 | table | S share | chi2 (3 df) |
 |---|---|---|
@@ -95,6 +100,35 @@ core-stat table. The only pet-battler data files in the game are UI textures and
 `metadata/simulation/gametables/petbattler/petbattlermoves(set)stable.mbin`, i.e. moves, not stats.
 Recovering the function would need static analysis of the binary.
 
+**The real table, read from game data (2026-10-21).**
+
+```
+CoreStatClassRollTable       = 30, 30, 25, 15     (C, B, A, S - sums to 100, integer percentages)
+CoreStatClassPerLevelBoosts  = 175, 225, 275, 325
+CoreStatClassRangeTable      = (425,525) (475,625) (550,650) (575,725)
+CoreStatScaleVarianceMul     = 0.2
+PetMaxLevel                  = 10
+```
+
+Roll weights descend C→S while ranges and boosts ascend: C commonest and weakest, S rarest and
+strongest. Reversing the class order is rejected against our data at chi2 43.7, confirming the enum
+order C, B, A, S.
+
+It is **not** compiled into the exe, contrary to what this file said earlier. It ships in
+`gcgametableglobals.mbin` inside `NMSARC.globals.pak` — already extracted a day before it was found.
+The pet battler's globals belong to `cGcGameTableGlobals`, the game-table system (dice games, AI
+opponents, turn timers), so grepping archive filenames for "battler" or "corestat" found nothing.
+
+**How to read a globals value out of an MBIN.** The exe's reflection data holds each class's layout:
+136 field descriptors of 0x58 bytes at `.data` offset `0x04F4DA70`, each
+`[name ptr, name hash, (type,size), (type,offset in struct), element descriptor ptr]`.
+`cGcPetBattlerCoreStatRollData` is a 16-byte struct with one 4-byte field `Roll`, so the table is a
+4-element array, one slot per class. The MBIN is that struct serialised at data offset **0x20**.
+**Do not guess the header size** — doing so field-by-field produced several plausible but wrong
+readings (one even looked like a tidy `(20,50) (40,60) (50,80) (60,100)`). Fit the offset against all
+136 fields at once, requiring every 1-byte bool to read 0 or 1: shift 0x20 gave 100% of bools and
+98.8% of scalars sane, with no other shift close.
+
 **Why a lookup cache cannot substitute.** `SpeciesSeed` is distinct across all 524 Animal discovery
 records, so every creature has a unique seed pair. A table of observed pairs would never hit twice.
 
@@ -103,14 +137,13 @@ records, so every creature has a unique seed pair. A table of observed pairs wou
 For an unscanned or unTamed creature the correct prior is now known, which answers "is this worth
 taming":
 
-- about **38%** chance a given stat is A or better
-- a **triple-S** creature is roughly **1 in 1,700** at S=8.3%, the CI spanning about 1 in 350 to
-  1 in 9,600
+- exactly **40%** chance a given stat is A or better
+- a **triple-S** creature is **1 in 296** (0.15³) — six times commoner than our estimate had it
 
 ## Selection bias — read this before using any frequency
 
 The 21 tamed pets were chosen by hunting for the best ones. They show S at **33%** against a natural
-**7.4%**: a 4x over-representation created entirely by the player's selection. **Never derive
+**15%**: a 2.2x over-representation created entirely by the player's selection. **Never derive
 frequencies from the tamed pets.** Distributional claims come only from chosen-input oracle batches,
 where the seeds were picked by us.
 
@@ -200,8 +233,10 @@ Test pet naming: `W` = batch 4, `X` = batch 5. Nine test pets currently occupy s
 
 1. ~~Pin S's share~~ — **done to the limit of this method** at n=132. Further loads cannot separate
    3:3:3:1 from 4:4:4:1; stop here.
-3. **Static analysis of `NMS.exe`** for the compiled-in `CoreStatClassRollTable` default, and for the
-   function deriving `PetBattlerSeed`. Now a well-posed search: the inputs are known.
+3. ~~Static analysis for `CoreStatClassRollTable`~~ — **done**, see above. What remains is the
+   function deriving `PetBattlerSeed` from the two seeds: the tables are data, but the seed mixing is
+   code. Handles to start from: the descriptor array at `0x04F4DA70` and the field's struct offset
+   7764, to find the code that reads it and work back to its roll input.
 4. **Unspent experiment**: set `PetBattlerUseCoreStatClassOverrides` true with `[S,S,S]` to find out
    what that inert save field actually does.
 5. **Scan-then-tame validation** — confirm scanner tiers equal companion tiers before pooling

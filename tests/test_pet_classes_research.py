@@ -39,6 +39,16 @@ def test_superseded_findings_are_retained_not_deleted():
         assert key in ts, f"{key} records a closed route; losing it invites repeating the work"
 
 
+def test_the_real_roll_table_is_recorded_with_its_correction():
+    """The table read out of the game's own data, and the fact it corrects our estimate. The numbers are the
+    whole point of the static analysis; the correction stops the superseded 8% being quoted again."""
+    s = _data()["SOLVED_roll_table_2026_10_21"]
+    assert "30, 30, 25, 15" in s["values"]["CoreStatClassRollTable"]
+    assert "gcgametableglobals.mbin" in s["where"], "where it ships matters: it is data, not compiled in"
+    assert "CORRECTS_OUR_MEASUREMENT" in s, "the correction to S must stay on record"
+    assert "1 in 296" in s["practical"], "the triple-S rarity a reader will quote"
+
+
 def test_the_tier_inputs_and_mechanism_are_recorded():
     """The two seeds and the named roll table are the whole finding, so they must be stated in the file
     itself rather than only in the write-up."""
@@ -51,14 +61,15 @@ def test_the_tier_inputs_and_mechanism_are_recorded():
 
 
 def test_the_roll_table_shape_and_its_open_parameter():
-    """The measured weights say C/B/A are equal and only S is rare, with S's exact share still open.
-    A reader who loses the caveat would quote a triple-S rarity that the sample cannot support."""
+    """The oracle's measured weights are kept as a record of what the method got right and wrong, now that
+    static analysis has superseded them. Losing the superseded marker would let a reader quote S at 8%."""
     w = _data()["roll_table_weights"]
     assert "THE_SHAPE" in w, "the shape result is the headline finding"
     shape = json.dumps(w["THE_SHAPE"])
     assert "equal" in shape.lower() and "uniform" in shape.lower()
     assert w["caveats"], "the sample is small; the caveats are not optional"
-    assert "the_one_open_parameter" in w["THE_SHAPE"], "S's share is the single unresolved number"
+    assert "SUPERSEDED" in w["THE_SHAPE"], "the shape estimate is superseded by the real table"
+    assert "SUPERSEDED" in w["status"], "the measurement's status must say so"
 
 
 def test_distributional_claims_are_marked_as_bias_free_only():
@@ -78,6 +89,8 @@ def test_the_writeup_exists_and_agrees_with_the_data_on_s():
     md = WRITEUP.read_text(encoding="utf-8")
     for token in ("SpeciesSeed", "GenusSeed", "CoreStatClassRollTable", "PetBattlerSeed"):
         assert token in md, f"the write-up must name {token}"
-    assert "7.4%" in md, "the write-up quotes the measured natural S rate"
+    assert "30, 30, 25, 15" in md, "the write-up must quote the roll table as read from game data"
+    assert "15%" in md, "S is 15% per the game's own table; 7.4% was our superseded estimate"
+    assert "1 in 296" in md, "the triple-S rarity follows from the real table"
     assert re.search(r"33%", md), "the write-up must contrast the tamed pets' inflated S rate"
     assert "pet feature" in md, "the codeword is how the user refers to this work"
