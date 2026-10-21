@@ -1975,7 +1975,7 @@
     "extractor": "J:/nms-save-backups/oracle-batches/hgpak5.py - takes a pak path, writes every file out."
   },
   "roll_table_weights": {
-    "status": "SHAPE SOLVED, one parameter open - C/B/A are equally weighted and only S is rare",
+    "status": "SHAPE SOLVED and per-stat resolved - C/B/A equally weighted by ONE shared table, S rare at roughly 5-10%. Only S's exact share remains open.",
     "method": "Chosen-input oracle batches only. A tamed pet was selected by the player and carries his hunting bias, so batch 3's testCTRL3 (Tippo himself) is EXCLUDED - an earlier note that quoted n=27 for batch 3 wrongly included it; the unbiased count is 24.",
     "readings_are_combat_agility_health": "The player reports three letters per pet, in that order, and Overall is derived via the established ceil((c+a+h)/3) formula rather than read. Confirmed by the player, and independently provable: testW03 (c,b,b) and testW06 (c,s,b) would be self-contradictory if the first letter were Overall, since a C Overall requires all three stats C.",
     "batch4": "Nine FULLY RANDOM (SpeciesSeed, GenusSeed) pairs - the cleanest sample, since the seeds are independent draws rather than variants of one donor. RNG seed 'pet-roll-weights-batch4', so the plan is reproducible; see batch4_plan.json.",
@@ -2004,9 +2004,22 @@
     "THE_SHAPE": {
       "finding": "C, B and A are EQUALLY weighted and S alone is rare. On the 54 random-pair symbols: C 31.5%, B 31.5%, A 29.6%, S 7.4%. Uniform rolling is rejected (chi2 = 8.96 at n=54, 11.33 at n=78, 3 df, crit 7.81), so the weighting is real.",
       "candidate_tables_all_fitting": "Against the 78 chosen-input symbols: 3:3:3:1 chi2 0.63, 4:4:4:1 chi2 0.71, 5:5:5:1 chi2 1.51, 7:7:7:3 chi2 1.44, 2:2:2:1 chi2 2.37, 8:8:8:1 chi2 5.53. All fit; they are NOT yet distinguishable from one another. A table with no S at all is excluded outright (S was observed 7 times).",
-      "the_one_open_parameter": "S's share, somewhere between about 1-in-13 (7.7%) and 1-in-10 (10%). Separating 5:5:5:1 (6.25%) from 3:3:3:1 (10%) is precisely what further samples buy; nothing else about the table is in doubt.",
+      "the_one_open_parameter": "S's share, now bracketed to roughly 5-10% (best estimate 7.6%). At n=105 the fits are: 4:4:4:1 chi2 0.02, 5:5:5:1 chi2 0.36, 3:3:3:1 chi2 0.68, 6:6:6:1 chi2 1.19, 7:7:7:3 chi2 2.31, 8:8:8:1 chi2 3.60, 2:2:2:1 chi2 3.83, uniform 16.94 REJECTED. The extremes are falling away but 3:3:3:1 through 5:5:5:1 remain indistinguishable. Nothing else about the table is in doubt.",
       "practical_consequence": "P(a given stat is A or better) is about 37%. P(all three S) is roughly 1 in 1,000 under 3:3:3:1 and 1 in 2,200 under 4:4:4:1 - so a triple-S wild creature is a once-in-a-thousand-plus find, which is why hunting for them paid off so visibly."
     },
-    "homogeneity": "Three-batch homogeneity chi2 = 10.53 on 6 df (crit 12.59): consistent, so pooling is justified. Batch 4 vs batch 5 alone gives chi2 = 8.41, nominally differing, but that is a post-hoc comparison of the two most extreme batches and is read as noise."
+    "homogeneity": "Three-batch homogeneity chi2 = 10.53 on 6 df (crit 12.59): consistent, so pooling is justified. Batch 4 vs batch 5 alone gives chi2 = 8.41, nominally differing, but that is a post-hoc comparison of the two most extreme batches and is read as noise.",
+    "batch6": "Nine more fully random pairs, testY01..testY09 (RNG seed 'pet-roll-weights-batch6'). Readings (combat/agility/health): Y01 A/C/C, Y02 C/A/B, Y03 B/C/A, Y04 A/C/A, Y05 A/C/B, Y06 B/C/A, Y07 B/B/C, Y08 B/B/C, Y09 C/C/S. The player also read Overall for all nine and the ceil((c+a+h)/3) formula held on every one - including Y09, where C/C/S sums to 3 and gives B.",
+    "pooled_estimate_n105": {
+      "C": "30.5% CI [22.5%, 39.8%]",
+      "B": "30.5% CI [22.5%, 39.8%]",
+      "A": "31.4% CI [23.3%, 40.8%]",
+      "S": "7.6% CI [3.9%, 14.3%]",
+      "counts": "C 32, B 32, A 33, S 8 of 105 symbols",
+      "note": "C, B and A now agree to within a single count. Uniform: chi2 = 16.94, 3 df."
+    },
+    "PER_STAT_RESOLVED": {
+      "finding": "ONE table rolls all three stats. Homogeneity across combat/agility/health on the 81 random-pair symbols: chi2 = 2.85 on 6 df, critical value 12.59 - comfortably consistent with a single shared table. Per-stat counts (n=27 each): combat C8 B8 A9 S2, agility C11 B10 A5 S1, health C9 B7 A9 S2.",
+      "a_rejected_hunch": "Batch 6's agility read C in 6 of 9, a nominal binomial p of 0.032, and it looked like agility might be weighted low. It does not survive: pooled agility C rate is 40.7% CI [24.5%, 59.3%], overlapping the 34.6% overall C rate, and the homogeneity test above is clean. Recorded because the next session will see the same tempting dip in the per-stat table and should not re-chase it - a 9-pet batch is three looks at three stats and will throw up a p<0.05 pattern roughly one time in four by chance."
+    }
   }
 }

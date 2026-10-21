@@ -11,6 +11,7 @@ SpeciesSeed + GenusSeed  ->  PetBattlerSeed  ->  rolled against CoreStatClassRol
 ```
 
 and that roll table weights **C, B and A equally at about 30% each, with S alone rare at about 7%**.
+A single shared table rolls all three stats.
 
 ## What is settled
 
@@ -35,8 +36,12 @@ closed, not merely unfinished.
 `cGcGameTablePetData` but is **not** among the save pet struct's 35 keys, so for a wild creature it
 is derived at runtime.
 
-**The table's shape.** Uniform rolling is rejected (chi2 11.33 on 3 df at n=78, critical value
-7.81). Equal-C/B/A-with-rare-S fits almost exactly.
+**The table's shape.** Uniform rolling is rejected (chi2 16.94 on 3 df at n=105, critical value
+7.81). Equal-C/B/A-with-rare-S fits almost exactly: at n=105 the counts are C 32, B 32, A 33, S 8 —
+the three common tiers agree to within a single count.
+
+**One table rolls all three stats.** Homogeneity across combat, agility and health on the 81
+random-pair symbols: chi2 2.85 on 6 df (critical 12.59).
 
 **Derived quantities** (unchanged from earlier work): `Overall = ceil((combat+agility+health)/3)`
 with C=0, B=1, A=2, S=3; treats order is (Health, Agility, Combat Effectiveness), cap 10;
@@ -48,19 +53,22 @@ treats**, not a cap — which the existence of `CoreStatClassPerLevelBoosts` ind
 **S's exact share — the single open parameter.** These candidate tables all fit the 78 chosen-input
 symbols and are not distinguishable from each other:
 
+S is bracketed to roughly **5-10%**, best estimate **7.6%** [CI 3.9-14.3]. At n=105:
+
 | table | S share | chi2 (3 df) |
 |---|---|---|
-| 3:3:3:1 | 10% | 0.63 |
-| 4:4:4:1 | 7.7% | 0.71 |
-| 5:5:5:1 | 6.25% | 1.51 |
-| 7:7:7:3 | 12.5% | 1.44 |
-| 2:2:2:1 | 14.3% | 2.37 |
+| 4:4:4:1 | 7.7% | **0.02** |
+| 5:5:5:1 | 6.25% | 0.36 |
+| 3:3:3:1 | 10% | 0.68 |
+| 6:6:6:1 | 5.3% | 1.19 |
+| 7:7:7:3 | 12.5% | 2.31 |
+| 8:8:8:1 | 4% | 3.60 |
+| 2:2:2:1 | 14.3% | 3.83 |
+| uniform | 25% | 16.94 REJECTED |
 
-A table with no S at all is excluded outright (S was observed 7 times). Roughly 7 more oracle loads
-would pin S to +-4 points; about 26 for +-2 points.
-
-**Per-stat weights.** Whether all three stats share one table is untested: health rolled 0 S and
-combat 3 S, but at n=17 per stat that is well within chance.
+The extremes are falling away, but 3:3:3:1 through 5:5:5:1 remain indistinguishable. A table with no
+S at all is excluded outright (S has been observed 8 times). Perhaps 4-6 more oracle loads would
+separate them; the gain per load is now small.
 
 **The function itself.** Predicting a *specific* creature's tiers from its scanned seeds remains
 impossible. Probing is closed, and the roll table is compiled into `NMS.exe` — every shipped archive
@@ -77,7 +85,7 @@ records, so every creature has a unique seed pair. A table of observed pairs wou
 For an unscanned or unTamed creature the correct prior is now known, which answers "is this worth
 taming":
 
-- about **37%** chance a given stat is A or better
+- about **39%** chance a given stat is A or better
 - a **triple-S** creature is roughly 1 in 1,000 (under 3:3:3:1) to 1 in 2,200 (under 4:4:4:1)
 
 ## Selection bias — read this before using any frequency
@@ -125,6 +133,12 @@ the game's own tier display back.
 
 ## Statistical discipline
 
+**A nine-pet batch is three looks at three stats**, so it throws up a nominally significant pattern
+roughly one time in four by chance. Batch 6's agility read C in 6 of 9 (binomial p = 0.032) and
+looked like a low-weighted agility stat; pooled, agility's C rate is 40.7% [24.5-59.3] against a
+34.6% overall rate, and the per-stat homogeneity test is clean. Check such dips, but expect them,
+and do not re-chase this one.
+
 A blind bit-field search over the seeds drowns in multiple comparisons — shuffled-label controls won
 90-93% of the time, so such hits were correctly rejected. Route 2 (standard hash constructions) was
 likewise a clean negative: the best of 134,400 constructions scored 43 of 90 symbols (47.8%) against
@@ -166,8 +180,7 @@ Test pet naming: `W` = batch 4, `X` = batch 5. Nine test pets currently occupy s
 ## Next steps
 
 1. **Pin S's share** — more chosen-input batches, 9 pets per load. Needs no reverse engineering and
-   answers the one open parameter.
-2. **Test whether the three stats share one table** — the same batches provide this for free.
+   answers the one open parameter, though the gain per load is now small.
 3. **Static analysis of `NMS.exe`** for the compiled-in `CoreStatClassRollTable` default, and for the
    function deriving `PetBattlerSeed`. Now a well-posed search: the inputs are known.
 4. **Unspent experiment**: set `PetBattlerUseCoreStatClassOverrides` true with `[S,S,S]` to find out
