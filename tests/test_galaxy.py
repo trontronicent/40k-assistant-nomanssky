@@ -83,7 +83,7 @@ def test_galaxy_tab_maps_every_system_and_lists_the_nearest_resources(tmp_path):
     history.record([planet("Here", 0, SYSTEM_98, "YELLOW2", "LUSH1", "LAND3")], "t", SYSTEM_98)
     other_galaxy = key(10, 0, 10, 3, galaxy_index=1)
     visits = {SYSTEM_115: {"name": "Kayanis Majoris VIII", "planets": {}}, other_galaxy: {"name": None, "planets": {}}}
-    ctx = planets_view.Context(Live(), history, visits, Texts(), None, bases=[{"name": "Home", "system": SYSTEM_115}])
+    ctx = planets_view.Context(Live(), history, visits, Texts(), None, bases=[{"name": "Home", "mine": True, "system": SYSTEM_115}])
     form, starmap, note, nearest = planets_view.galaxy_sections(ctx, SYSTEM_115)
     assert form["action"] == planets_view.GALAXY_COLORS and form["fields"][0]["value"] == "kind"
     assert starmap["type"] == "starmap" and starmap["action"] == planets_view.OPEN_SYSTEM

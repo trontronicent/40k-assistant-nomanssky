@@ -471,7 +471,7 @@ def test_tables_show_the_current_system_and_every_visited_system(tmp_path):
     recorded planets get their own sub-tab."""
     history = recorded_toxic_planet(tmp_path)
     ctx = planets_view.Context(LiveIn98(), history, visits_from_save(save_with_visits()), FakeGameData(), "Normal",
-                               bases=[{"name": "Home", "system": SYSTEM_98}])
+                               bases=[{"name": "Home", "mine": True, "system": SYSTEM_98}])
     tabs = planets_view.systems_tabs(ctx, None)
     assert [t["id"] for t in tabs["tabs"]] == ["current", "visited", "planets", "galaxy", "galaxies",
                                                "trade", "route", "star-fixes"]
@@ -513,7 +513,7 @@ def test_system_map_shows_the_star_and_every_known_planet(tmp_path):
     visits = visits_from_save(save_with_visits())
     visits[SYSTEM_98]["planets"][2] = {"name": "Far Rock", "minerals": 3}
     ctx = planets_view.Context(LiveIn98(), history, visits, FakeGameData(), "Normal",
-                               bases=[{"name": "Home", "system": SYSTEM_98}, {"name": "Elsewhere", "system": SYSTEM_115}])
+                               bases=[{"name": "Home", "mine": True, "system": SYSTEM_98}, {"name": "Elsewhere", "mine": True, "system": SYSTEM_115}])
     orbit = planets_view.system_map(SYSTEM_98, ctx, "system-map", "System map")
     assert orbit["title"] == "System map: Delta Sol"
     star = {i["label"]: i["value"] for i in orbit["center"]["items"]}

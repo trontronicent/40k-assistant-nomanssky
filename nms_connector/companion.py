@@ -819,14 +819,19 @@ class PluginCompanion:
         was answered with a bare list and "where is my base?" could not be answered at all.
         """
         c = self.connector
-        bases = ((c.snapshot or {}).get("bases")) or []
-        if not bases:
-            return []
-        if not self._asked_about(words, BASE_WORDS, (b.get("name") for b in bases)):
-            return []
         page = c.page
-        out = [f"Bases ({len(bases)}), newest first:"]
-        for base in page.bases_newest_first(c.snapshot or {}):
+        snap = c.snapshot or {}
+        # Only the player's own are listed as his. The save's base list also holds bases downloaded from
+        # other players - two thirds of it in the measured save - and answering "which bases do I have?"
+        # with those would be a confident lie. They are summed up at the end as what they are.
+        bases = page.bases_newest_first(snap)
+        others = page.bases_newest_first(snap, mine=False)
+        if not bases and not others:
+            return []
+        if not self._asked_about(words, BASE_WORDS, (b.get("name") for b in bases + others)):
+            return []
+        out = [f"Your bases ({len(bases)}), newest first:"]
+        for base in bases:
             f = page.base_facts(base, ctx)
             out.append(f"- {f['name']} ({f['type']}) at {f['place']}"
                        + (f", {f['parts']} parts" if f["parts"] else "")
@@ -834,6 +839,9 @@ class PluginCompanion:
             parts = page_module.parts_short(f["named_parts"])
             if parts:
                 out.append(f"  built from: {parts}")
+        if others:
+            out.append(f"The save also holds {len(others)} bases built by OTHER players, saved when you "
+                       "visited or downloaded them. They are not yours; name one to be told about it.")
         return out
 
     def settlement_lines(self, words: set[str], now: float) -> list[str]:

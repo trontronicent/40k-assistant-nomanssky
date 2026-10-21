@@ -256,7 +256,10 @@ class ConnectorPage:
             {"label": "Region (voxel X, Y, Z)", "value": ", ".join(str(v) for v in loc["voxel"])},
             {"label": "System index", "value": loc["system_index"]},
             {"label": "Planet index", "value": loc["planet_index"]},
-            {"label": "Bases in this system", "value": ", ".join(b["name"] for b in snap["bases"] if b["here"]) or "none"},
+            {"label": "Your bases in this system",
+             "value": ", ".join(b["name"] for b in snap["bases"] if b["here"] and b.get("mine")) or "none"},
+            {"label": "Other players' bases here",
+             "value": ", ".join(b["name"] for b in snap["bases"] if b["here"] and not b.get("mine")) or None},
         ]})
         text = c.describe
         out.append({"type": "kv", "title": "Fleet and companions", "items": [
@@ -302,13 +305,23 @@ class ConnectorPage:
         if not snap:
             return [{"type": "text", "text": "Ships and bases appear once a save has been read."}]
 
-        return ships.ship_sections(c.ships, c.tables.ship_ranges, ctx.texts) \
-            + ships.export_section(c.ship_export) + frigates.frigate_sections(
-            c.frigates, c.tables.trait_names, ctx.texts, lambda key: system_label(key, ctx)) + [self.bases_table(snap, ctx)]
+        return [
+            *ships.ship_sections(c.ships, c.tables.ship_ranges, ctx.texts),
+            *ships.export_section(c.ship_export),
+            *frigates.frigate_sections(c.frigates, c.tables.trait_names, ctx.texts,
+                                       lambda key: system_label(key, ctx)),
+            self.bases_table(snap, ctx),
+            self.other_bases_table(snap, ctx),
+        ]
 
-    def bases_newest_first(self, snap: dict) -> list[dict]:
-        """The save's bases, the one you built on last at the top - the order the table and the persona share."""
-        return sorted(snap.get("bases") or [], key=lambda b: b.get("last_update") or 0, reverse=True)
+    def bases_newest_first(self, snap: dict, *, mine: bool | None = True) -> list[dict]:
+        """The save's bases, the one you built on last at the top - the order the table and the persona share.
+
+        `mine` picks whose: True for your own (the default, because every caller that says "your bases" meant
+        this), False for the ones downloaded from other players, None for both.
+        """
+        bases = [b for b in (snap.get("bases") or []) if mine is None or bool(b.get("mine")) is mine]
+        return sorted(bases, key=lambda b: b.get("last_update") or 0, reverse=True)
 
     def base_facts(self, base: dict, ctx) -> dict:
         """One base as both the table and the persona describe it: ``{name, type, place, parts, named_parts,
@@ -331,11 +344,31 @@ class ConnectorPage:
             f = base_facts = self.base_facts(base, ctx)
             rows.append([f["name"], f["type"], {"text": f["place"], "hint": base["portal"] or None},
                          base["galaxy"], f["parts"], parts_cell(base_facts["named_parts"]), f["built"] or "–"])
-        return {"type": "table", "title": f"Bases ({len(rows)})",
+        return {"type": "table", "title": f"Your bases ({len(rows)})",
                 "columns": ["Name", "Type", "Where", "Galaxy", "Parts", "What is in it", "Last built on"],
                 "rows": rows,
                 "empty": "No base in this save yet - a base starts with a Base Computer.",
                 "row_hint": "Hover a base to see every part it is built from."}
+
+    def other_bases_table(self, snap: dict, ctx) -> dict:
+        """Bases downloaded from other players, kept apart from yours.
+
+        The save stores them in the same `PersistentPlayerBases` list, so they used to be shown as if the
+        player had built them - 67 of 104 in the measured save, most of them clustered at a galaxy centre.
+        They are worth showing (they mark portal hubs and others' settlements) but never as yours, so they
+        get their own table with the owner named.
+        """
+        rows = []
+        for base in self.bases_newest_first(snap, mine=False):
+            f = self.base_facts(base, ctx)
+            rows.append([f["name"], base.get("owner") or "unknown",
+                         {"text": f["place"], "hint": base["portal"] or None},
+                         base["galaxy"], f["parts"], f["built"] or "–"])
+        return {"type": "table", "title": f"Other players' bases ({len(rows)})",
+                "columns": ["Name", "Built by", "Where", "Galaxy", "Parts", "Last built on"],
+                "rows": rows,
+                "empty": "None in this save - these appear once you visit or download someone else's base.",
+                "row_hint": "Bases other players built, saved when you visited or downloaded them."}
 
     def base_place(self, base: dict, ctx) -> str:
         """Where a base stands: 'Planet (System)' for a planet base, the system for a freighter base."""

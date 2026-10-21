@@ -344,7 +344,7 @@ class Context:
         self.recorded = history.systems()
         self.bases = bases or []
         self._keys: set[int] | None = None                  # built by keys(), reused for the whole build
-        self._bases_by_system: dict[int, list[str]] | None = None   # built by bases_in()
+        self._bases_by_system: dict[int, list[dict]] | None = None  # built by _base_index()
         self._planet_rows: dict[int, list] = {}             # built by planet_row(), kept for the build
         # Where distances are measured from: the system you are in, else where you were at the last save.
         self.origin = live.current_system if getattr(live, "current_system", None) is not None else origin
@@ -556,16 +556,26 @@ class Context:
             row = self._planet_rows[id(planet)] = _planet_row(self.texts, planet, visit, self.sentinel_index)
         return row
 
-    def bases_in(self, key: int) -> list[str]:
-        """The names of your bases in one system, from an index built once rather than by scanning the
-        whole list of bases for every system the map draws."""
+    def _base_index(self) -> dict[int, list[dict]]:
+        """Bases by system, built once rather than scanned for every system the map draws."""
         if self._bases_by_system is None:
-            index: dict[int, list[str]] = {}
+            index: dict[int, list[dict]] = {}
             for base in self.bases:
                 if base.get("system") is not None:
-                    index.setdefault(base["system"], []).append(base.get("name"))
+                    index.setdefault(base["system"], []).append(base)
             self._bases_by_system = index
-        return [name for name in self._bases_by_system.get(key, []) if name]
+        return self._bases_by_system
+
+    def bases_in(self, key: int) -> list[str]:
+        """The names of YOUR bases in one system. The save's base list also holds bases downloaded from
+        other players, which this must never count as yours (`summary.is_mine`)."""
+        return [b["name"] for b in self._base_index().get(key, []) if b.get("mine") and b.get("name")]
+
+    def other_bases_in(self, key: int) -> list[str]:
+        """Other players' bases in one system, each as "name (owner)" - useful markers near a galaxy
+        centre, but never yours."""
+        return [f"{b['name']} ({b['owner']})" if b.get("owner") else b["name"]
+                for b in self._base_index().get(key, []) if not b.get("mine") and b.get("name")]
 
     def visit(self, key: int) -> dict | None:
         """What the save says about a system, plus its generated name when the game's memory showed it."""
@@ -699,7 +709,8 @@ def _star(key: int, visit: dict, planets: list[dict], ctx: Context) -> dict:
         color, special = PURPLE_STAR, "purple star"
     known = {p.get("index") for p in planets} | set(visit.get("planets") or {})
     last = max((p.get("last_seen") or "" for p in planets), default="") or None
-    bases = [b["name"] for b in ctx.bases if b.get("system") == key]
+    bases = ctx.bases_in(key)
+    others = ctx.other_bases_in(key)
     items = [
         portal_item("Portal address", address_portal(addr)),
         {"label": "Galaxy", "value": galaxy_name(addr.get("RealityIndex"))},
@@ -712,6 +723,9 @@ def _star(key: int, visit: dict, planets: list[dict], ctx: Context) -> dict:
         {"label": "Discovered", "value": visit.get("discovered_at")},
         {"label": "Resources last read", "value": last},
         {"label": "Your bases here", "value": ", ".join(bases) or "none"},
+        # Kept apart from yours on purpose: these are downloaded from other players and used to be listed
+        # as if the player had built them (134 of 171 entries in the measured save).
+        {"label": "Other players' bases here", "value": ", ".join(others) if others else None},
     ] + ctx.economy_items(key) + [ctx.guild_item(key)]
     if special:
         items.insert(4, {"label": "Special", "value": special})
@@ -1060,7 +1074,7 @@ def galaxy_counts(ctx: Context) -> dict:
     for key in ctx.recorded_economies:
         slot(key)["economies"] += 1
     for base in ctx.bases:
-        if isinstance(base.get("system"), int):
+        if base.get("mine") and isinstance(base.get("system"), int):
             slot(base["system"])["bases"] += 1
     for key in ctx.system_names:
         slot(key)["names"] += 1

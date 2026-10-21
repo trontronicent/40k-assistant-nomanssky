@@ -47,9 +47,9 @@ def test_the_bases_table_names_the_parts_and_the_planet(tmp_path, monkeypatch):
     plugin = create_plugin(FakeCtx(tmp_path / "data"))
     page, ctx = plugin.page, plugin.context()
     snap = {"bases": [
-        {"name": "Small", "type": "Planet base", "system": None, "galaxy": "Euclid", "portal": "0001",
+        {"name": "Small", "mine": True, "type": "Planet base", "system": None, "galaxy": "Euclid", "portal": "0001",
          "objects": 3, "planet_index": 0, "parts": {"W_WALL": 3}, "last_update": 1757075039},
-        {"name": "Big", "type": "Planet base", "system": None, "galaxy": "Euclid", "portal": "0002",
+        {"name": "Big", "mine": True, "type": "Planet base", "system": None, "galaxy": "Euclid", "portal": "0002",
          "objects": 9, "planet_index": 0, "parts": {"W_WALL": 5, "BASE_FLAG": 4}, "last_update": 1791328862},
     ]}
     table = page.bases_table(snap, ctx)
@@ -132,17 +132,33 @@ def test_the_persona_is_given_the_sentence_and_the_bases(tmp_path, monkeypatch):
     what it is built from; a question about something else leaves the base lines out."""
     monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
     plugin = create_plugin(FakeCtx(tmp_path / "data"))
-    plugin.snapshot = {"bases": [{"name": "Kay City Outpost", "type": "Planet base", "system": None,
+    plugin.snapshot = {"bases": [{"name": "Kay City Outpost", "mine": True, "type": "Planet base", "system": None,
                                   "galaxy": "Euclid", "portal": "0001", "objects": 4, "planet_index": 0,
                                   "parts": {"W_WALL": 4}, "last_update": 1757075039}]}
     ctx = plugin.context()
     lines = plugin.companion.base_lines({"bases"}, ctx)
-    assert lines[0].startswith("Bases (1)") and "Kay City Outpost (Planet base)" in lines[1]
+    assert lines[0].startswith("Your bases (1)") and "Kay City Outpost (Planet base)" in lines[1]
     assert "4 parts" in lines[1] and "last built on" in lines[1]
     assert any("built from:" in line for line in lines)
     assert plugin.companion.base_lines({"copper"}, ctx) == []
     # Naming a base asks about it too, without the word "base".
     assert plugin.companion.base_lines({"outpost"}, ctx)
+
+
+def test_the_persona_never_calls_another_players_base_yours(tmp_path, monkeypatch):
+    """Bases downloaded from other players sit in the same save list. The persona counts only the player's
+    own and says what the rest are, so "which bases do I have?" cannot be answered with a stranger's."""
+    monkeypatch.setenv("NMS_SAVE_DIR", str(tmp_path / "missing"))
+    plugin = create_plugin(FakeCtx(tmp_path / "data"))
+    common = {"type": "Planet base", "system": None, "galaxy": "Euclid", "portal": "0001", "objects": 1,
+              "planet_index": 0, "parts": {}, "last_update": 1757075039}
+    plugin.snapshot = {"bases": [{"name": "Kay City Outpost", "mine": True, **common},
+                                 {"name": "Calypso Portal", "mine": False, "owner": "Pennyhero", **common},
+                                 {"name": "Das ende", "mine": False, "owner": "Xaudi4liveX", **common}]}
+    lines = plugin.companion.base_lines({"bases"}, plugin.context())
+    assert lines[0].startswith("Your bases (1)"), "only his own are counted as his"
+    assert not any("Calypso Portal" in line for line in lines[:2]), "a stranger's base is not listed as his"
+    assert any("2 bases built by OTHER players" in line for line in lines), "but they are accounted for"
 
 
 @pytest.mark.parametrize("prompt_part", [

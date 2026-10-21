@@ -94,7 +94,7 @@ def test_the_galaxies_tab_shows_where_you_are_and_where_you_have_been(tmp_path):
     """Systems -> Galaxies: the galaxy you are in with what its kind changes, a row per galaxy your save has
     touched (the one you are in marked), and a table of the four kinds. The counts come from the addresses,
     so they need no game running."""
-    ctx = context(tmp_path, bases=[{"name": "Home", "system": EUCLID}])
+    ctx = context(tmp_path, bases=[{"name": "Home", "mine": True, "system": EUCLID}])
     sections = planets_view.galaxies_sections(ctx, galaxies.load_research())
     here, table, hearsay, kinds, note = sections
     # Hilbert Dimension is in this save only through a name read out of the galaxy map's cache.

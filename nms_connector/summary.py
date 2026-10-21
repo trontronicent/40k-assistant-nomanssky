@@ -20,8 +20,67 @@ SHIP_CLASSES = {"FIGHTERS": "Fighter", "DROPSHIPS": "Hauler", "SCIENTIFIC": "Exp
 # PersistentBaseTypes as the save writes them; only types actually seen in a save are translated. An unknown
 # type keeps the game's own word, which is more honest than a guessed label nobody would notice is wrong.
 # PlayerShipBase is the living space inside a ship (read from a real save on 2026-10-07).
+# PlayerSpaceStationBase is the station interior the player builds in (read from a real save 2026-10-21).
+# ExternalPlanetBase is NOT the player's at all - it is a base downloaded from another player, which is why
+# every view filters on `mine` rather than on the type.
 BASE_TYPES = {"HomePlanetBase": "Planet base", "FreighterBase": "Freighter base",
-              "ExternalPlanetBase": "Other base (settlement)", "PlayerShipBase": "Ship interior"}
+              "ExternalPlanetBase": "Another player's base", "PlayerShipBase": "Ship interior",
+              "PlayerSpaceStationBase": "Space station base"}
+
+
+def player_uid(common: dict) -> str | None:
+    """The save's own player id, or None when it cannot be read.
+
+    `CommonStateData.UsedDiscoveryOwnersV2` is the save's own record of who the player is - a one-entry list
+    on a single-player save. Taken only when there is exactly one, because with several there is no honest
+    way to tell which is the player. `PlayerStateData` does not carry the id at all, and guessing it from
+    "the owner most bases share" would break on a save with few bases of your own.
+    """
+    owners = common.get("UsedDiscoveryOwnersV2") or []
+    if len(owners) != 1 or not isinstance(owners[0], dict):
+        return None
+    uid = str(owners[0].get("UID") or "").strip()
+    return uid or None
+
+
+def is_mine(owner: dict, kind: str, my_uid: str | None) -> bool:
+    """Whether a base belongs to the player.
+
+    The owner id is the real test; the base *type* only happens to correlate (`ExternalPlanetBase` is
+    someone else's), and a ship interior carries a UID with no name. When the save would not say who the
+    player is, fall back to the type, which is right for every type the game gives the player.
+    """
+    uid = str(owner.get("UID") or "").strip()
+    if my_uid:
+        return uid == my_uid
+    return kind != "ExternalPlanetBase"
+
+
+def own_bases_first(raw: list) -> list:
+    """The base list with re-downloaded copies of one base dropped, newest kept.
+
+    A visited base is stored again each time the game fetches it: 67 of the measured save's bases appeared
+    twice with the same `RID`, position and part count and only a newer `LastUpdateTimestamp`. Counting
+    those twice would overstate every "bases here" line. Entries without an `RID` are all kept, since
+    nothing identifies them as the same base.
+    """
+    newest: dict[str, dict] = {}
+    out = []
+    for base in raw:
+        if not isinstance(base, dict):
+            continue
+        rid = base.get("RID")
+        if not isinstance(rid, str) or not rid:
+            out.append(base)
+            continue
+        seen = newest.get(rid)
+        if seen is None:
+            newest[rid] = base
+            out.append(base)
+        elif (base.get("LastUpdateTimestamp") or 0) > (seen.get("LastUpdateTimestamp") or 0):
+            out[out.index(seen)] = base
+            newest[rid] = base
+    return out
 
 
 def _get(d, *path, default=None):
@@ -165,8 +224,9 @@ def summarize(save: dict) -> dict:
         ships.append({"index": i, "name": ship.get("Name") or "(unnamed)", "class": ship_class(filename),
                       "primary": i == ps.get("PrimaryShip"), "inventory": inventory_rows(ship.get("Inventory"))})
 
+    my_uid = player_uid(common)
     bases = []
-    for base in ps.get("PersistentPlayerBases") or []:
+    for base in own_bases_first(ps.get("PersistentPlayerBases") or []):
         packed = base.get("GalacticAddress")
         addr = unpack_address(packed) or {}
         kind = _get(base, "BaseType", "PersistentBaseTypes", default="")
@@ -178,7 +238,13 @@ def summarize(save: dict) -> dict:
             part = str(obj.get("ObjectID") or "").lstrip("^").strip() if isinstance(obj, dict) else ""
             if part:
                 parts[part] = parts.get(part, 0) + 1
+        owner = base.get("Owner") or {}
         bases.append({"name": base.get("Name") or "(unnamed)", "type": BASE_TYPES.get(kind, kind or "unknown"),
+                      # Whose base this is. `PersistentPlayerBases` is NOT "your bases": it also holds every
+                      # base you downloaded or visited (134 of 171 in the measured save), each owned by
+                      # another player. `mine` is what every view must filter on.
+                      "mine": is_mine(owner, kind, my_uid), "owner": owner.get("USN") or None,
+                      "owner_uid": owner.get("UID") or None,
                       "system": system_key_of(packed),
                       "galaxy": galaxy_name(addr.get("RealityIndex")), "portal": address_portal(addr) if addr else None,
                       "objects": len(objects),

@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.15.0-beta.12 (beta; needs app 3.20.0)
+
+- **Your bases and other players' bases are told apart.** The save keeps both in one list: besides the bases
+  you built, it holds every base you visited or downloaded, each owned by another player - on a real save
+  **134 of 171 entries**, mostly clustered at a galaxy centre. They were all shown as yours. Now *Ships &
+  bases* has **Your bases** and a separate **Other players' bases** table that names who built each one, the
+  system card lists *Your bases here* and *Other players' bases here* on their own lines, and the Overview
+  does the same for the system you are in. The companion counts only your own when you ask which bases you
+  have, and says how many of the rest are other people's.
+- **A base saved twice is counted once.** The game stores a visited base again every time it fetches it:
+  **67** of that save's bases appeared twice with the same id, position and part count and only a newer
+  timestamp, so every "bases here" line was inflated. Re-downloaded copies are merged, newest kept; entries
+  the save gives no id are all kept, since nothing says they are the same base.
+- **A space station interior is named.** `PlayerSpaceStationBase` showed as its raw save word; it now reads
+  *Space station base*. `ExternalPlanetBase` reads *Another player's base* rather than *Other base
+  (settlement)*.
+
 ## 0.15.0-beta.11 (beta; needs app 3.20.0)
 
 - **A system's spectral class, and what it says about its planets.** *Systems -> Visited systems* has a new
