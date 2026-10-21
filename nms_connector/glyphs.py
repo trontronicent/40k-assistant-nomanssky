@@ -40,9 +40,24 @@ def _clear_old(assets_dir: Path) -> None:
                 logger.debug("[NMS] stale glyph %s could not be removed: %s", path.name, err)
 
 
+def _svg_is_current(path: Path, want: str) -> bool:
+    """True when this SVG already holds exactly what `glyph_svg` produces now.
+
+    The art *version* names the file and may not change for a fix (an app or overlay that was not updated
+    still asks for the old name), so a changed SVG body - the stroke colour of 2026-10-21 - would otherwise
+    never be rewritten on an install that already has the files. Sixteen small files are compared once per
+    start. The PNGs are left on the existence check: they are the overlay's, drawn in white, and reading
+    them back costs more than it saves."""
+    try:
+        return path.read_text(encoding="utf-8") == want
+    except OSError:
+        return False
+
+
 def ensure_glyph_assets(assets_dir: Path) -> int:
-    """Write the generated glyph files for the current art version if they are missing, clear older ones, and
-    return how many files were written. Never raises: without the files the hosts fall back to plain text."""
+    """Write the generated glyph files for the current art version when they are missing **or no longer what
+    this version draws**, clear older ones, and return how many files were written. Never raises: without the
+    files the hosts fall back to plain text."""
     written = 0
     try:
         assets_dir.mkdir(parents=True, exist_ok=True)
@@ -50,8 +65,9 @@ def ensure_glyph_assets(assets_dir: Path) -> int:
         for index in range(16):
             svg_name, png_name = glyph_asset_names(index)
             svg_path, png_path = assets_dir / svg_name, assets_dir / png_name
-            if not svg_path.exists():
-                svg_path.write_text(glyph_svg(index), encoding="utf-8")
+            svg = glyph_svg(index)
+            if not _svg_is_current(svg_path, svg):
+                svg_path.write_text(svg, encoding="utf-8")
                 written += 1
             if not png_path.exists():
                 glyph_png(index, PNG_SIZE).save(png_path, "PNG")

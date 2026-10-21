@@ -39,6 +39,23 @@ def test_ensure_glyph_assets_is_idempotent(tmp_path):
     assert glyphs.ensure_glyph_assets(tmp_path) == 0
 
 
+def test_ensure_glyph_assets_rewrites_an_svg_that_is_no_longer_current(tmp_path):
+    """An SVG whose body differs from what this version draws is rewritten, even though its file name is
+    unchanged.
+
+    The art version names the file and cannot be bumped for a fix (an app or overlay that was not updated
+    still asks for the old name), so without this an install that already had the files would have kept the
+    barely visible `currentColor` glyphs of 2026-10-21 forever."""
+    glyphs.ensure_glyph_assets(tmp_path)
+    svg_name, png_name = glyph_art.glyph_asset_names(0)
+    stale = tmp_path / svg_name
+    stale.write_text('<svg stroke="currentColor"></svg>', encoding="utf-8")
+    png_before = (tmp_path / png_name).stat().st_mtime_ns
+    assert glyphs.ensure_glyph_assets(tmp_path) == 1, "only the one changed file is written"
+    assert stale.read_text(encoding="utf-8") == glyph_art.glyph_svg(0)
+    assert (tmp_path / png_name).stat().st_mtime_ns == png_before, "the PNGs are left alone"
+
+
 def test_ensure_glyph_assets_clears_an_older_version(tmp_path):
     """Files of a superseded GLYPH_ART_VERSION are removed, so edited artwork cannot leave a stale picture
     behind in the assets folder."""

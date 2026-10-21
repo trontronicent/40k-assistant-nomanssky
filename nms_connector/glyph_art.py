@@ -5,8 +5,8 @@ single source of truth for what those symbols look like here: each glyph is a tu
 0..100 box, using only M, L, C and Z, drawn as strokes with no fills.
 
 The artwork is this project's own, drawn after the game's symbols - the ready-made glyph files on fan sites are
-Hello Games' art and are neither shipped nor downloaded. Stroke-only means the page can colour them with
-``currentColor`` and the overlay can draw them in one colour.
+Hello Games' art and are neither shipped nor downloaded. Stroke-only means one colour decides how a glyph
+looks: ``GLYPH_STROKE`` for the SVG, white for the overlay's PNG.
 
 Two emitters read this table: ``glyph_svg`` for the browser and ``glyph_png`` (glyph_raster.py) for Tk, which
 cannot display SVG. ``GLYPH_ART_VERSION`` is part of every generated file name, so editing a shape invalidates
@@ -16,6 +16,16 @@ from __future__ import annotations
 
 GLYPH_ART_VERSION = 1
 STROKE_WIDTH = 5.0
+
+#: The stroke colour the generated SVG carries itself - both hosts' ``--gold-bright``.
+#:
+#: It used to stroke in ``currentColor``, which looked right and was not: both hosts load the file in an
+#: ``<img>``, and that is an isolated document, so the page's ``color`` (the app even set
+#: ``color: var(--gold-bright)`` on the image) never reaches it and ``currentColor`` fell back to the initial
+#: colour, **black** - on a dark page the twelve symbols were barely visible (reported 2026-10-21). A file
+#: that is shown through an ``<img>`` has to carry its own colour. A host that inlines the SVG instead can
+#: still override it, with a CSS rule on the paths: a rule beats the inherited presentation attribute.
+GLYPH_STROKE = "#f0bb42"
 
 #: Glyph index -> its subpaths, in a 0..100 box. The index is the value of the address digit, so this lines up
 #: with ``craftable.GLYPHS`` (0 Sunset ... F Atlas) and there is no second ordering to keep in step.
@@ -132,8 +142,8 @@ def glyph_name(index: int) -> str:
 
 
 def glyph_svg(index: int) -> str:
-    """One glyph as a standalone <svg> string: stroke-only, currentColor, the 0..100 box."""
+    """One glyph as a standalone <svg> string: stroke-only in `GLYPH_STROKE`, the 0..100 box."""
     paths = "".join(f'<path d="{d}"/>' for d in GLYPHS[_checked(index)])
     return ('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none" '
-            f'stroke="currentColor" stroke-width="{STROKE_WIDTH:g}" stroke-linecap="round" '
+            f'stroke="{GLYPH_STROKE}" stroke-width="{STROKE_WIDTH:g}" stroke-linecap="round" '
             f'stroke-linejoin="round">{paths}</svg>')

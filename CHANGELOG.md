@@ -38,6 +38,16 @@
   the community wikis for the class letters, which the game files do not hold). Each generated world-type
   document also gains a line naming the star classes that generate such a world.
 
+- **Fixed: the portal glyphs were barely visible.** The generated glyph SVGs stroked in `currentColor`, and
+  both hosts show them through an `<img>` - an isolated document that the page's colour never reaches, so
+  `currentColor` fell back to black and the twelve symbols all but disappeared on the dark page (the app
+  even set `color: var(--gold-bright)` on the image, which could never apply). The file now carries the
+  colour itself (`glyph_art.GLYPH_STROKE` = `#f0bb42`, the gold both hosts use). The art version is
+  deliberately **not** bumped - it names the file, and an app or overlay that was not updated still asks for
+  the old name - so `glyphs.ensure_glyph_assets` now rewrites an SVG whose body is no longer what the
+  current code draws, which also repairs installs that already have the files. The overlay's PNGs are
+  unchanged: they were always drawn in white.
+
 - No app change is needed: hints on a key/value value are rendered by app 3.21.0 and ignored by older ones,
   and the standalone host already shows them.
 

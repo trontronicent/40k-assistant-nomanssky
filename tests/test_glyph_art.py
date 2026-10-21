@@ -17,16 +17,29 @@ def test_glyph_index_reads_one_hex_digit():
         assert glyph_art.glyph_index(bad) is None
 
 
-def test_svg_is_well_formed_and_stroke_only():
-    """Every glyph emits an <svg> with the 0..100 viewBox, strokes in currentColor and no fill. The page
-    themes the glyphs by text colour, so a stray fill would make one glyph a black blob in dark mode."""
+def test_svg_is_well_formed_and_carries_its_own_stroke_colour():
+    """Every glyph emits an <svg> with the 0..100 viewBox, no fill (a stray fill would make a glyph a blob)
+    and a **literal** stroke colour.
+
+    The colour must be in the file: both hosts show it through an `<img>`, an isolated document the page's
+    `color` never reaches, so the earlier `stroke="currentColor"` painted black on a dark page and the
+    symbols were barely visible. `currentColor` must therefore never come back here."""
     for index in range(16):
         svg = glyph_art.glyph_svg(index)
         assert svg.startswith("<svg ") and svg.endswith("</svg>")
         assert 'viewBox="0 0 100 100"' in svg
-        assert 'stroke="currentColor"' in svg
+        assert f'stroke="{glyph_art.GLYPH_STROKE}"' in svg
+        assert "currentColor" not in svg, "an <img> cannot inherit the page's colour"
         assert 'fill="none"' in svg
         assert "<path" in svg
+
+
+def test_the_stroke_colour_is_a_visible_hex_colour():
+    """The colour is a plain `#rrggbb` (an SVG in an `<img>` resolves nothing else) and bright enough to read
+    on both hosts' dark panels - it is the gold both of them use for accents."""
+    assert re.fullmatch(r"#[0-9a-f]{6}", glyph_art.GLYPH_STROKE)
+    red, green, blue = (int(glyph_art.GLYPH_STROKE[i:i + 2], 16) for i in (1, 3, 5))
+    assert red + green + blue > 3 * 110, "a dark stroke on a dark page is the bug this replaced"
 
 
 def test_svg_is_deterministic():
