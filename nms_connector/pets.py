@@ -280,12 +280,15 @@ def trust_text(pet: dict) -> str:
 #   are 2-12 s apart on all four pairs.
 HATCH_SECONDS = 86_400              # confirmed in the game: an egg reads "ready to hatch in X" for 24 h after laying
 LAY_MIN_AGE = 28 * SECONDS_PER_DAY  # measured: every pet under 28 days has LastEggTime == BirthTime, every older one
-                                    # that never laid has it stamped at exactly BirthTime + 28 d (14 pets). One had
-                                    # crossed 28 days three hours before the save and was stamped at birth + 28 d,
+                                    # that never laid has it stamped at exactly BirthTime + 28 d (12 pets). One had
+                                    # crossed 28 days four hours before a save and was stamped at birth + 28 d,
                                     # not at "now", so the game computes the gate from BirthTime.
-LAY_COOLDOWN = 14 * SECONDS_PER_DAY  # NOT confirmed: the only other duration in creature globals (1,209,600 s). The
-                                     # game's own extra conditions are shown beside it, so this cannot read as fact.
-# The game's words for what else blocks laying (UI_PET_EGG_COST_*) - none of which a save can see.
+LAY_COOLDOWN = 86_400               # confirmed in the game: after an egg, the next induction can be started in 24 h.
+                                    # (The 14-day constant in creature globals is something else; four of its
+                                    # durations are 86,400.)
+# An unhatched egg does NOT stop the next one: measured 2026-10-21, a companion laid a second egg while its first,
+# eleven days old, was still in the player's hands. The game's "Another egg nearby" is about the world, not the bag.
+# The game's words for what else blocks an egg (UI_PET_EGG_COST_*) - none of which a save can see.
 LAY_BLOCKERS = ("Feeling hungry", "Feeling sad", "Not in native climate", "Requires additional nutrition")
 
 
@@ -315,7 +318,10 @@ def hatch_text(egg: dict, now: float) -> str:
 
 
 def parent_of(egg: dict, roster: list[dict]) -> dict | None:
-    """The companion this egg came from: its ``LastEggTime`` is that pet's ``BirthTime``, same creature."""
+    """The companion this egg came from: its ``LastEggTime`` is that pet's ``BirthTime``, same creature.
+
+    One companion can have several eggs waiting at once, so this is many eggs to one pet.
+    """
     return next((p for p in roster if p.get("born") and p["born"] == egg.get("egg") and p["id"] == egg["id"]), None)
 
 
@@ -329,13 +335,11 @@ def lay_at(pet: dict) -> int | None:
     return max(pet["born"] + LAY_MIN_AGE, pet["egg"] + LAY_COOLDOWN)
 
 
-def lay_text(pet: dict, now: float, has_egg: bool = False) -> str:
-    """'Ready', 'Egg waiting', 'Too young (in 6 d 4 h)' or 'in 3 d 2 h' - the egg side of one companion."""
+def lay_text(pet: dict, now: float) -> str:
+    """'Ready', 'Too young (in 6 d 4 h)' or 'in 19 h 52 min' - the egg side of one companion."""
     ready = lay_at(pet)
     if ready is None:
         return "–"
-    if has_egg:
-        return "Egg waiting"
     if now < pet["born"] + LAY_MIN_AGE:
         return f"Too young (in {duration_text(pet['born'] + LAY_MIN_AGE - now)})"
     return "Ready" if now >= ready else f"in {duration_text(ready - now)}"

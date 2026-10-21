@@ -10,7 +10,7 @@ default and grow only for a question that asks for the detail:
   records or the ones whose name contains the words of the question.
 
 Both end with what is *not* known, so the model does not fill the gap: species names are not in the game data,
-the interval between two eggs is an estimate, and record flags are not interpreted.
+hunger and mood delay an egg invisibly, and record flags are not interpreted.
 """
 
 from __future__ import annotations
@@ -42,10 +42,10 @@ GENERIC = {"the", "and", "did", "have", "has", "what", "which", "how", "many", "
 MAX_PET_LINES = 30
 MAX_PET_CHARS = 3600
 MAX_NAMED_LINES = 12
-UNKNOWN_PETS = ("An egg can be hatched 24 h after it was laid, and a companion lays its first egg at 28 days old; "
-                "the wait between two eggs is an estimate of about 14 days, and hunger, mood and the wrong climate "
-                "delay an egg without the save showing it. Not in the game data, so do not invent it: the species "
-                "name the game shows for a creature.")
+UNKNOWN_PETS = ("An egg can be hatched 24 h after it was laid, a companion lays its first egg at 28 days old, and "
+                "after an egg its next one can be induced 24 h later; an egg still waiting to hatch does not hold "
+                "the next one back. Hunger, mood and the wrong climate delay an egg without the save showing it. "
+                "Not in the game data, so do not invent it: the species name the game shows for a creature.")
 UNKNOWN_DISCOVERIES = ("Record flags are not interpreted (one of them marks records that came from other players). "
                        "There are no totals per planet, so there is no completion percentage.")
 
@@ -66,13 +66,13 @@ def asks_discoveries(words: set[str]) -> bool:
     return bool(words & NAMING_WORDS) and bool(words & (NAMING_CONTEXT | set(KIND_WORDS)))
 
 
-def _pet_line(pet: dict, book: pets.PetBook, now: float, with_moves: bool, has_egg: bool = False) -> str:
+def _pet_line(pet: dict, book: pets.PetBook, now: float, with_moves: bool) -> str:
     age = pets.age_days(pet, now)
     parts = [pets.display_name(pet) + ":", f"{pet['id'].title() or '?'}", pet["type"] or "?", pet["biome"] or "?",
              f"trust {pets.trust_text(pet)}"]
     if age is not None:
         parts.append(f"{age} days old")
-    egg = pets.lay_text(pet, now, has_egg)
+    egg = pets.lay_text(pet, now)
     if egg != "–":
         parts.append("next egg: " + ("ready now" if egg == "Ready" else egg.lower()))
     parts.append(f"{pet['wins']} arena wins")
@@ -122,11 +122,9 @@ def pet_lines(question: str, snap: dict, book: pets.PetBook, now: float) -> list
     asked = (words & ABILITY_WORDS) or (words & BATTLE_WORDS)
     named = [p for p in roster if p.get("name") and words & set(re.findall(r"[\w'-]{3,}", p["name"].lower()))]
     shown = sorted(roster, key=lambda p: (-p["wins"], pets.display_name(p), p["ua"] or 0))
-    laying = {id(parent) for egg in eggs if (parent := pets.parent_of(egg, roster))}
     budget = MAX_PET_CHARS
     for pet in shown[:MAX_PET_LINES]:
-        line = _pet_line(pet, book, now, with_moves=bool(asked) and (not named or pet in named),
-                         has_egg=id(pet) in laying)
+        line = _pet_line(pet, book, now, with_moves=bool(asked) and (not named or pet in named))
         if budget - len(line) < 0 and out[1:]:
             out.append(f"... and {len(roster) - len(out) + 1} more companions (ask about one by name).")
             break

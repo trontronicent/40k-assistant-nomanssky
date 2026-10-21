@@ -182,15 +182,16 @@ def test_an_egg_shows_when_it_can_be_hatched_and_which_companion_laid_it():
 
 
 def test_a_companion_shows_when_it_can_lay_again_and_admits_what_the_save_cannot_see():
-    """The roster's Next egg column is the other half of the wish: a parent holding an unhatched egg reads "Egg
-    waiting" rather than a countdown, and the tooltip names the game's own blockers (hunger, mood, climate) plus
-    the fact that the 14-day interval is an estimate - so a quiet row is never read as a bug."""
+    """The roster's Next egg column is the other half of the wish. The cow induced its egg six hours ago, so it
+    counts down the 24 h; a waiting egg does not hold the next one back (measured: one companion laid a second
+    while the first was unhatched). The tooltip names the game's own blockers - hunger, mood, climate - so a
+    companion that stays eggless past its time is not read as a bug in the plugin."""
     snap = hatch_snapshot()
     out = companions_view.sections(snap, Ctx(), book(), DiscoveryBook(snap["discoveries"]), NOW)
     roster = next(s for s in out if s.get("id") == "companions-roster")
     cow = dict(zip(roster["columns"], roster["rows"][0], strict=True))
-    assert cow["Next egg"]["text"] == "Egg waiting"
-    assert "28 days old" in cow["Next egg"]["hint"] and "estimate" in cow["Next egg"]["hint"]
+    assert cow["Next egg"]["text"] == "in 18 h"
+    assert "28 days old" in cow["Next egg"]["hint"] and "does not hold the next one back" in cow["Next egg"]["hint"]
     assert "Feeling hungry" in cow["Next egg"]["hint"]
 
 
@@ -201,11 +202,11 @@ def test_the_counters_say_how_many_eggs_and_companions_are_waiting():
     out = companions_view.sections(snap, Ctx(), book(), DiscoveryBook(snap["discoveries"]), NOW)
     values = {i["label"]: i["value"] for i in next(s for s in out if s.get("title") == "Companions")["items"]}
     assert values["Ready to hatch"] == "0 of 1", "the egg is six hours old"
-    assert values["Can lay an egg"] == "0", "the cow holds an egg; the other pet laid five days ago"
-    later = companions_view.sections(snap, Ctx(), book(), DiscoveryBook(snap["discoveries"]), NOW + 10 * 86_400)
+    assert values["Can lay an egg"] == "1", "the cow induced six hours ago; the other pet's last egg is five days old"
+    later = companions_view.sections(snap, Ctx(), book(), DiscoveryBook(snap["discoveries"]), NOW + 2 * 86_400)
     values = {i["label"]: i["value"] for i in next(s for s in later if s.get("title") == "Companions")["items"]}
-    assert values["Ready to hatch"] == "1 of 1", "ten days later the egg is long hatchable"
-    assert values["Can lay an egg"] == "1", "the other pet is past its interval; the cow still holds its egg"
+    assert values["Ready to hatch"] == "1 of 1", "two days later the egg is hatchable"
+    assert values["Can lay an egg"] == "2", "both are a day past their last egg"
 
 
 def test_no_companions_say_so_and_no_save_says_so():

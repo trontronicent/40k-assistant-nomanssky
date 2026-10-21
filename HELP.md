@@ -69,14 +69,13 @@ and a **Parent** column naming the companion it came from. An egg can be hatched
 the save keeps the moment of laying, and the egg also stores its parent's birth time, which is how the two
 are matched. The column sorts by the moment an egg becomes hatchable, so the next one to collect is on top.
 
-The roster's **Next egg** column is the other side: *Ready*, the wait left, *Too young* for a companion under
-28 days old, or *Egg waiting* while an egg of its own is still unhatched (the game will not give a second one
-then). A companion lays its first egg at **28 days old** - measured on the save - and needs roughly **14 days**
-between eggs. That interval is the game's own 14-day creature constant and is not yet confirmed against the
-game, so the tooltip calls it an estimate. The game also refuses an egg when a companion is hungry, sad, out
-of its native climate or wants more nutrition, and none of that is written to the save: if the time has come
-and no egg appears, feed your companion and take it to its own kind of planet. Ask the persona *"are any eggs
-ready?"* and it answers from the same numbers.
+The roster's **Next egg** column is the other side: *Ready*, the wait left, or *Too young* for a companion
+under 28 days old. A companion lays its first egg at **28 days old** (measured on the save), and after an egg
+the next induction can be started **24 h later** (confirmed in the game). An egg still waiting to hatch does
+**not** hold the next one back - a companion can have several eggs out at once. The game does refuse an egg
+when a companion is hungry, sad, out of its native climate or wants more nutrition, and none of that is
+written to the save: if the time has come and no egg can be induced, feed your companion and take it to its
+own kind of planet. Ask the persona *"are any eggs ready?"* and it answers from the same numbers.
 
 What the plugin cannot know is not invented: the species name the game shows and the
 **C/B/A/S tier** of each battle stat. A stat's tier decides how much benefit it gets from every treat you

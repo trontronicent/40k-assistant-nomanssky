@@ -41,26 +41,38 @@ and the egg followed.
   47.7 days. The decisive one is an unnamed `^GRUNT` that crossed 28 days three hours before the save: it is
   stamped at birth + 28 d, not at "now", so the game computes the gate from `BirthTime` rather than from the
   moment it noticed. The game's refusal string is `UI_PET_EGG_COST_AGE` = "Too young to lay eggs".
-* **Between two eggs: 14 days (1,209,600 s) — candidate, not confirmed.** It is the only other duration in
-  `gccreatureglobals.mbin` (whose durations are int32: four `86400` at 0x1E90, 0x1EA4, 0x1F24, 0x1FC0, one
-  `1209600` at 0x1EFC, plus a bare `28` at 0x24DC). An mbin carries no field names, so nothing in the file says
-  which field is which; the plugin therefore labels this interval an estimate wherever it is shown. To settle it:
-  with a companion whose `LastEggTime` is 14+ days old and which is fed and in its own climate, read whether the
-  Companion panel says "ready to lay an egg" (`UI_EGGCARE_DETAIL_DESC`) or "Gestating…"
-  (`UI_PET_EGG_COST_TIME`).
+* **Between two eggs: 24 h.** *Confirmed in the game by the player* (2026-10-21): right after Hidippo laid, the
+  game said the next egg induction can be started in 24 h. This is one of the four `86400` ints in
+  `gccreatureglobals.mbin` (0x1E90, 0x1EA4, 0x1F24, 0x1FC0). The earlier guess of 14 days — its `1209600` at
+  0x1EFC, plus a bare `28` at 0x24DC — was **wrong**; that constant belongs to something else. An mbin carries no
+  field names, which is why a save-side reading or an in-game check decides, never the file alone. Nearly every
+  mature companion in the save is therefore *ready* at any time: the interval is short and an egg has to be
+  induced by the player, so "ready" means "go and induce one", not "an egg is waiting".
+* **An unhatched egg does not block the next one.** *Measured 2026-10-21*: Hidippo laid a second Triceratops egg
+  while its first, eleven days old, was still in the player's hands — the save then held two eggs whose
+  `LastEggTime` both point at Hidippo's `BirthTime`. So `UI_PET_EGG_COST_PENDING` "Another egg nearby" is about
+  an egg lying in the world, not one in the player's inventory, and nothing may suppress a companion's countdown
+  because it already has an egg out. `parent_of` is many eggs to one pet.
 
 ## What no save can tell you
 
 The game's other refusals are runtime state: `UI_PET_EGG_COST_PENDING` "Another egg nearby",
 `UI_PET_EGG_COST_SLOTS` "Cannot carry more eggs", `UI_PET_EGG_COST_HUNGRY` "Feeling hungry",
 `UI_PET_EGG_COST_LONELY` "Feeling sad", `UI_PET_EGG_COST_BIOME` "Not in native climate",
-`UI_PET_EGG_COST_TREAT` "Requires additional nutrition". Only the first is derivable (an egg of that parent is
-still unhatched); the rest must be named to the player as possible reasons rather than silently ignored.
+`UI_PET_EGG_COST_TREAT` "Requires additional nutrition". None of them is derivable from a save — the first one is about the world, not the player's eggs — so they must
+be named to the player as possible reasons rather than silently ignored.
 
 ## One open anomaly
 
 `^SPIDER` "Zushetto" had its `LastEggTime` set one hour before the save at an age of **13.5 days**, under the
 28-day gate, and no Zushetto egg exists in the save. Its `LastTrustIncreaseTime` is 9 s earlier, so the player
-had just fed it. Either feeding or harvesting a gift also stamps `LastEggTime`, or a path other than laying
-writes it. Consequence for the plugin: `lay_at` takes the **later** of the age gate and the cooldown, so such a
-record still reads "Too young" rather than promising an egg.
+had just fed it, and in the next save (10:36) its stamp was still 1 h 49 min old with no matching egg. Either
+feeding or harvesting a gift also stamps `LastEggTime`, or a path other than laying writes it. Consequence for
+the plugin: `lay_at` takes the **later** of the age gate and the cooldown, so such a record still reads "Too
+young" rather than promising an egg.
+
+A second open point, narrower: a companion stamped at exactly birth + 28 d (its adulthood, apparently) then
+reads "in 19 h" under the 24 h cooldown, because the stamp is treated as a last egg. If the 28-day stamp only
+marks adulthood, such a companion should be ready the moment it turns 28 days old instead. It affects only a
+companion in its first day of adulthood; the unnamed `^GRUNT` (28.17 d old, stamped four hours earlier) is the
+case to read in game.

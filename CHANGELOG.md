@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.15.0-beta.14 (beta; needs app 3.20.0)
+
+- **The egg interval is 24 h, not fourteen days, and a waiting egg no longer hides the next one.** Both were
+  read from the game on 2026-10-21: after an egg, the next induction can be started **24 h later** (one of the
+  four 86,400 s ints in `gccreatureglobals.mbin`; the 14-day constant beside them belongs to something else),
+  and a companion laid a **second** egg while its first, eleven days old, was still being carried - so the
+  save held two eggs from one parent. *Next egg* therefore counts the 24 h from the last egg and never reads
+  *Egg waiting*, which would have hidden an egg that can be induced right now. On a real save that moves 4
+  companions marked ready to **17**, and the *Eggs* table now shows both of that parent's eggs with their own
+  hatch times. `UI_PET_EGG_COST_PENDING` "Another egg nearby" is about an egg lying in the world, not one in
+  the player's inventory.
+
 ## 0.15.0-beta.13 (beta; needs app 3.20.0)
 
 - **An egg now says when it can be hatched, and a companion when it can lay again.** The save held both all

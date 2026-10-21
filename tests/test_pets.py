@@ -306,22 +306,23 @@ def test_a_companion_lays_its_first_egg_at_28_days_old():
     assert pets.lay_text(young, born + 28 * DAY) == "Ready"
 
 
-def test_the_wait_between_two_eggs_counts_from_the_last_egg():
-    """A pet's LastEggTime is the moment it last produced an egg (measured within 12 s on four egg/pet pairs), so
-    the next egg is due LAY_COOLDOWN after it - the age gate is already long past for such a pet."""
+def test_the_next_egg_can_be_induced_24_h_after_the_last_one():
+    """A pet's LastEggTime is the moment it last produced an egg (measured within 12 s on four egg/pet pairs) and
+    the game lets the next induction start 24 h later (confirmed in the game, 2026-10-21). A longer guess would
+    hide eggs the player could already collect."""
     born, laid = 1_788_448_379, 1_791_140_239
     mother = pets.compact(raw_pet(BirthTime=born, LastEggTime=laid))
-    assert pets.lay_at(mother) == laid + pets.LAY_COOLDOWN
-    assert pets.lay_text(mother, laid + 2 * DAY) == "in 12 d"
-    assert pets.lay_text(mother, laid + pets.LAY_COOLDOWN) == "Ready"
+    assert pets.lay_at(mother) == laid + DAY
+    assert pets.lay_text(mother, laid + 4 * 3600) == "in 20 h"
+    assert pets.lay_text(mother, laid + DAY) == "Ready"
 
 
-def test_a_companion_whose_egg_is_still_unhatched_shows_that_instead_of_a_countdown():
-    """The game refuses a second egg while one is nearby ('Another egg nearby'), so a parent whose egg is still in
-    the player's hands must not be reported as ready - that would send the player looking for an egg that the
-    game will not give."""
+def test_an_unhatched_egg_does_not_hold_back_the_next_one():
+    """Measured 2026-10-21: a companion laid a second egg while its first, eleven days old, was still in the
+    player's hands. A row must therefore never suppress the countdown because an egg is waiting - that would hide
+    an egg the player can induce right now."""
     mother = pets.compact(raw_pet(BirthTime=1_788_448_379, LastEggTime=1_791_140_239))
-    assert pets.lay_text(mother, NOW + 40 * DAY, has_egg=True) == "Egg waiting"
+    assert pets.lay_text(mother, 1_791_140_239 + DAY) == "Ready"
 
 
 def test_a_pet_without_the_saves_times_gets_no_egg_countdown():

@@ -94,31 +94,29 @@ def traits_hint(book: pets.PetBook, pet: dict) -> str:
     ])
 
 
-def next_egg_cell(pet: dict, now: float, has_egg: bool) -> dict:
+def next_egg_cell(pet: dict, now: float) -> dict:
     """When this companion can lay again, the soonest sorting first, with what the save cannot see in its tooltip."""
     ready = pets.lay_at(pet)
     hint = "\n".join([
-        "A companion lays its first egg at 28 days old (measured on the save) and needs about 14 days between eggs "
-        "- that interval is the game's own 14-day creature constant and is not yet confirmed against the game, so "
-        "read it as an estimate.",
-        "It also will not lay while an egg of its own is still unhatched, or when the game says: "
-        + ", ".join(pets.LAY_BLOCKERS) + ". None of those are in the save, so if the time has come and no egg "
-        "appears, feed it and take it to its own climate.",
+        "A companion lays its first egg at 28 days old (measured on the save), and after an egg the next induction "
+        "can be started 24 h later (confirmed in the game). An egg still waiting to hatch does not hold the next "
+        "one back - a companion can have several.",
+        "The game also refuses an egg when it says: " + ", ".join(pets.LAY_BLOCKERS) + ". None of those are in the "
+        "save, so if the time has come and no egg can be induced, feed it and take it to its own climate.",
     ])
-    return {"text": pets.lay_text(pet, now, has_egg), "sort": ready if ready is not None else 1 << 62, "hint": hint}
+    return {"text": pets.lay_text(pet, now), "sort": ready if ready is not None else 1 << 62, "hint": hint}
 
 
 def roster_table(companions: dict, book: pets.PetBook, animals: dict, ctx, now: float) -> dict:
     """One row per companion; wins, trust and the next egg sort as numbers."""
     rows = []
-    laying = {id(parent) for egg in companions["eggs"] if (parent := pets.parent_of(egg, companions["pets"]))}
     for pet in companions["pets"]:
         age = pets.age_days(pet, now)
         rows.append([
             name_cell(pet), pet["id"].title() or "?", type_cell(pet, book), pet["biome"] or "?",
             size_cell(pet), {"text": pets.trust_text(pet), "sort": pet["trust"]},
             {"text": "–" if age is None else f"{age:,}", "sort": age if age is not None else -1},
-            next_egg_cell(pet, now, id(pet) in laying),
+            next_egg_cell(pet, now),
             {"text": f"{pet['wins']:,}", "sort": pet["wins"]}, abilities_cell(pet, book),
             harvest_text(pet, book), {"text": pets.personality_text(pet, book), "hint": traits_hint(book, pet)},
             first_scan_text(pet, animals, ctx), origin_text(pet, ctx)])
@@ -164,9 +162,7 @@ def stats_section(companions: dict, now: float) -> dict:
     unlocked, total = companions["slots"]
     named = sum(1 for p in companions["pets"] if p["name"])
     hatchable = sum(1 for e in companions["eggs"] if (at := pets.hatch_at(e)) is not None and now >= at)
-    laying = {id(parent) for egg in companions["eggs"] if (parent := pets.parent_of(egg, companions["pets"]))}
-    can_lay = sum(1 for p in companions["pets"]
-                  if id(p) not in laying and (at := pets.lay_at(p)) is not None and now >= at)
+    can_lay = sum(1 for p in companions["pets"] if (at := pets.lay_at(p)) is not None and now >= at)
     return {"type": "stats", "title": "Companions", "items": [
         {"label": "Companions", "value": f"{len(companions['pets'])} of {unlocked} unlocked slots"
          if total else str(len(companions["pets"]))},

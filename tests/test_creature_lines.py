@@ -35,10 +35,11 @@ def test_an_egg_question_is_told_when_each_egg_hatches_and_who_laid_it():
     lines = creature_lines.pet_lines("Are any of my eggs ready to hatch?", snap, book(), NOW)
     assert "- Cow egg from Unzy Bunzy Bowa: hatchable in 18 h" in lines
     cow = next(line for line in lines if line.startswith("- Unzy Bunzy Bowa"))
-    assert "next egg: egg waiting" in cow, "its egg is still unhatched, so it will not lay"
+    assert "next egg: in 18 h" in cow, "it induced its egg six hours ago"
     ready = creature_lines.pet_lines("eggs?", snap, book(), NOW + 10 * 86_400)
     assert "- Cow egg from Unzy Bunzy Bowa: ready to hatch now" in ready
     assert "24 h after it was laid" in lines[-1] and "28 days old" in lines[-1]
+    assert "does not hold" in lines[-1], "the model must not claim a waiting egg blocks the next"
 
 
 def test_an_ability_or_arena_question_spells_the_abilities_out():
