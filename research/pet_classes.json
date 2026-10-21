@@ -11,7 +11,7 @@
     "source": "Read from gcgametableglobals.mbin (NMSARC.globals.pak) using the field layout in NMS.exe's reflection data. Not estimated, not inferred.",
     "probabilities": "Per stat: C 30%, B 30%, A 25%, S 15%. A or better 40%. All three S = 1 in 296.",
     "derived_rules": "Overall = ceil((combat+agility+health)/3) with C=0 B=1 A=2 S=3, held on 27 of 27 fresh oracle pets. Treats order (Health, Agility, Combat Effectiveness), cap 10 - the cap matches PetMaxLevel = 10. size_m = round(Scale,1), weight_kg = round(40*Scale,1).",
-    "still_open": "How PetBattlerSeed is derived from the two seeds. The tables are data; the seed mixing is code. 368,640 standard seeded-RNG constructions scored mid-null, so it is custom or salted.",
+    "still_open": "How PetBattlerSeed is derived from the two seeds. The tables are data; the seed mixing is code. Two serious attempts failed: 368,640 standard seeded-RNG constructions scored mid-null against shuffled labels, and offset-based scanning of NMS.exe drowned in coincidence (see tier_source.SEED_MIXING_SEARCH_2026_10_21). A further attempt needs Ghidra/IDA function-level analysis, and the practical value is low since the distribution is now known exactly.",
     "never_do": "Never derive tier frequencies from the player's tamed pets: they were hunted for the best and show S at 33% against the true 15%. Never show PetBattlerCoreStatClassOverrides as the class; it is inert."
   },
   "researched": "2026-10-20",
@@ -1719,6 +1719,19 @@
       "what_it_gave": "The roll table, the stat ranges, the per-level boosts and the level cap - all read from game data. See SOLVED_roll_table_2026_10_21.",
       "what_remains": "The derivation of PetBattlerSeed from (SpeciesSeed, GenusSeed). The tables are data, but the seed mixing is code. Next step would be to find the function that reads CoreStatClassRollTable at struct offset 7764 and work back to its roll input - the descriptor array address 0x04F4DA70 and the globals' own instance pointer are the starting handles.",
       "tooling": "An isolated venv with pefile and capstone was created in the session scratchpad rather than installing into J:/40k-assistant/venv, since a stray install there is the documented way to break that project. Scripts kept in J:/nms-save-backups/oracle-batches: nms_pe.py (PE map and string xrefs), walk_fields.py (recovers a class layout from the reflection array), fit_align.py (global alignment fit), read_table.py."
+    },
+    "SEED_MIXING_SEARCH_2026_10_21": {
+      "outcome": "NOT FOUND. The seed-mixing function was not located, and ad-hoc scanning of NMS.exe is the wrong tool for it. Recorded so the next attempt starts from proper tooling rather than repeating these scans.",
+      "what_was_established_first": "cGcPetData's layout was recovered from the exe's reflection data - 35 fields, matching the save's 35 keys exactly. SpeciesSeed is at struct offset 368 (0x170) and GenusSeed at 336 (0x150), both 8 bytes. Other useful offsets: PetBattlerCoreStatClassOverrides 644 (0x284), PetBattlerUseCoreStatClassOverrides 752 (0x2F0), CreatureSeed 296, BoneScaleSeed 232, ColourBaseSeed 248, Descriptors 312, Scale 708, Traits 668, Moods 680. Field array at .data 0x04F8B7E0.",
+      "searches_tried_and_why_each_failed": [
+        "Scanning .text for the roll table's displacement (0x1E54) off a register: 39 sites, all unrelated structs that happen to have a field at that offset.",
+        "Requiring 8-byte loads of BOTH seed offsets (0x170 and 0x150) off the same non-stack base register: 2,759 co-occurrences, 41 distinct sites, all copy constructors walking every offset in sequence.",
+        "Adding filters for register arithmetic and few other displacements: the top hit was a 64-bit hash-combine loop (shr 0x2f, xor, imul) but it reads [r15+0x150] as a POINTER with [r15+0x158] as a COUNT and element size 16 - a dynamic array, not a pet. A pure offset coincidence.",
+        "Branching on PetBattlerUseCoreStatClassOverrides (0x2F0) near the overrides array (0x284), which the tier getter must do: 53 distinct sites, all float interpolation on unrelated structs."
+      ],
+      "why_it_cannot_work_this_way": "NMS.exe has 157,445 functions (from .pdata), no exported symbols and no debug directory, in 54.6 MB of .text with a median function size of 114 bytes. Struct offsets like 0x150 and 0x170 occur ~8,000 times each purely by chance, so no combination of displacement filters isolates one function. Window scanning also cannot respect function boundaries or follow a call.",
+      "what_a_real_attempt_needs": "Function-level analysis: enumerate the 157,445 functions from .pdata, build a cross-reference graph, locate the cGcGameTableGlobals singleton instance pointer, and find functions that load it and index offset 7764. That is Ghidra or IDA work (a headless Ghidra script would do it), not regex over raw bytes. The handles to start from are in this entry and in SOLVED_roll_table_2026_10_21.",
+      "value_judgement": "Low practical value now. The roll table is known exactly, which answers the question the player actually has - whether an untamed creature is worth taming. Recovering the mixer would only add per-creature prediction from scanned seeds, and the oracle can always verify a candidate function if one is ever proposed."
     }
   },
   "creature_seed_search": {

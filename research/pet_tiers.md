@@ -233,10 +233,18 @@ Test pet naming: `W` = batch 4, `X` = batch 5. Nine test pets currently occupy s
 
 1. ~~Pin S's share~~ — **done to the limit of this method** at n=132. Further loads cannot separate
    3:3:3:1 from 4:4:4:1; stop here.
-3. ~~Static analysis for `CoreStatClassRollTable`~~ — **done**, see above. What remains is the
-   function deriving `PetBattlerSeed` from the two seeds: the tables are data, but the seed mixing is
-   code. Handles to start from: the descriptor array at `0x04F4DA70` and the field's struct offset
-   7764, to find the code that reads it and work back to its roll input.
+3. ~~Static analysis for `CoreStatClassRollTable`~~ — **done**, see above.
+4. **The seed mixing — attempted and not found.** `cGcPetData`'s layout is recovered (35 fields,
+   matching the save exactly): `SpeciesSeed` at offset 368, `GenusSeed` at 336,
+   `PetBattlerCoreStatClassOverrides` at 644, its flag at 752. But offset-based scanning of `.text`
+   cannot isolate the function: NMS.exe has **157,445 functions**, no exported symbols and no debug
+   directory, and displacements like 0x150/0x170 occur ~8,000 times each by chance. Every filter tried
+   — both seeds loaded off one base, register arithmetic nearby, the overrides flag branch — returned
+   copy constructors, float interpolation, or a hash-combine over an unrelated dynamic array. A real
+   attempt needs Ghidra/IDA function-level analysis with a cross-reference graph, starting from the
+   `cGcGameTableGlobals` singleton and struct offset 7764. **Practical value is low**: the roll table
+   is known exactly, so the question "is this creature worth taming" is already answered; the mixer
+   would only add per-creature prediction. The oracle can verify any candidate function later.
 4. **Unspent experiment**: set `PetBattlerUseCoreStatClassOverrides` true with `[S,S,S]` to find out
    what that inert save field actually does.
 5. **Scan-then-tame validation** — confirm scanner tiers equal companion tiers before pooling
