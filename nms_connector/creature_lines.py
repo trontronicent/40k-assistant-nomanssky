@@ -42,10 +42,10 @@ GENERIC = {"the", "and", "did", "have", "has", "what", "which", "how", "many", "
 MAX_PET_LINES = 30
 MAX_PET_CHARS = 3600
 MAX_NAMED_LINES = 12
-UNKNOWN_PETS = ("An egg can be hatched 24 h after it was laid, a companion lays its first egg at 28 days old, and "
-                "after an egg its next one can be induced 24 h later; an egg still waiting to hatch does not hold "
-                "the next one back. Hunger, mood and the wrong climate delay an egg without the save showing it. "
-                "Not in the game data, so do not invent it: the species name the game shows for a creature.")
+UNKNOWN_PETS = ("An egg can be hatched 24 h after it was laid, and a companion's next egg can be induced 24 h after "
+                "its last one; an egg still waiting to hatch does not hold the next one back. Hunger, mood and the "
+                "wrong climate delay an egg without the save showing it. Not in the game data, so do not invent it: "
+                "the species name the game shows for a creature.")
 UNKNOWN_DISCOVERIES = ("Record flags are not interpreted (one of them marks records that came from other players). "
                        "There are no totals per planet, so there is no completion percentage.")
 

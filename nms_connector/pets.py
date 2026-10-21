@@ -43,9 +43,9 @@ What is *measured* (the real save and the installed game, build 25732212, 2026-1
   -0.80), Helpfulness (+0.25), Gentleness (-0.73, -0.77, -0.38), Devotion (-0.16), Independence (+0.20).
   **Inferred only**: Aggression as the positive side of [1] (both Predators carry +0.77 / +0.79, every other pet is
   negative).
-* **The egg timers** are measured and live under *the egg timers*, below: an egg is hatchable 24 h after it was laid
-  (confirmed in the game) and a companion lays from 28 days old (measured on the save). Only the interval between
-  two eggs is still a candidate rather than a reading.
+* **The egg timers** are measured and live under *the egg timers*, below: an egg is hatchable 24 h after it was laid,
+  and the next egg of a companion can be induced 24 h after its last one (both confirmed in the game). The save's
+  28-day pattern is *not* an age gate, and an unhatched egg does not hold the next one back.
 * **Not claimed**: the species name the game shows (generated from the seeds; no name table exists in the 84,330
   English strings).
 """
@@ -278,14 +278,18 @@ def trust_text(pet: dict) -> str:
 #   (so an egg names its parent); confirmed on all four egg/pet pairs in the save.
 # * a **pet**'s ``LastEggTime`` is the moment it last produced an egg - the pet's field and its egg's ``BirthTime``
 #   are 2-12 s apart on all four pairs.
-HATCH_SECONDS = 86_400              # confirmed in the game: an egg reads "ready to hatch in X" for 24 h after laying
-LAY_MIN_AGE = 28 * SECONDS_PER_DAY  # measured: every pet under 28 days has LastEggTime == BirthTime, every older one
-                                    # that never laid has it stamped at exactly BirthTime + 28 d (12 pets). One had
-                                    # crossed 28 days four hours before a save and was stamped at birth + 28 d,
-                                    # not at "now", so the game computes the gate from BirthTime.
-LAY_COOLDOWN = 86_400               # confirmed in the game: after an egg, the next induction can be started in 24 h.
-                                    # (The 14-day constant in creature globals is something else; four of its
-                                    # durations are 86,400.)
+HATCH_SECONDS = 86_400   # confirmed in the game: an egg reads "ready to hatch in X" for 24 h after laying
+LAY_COOLDOWN = 86_400    # confirmed in the game: after an egg, the next induction can be started in 24 h. (The
+                         # 14-day constant in creature globals is something else; four of its durations are 86,400.)
+#
+# **There is no 28-day age gate**, though the number is in the save. 13 pets carry ``LastEggTime == BirthTime + 28 d``
+# to the second, all of them older than 28 days, while the two pets younger than that have ``LastEggTime ==
+# BirthTime``; it looks like a gate and was first read as one. It is not: the player's ``^SPIDER`` produced an egg
+# (given away to another player, which is why no egg in the save matches it) at **13.4 days old**, with a real
+# ``LastEggTime`` to show it. So the field is "count the cooldown from here", the game writes something into it at
+# 28 days for a pet that has not laid, and what that event is stays unexplained - see ``research/egg_timers.md``.
+# A pet that never laid therefore reads ready 24 h after its birth, which is as much as the save can support;
+# never report "too young" from that 28-day stamp.
 # An unhatched egg does NOT stop the next one: measured 2026-10-21, a companion laid a second egg while its first,
 # eleven days old, was still in the player's hands. The game's "Another egg nearby" is about the world, not the bag.
 # The game's words for what else blocks an egg (UI_PET_EGG_COST_*) - none of which a save can see.
@@ -326,22 +330,16 @@ def parent_of(egg: dict, roster: list[dict]) -> dict | None:
 
 
 def lay_at(pet: dict) -> int | None:
-    """The earliest moment this pet can produce an egg again, or None without the save's times.
-
-    Two gates: a companion lays from ``LAY_MIN_AGE`` after its birth, and again ``LAY_COOLDOWN`` after its last egg.
-    """
-    if not (pet.get("born") and pet.get("egg")):
-        return None
-    return max(pet["born"] + LAY_MIN_AGE, pet["egg"] + LAY_COOLDOWN)
+    """The earliest moment this pet can produce an egg again (``LAY_COOLDOWN`` after its last one), or None when the
+    save holds no time for it. A pet that never laid carries its birth time there, so it counts from birth."""
+    return pet["egg"] + LAY_COOLDOWN if pet.get("egg") else None
 
 
 def lay_text(pet: dict, now: float) -> str:
-    """'Ready', 'Too young (in 6 d 4 h)' or 'in 19 h 52 min' - the egg side of one companion."""
+    """'Ready' or 'in 19 h 52 min' - the egg side of one companion."""
     ready = lay_at(pet)
     if ready is None:
         return "–"
-    if now < pet["born"] + LAY_MIN_AGE:
-        return f"Too young (in {duration_text(pet['born'] + LAY_MIN_AGE - now)})"
     return "Ready" if now >= ready else f"in {duration_text(ready - now)}"
 
 

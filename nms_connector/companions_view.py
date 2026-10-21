@@ -98,9 +98,9 @@ def next_egg_cell(pet: dict, now: float) -> dict:
     """When this companion can lay again, the soonest sorting first, with what the save cannot see in its tooltip."""
     ready = pets.lay_at(pet)
     hint = "\n".join([
-        "A companion lays its first egg at 28 days old (measured on the save), and after an egg the next induction "
-        "can be started 24 h later (confirmed in the game). An egg still waiting to hatch does not hold the next "
-        "one back - a companion can have several.",
+        "After an egg, the next induction can be started 24 h later (confirmed in the game); a companion that has "
+        "never laid counts that day from its birth. An egg still waiting to hatch does not hold the next one back "
+        "- a companion can have several at once.",
         "The game also refuses an egg when it says: " + ", ".join(pets.LAY_BLOCKERS) + ". None of those are in the "
         "save, so if the time has come and no egg can be induced, feed it and take it to its own climate.",
     ])

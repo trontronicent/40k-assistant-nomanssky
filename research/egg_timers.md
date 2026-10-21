@@ -35,12 +35,22 @@ and the egg followed.
   strings are `UI_PET_EGG_DESC_NOT_READY` = "ready to hatch in [button]%TIME%." and `UI_PET_EGG_DESC_READY` =
   "ready to hatch!"; `UI_OPEN_PET_EGG_NOT_READY` = "EGG STILL DEVELOPING". Eggs do **not** hatch by themselves —
   three eggs in this save are 11–17 days old and still eggs.
-* **First egg at 28 days old (2,419,200 s).** *Measured, strong.* Every pet younger than 28 days has
-  `LastEggTime == BirthTime` exactly (two cases: 14.2 d and 0.08 d old). Every pet at or past 28 days that has
-  never been milked for an egg has `LastEggTime == BirthTime + 2,419,200` **exactly** — 14 pets, ages 28.1 to
-  47.7 days. The decisive one is an unnamed `^GRUNT` that crossed 28 days three hours before the save: it is
-  stamped at birth + 28 d, not at "now", so the game computes the gate from `BirthTime` rather than from the
-  moment it noticed. The game's refusal string is `UI_PET_EGG_COST_AGE` = "Too young to lay eggs".
+* **There is no 28-day age gate — the pattern is real, its meaning is not known.** 13 pets carry
+  `LastEggTime == BirthTime + 2,419,200` (28.0000 d) *to the second*, and the split looked decisive: all 13 are
+  older than 28 days, both pets younger than 28 days have `LastEggTime == BirthTime`, and an unnamed `^GRUNT` that
+  crossed 28 days four hours before a save was stamped at birth + 28 d rather than at "now" — so the game does
+  compute that value from `BirthTime`. It was first read as "a companion lays its first egg at 28 days old", and
+  the game does have the refusal `UI_PET_EGG_COST_AGE` "Too young to lay eggs".
+
+  **It is wrong.** The player's `^SPIDER` "Zushetto" produced an egg at **13.4 days old** — it carries a real
+  `LastEggTime` from that moment and no egg in the save matches it, because the player gave that egg to another
+  player. Whatever the game writes at 28 days, it is not a precondition for laying, and no row may show "too
+  young" because of it. Candidates worth testing: an adulthood or growth milestone, or a one-off write when a
+  companion is first summoned after that age.
+
+  Consequence for the plugin: `lay_at` is simply `LastEggTime + 24 h`. A companion that never laid carries its
+  birth time in the field and so reads ready 24 h after birth, which happens to be what a 1-day age gate would
+  give — and `86400` is one of the four durations in the globals file.
 * **Between two eggs: 24 h.** *Confirmed in the game by the player* (2026-10-21): right after Hidippo laid, the
   game said the next egg induction can be started in 24 h. This is one of the four `86400` ints in
   `gccreatureglobals.mbin` (0x1E90, 0x1EA4, 0x1F24, 0x1FC0). The earlier guess of 14 days — its `1209600` at
@@ -62,17 +72,16 @@ The game's other refusals are runtime state: `UI_PET_EGG_COST_PENDING` "Another 
 `UI_PET_EGG_COST_TREAT` "Requires additional nutrition". None of them is derivable from a save — the first one is about the world, not the player's eggs — so they must
 be named to the player as possible reasons rather than silently ignored.
 
-## One open anomaly
+## Resolved: the egg with no egg
 
-`^SPIDER` "Zushetto" had its `LastEggTime` set one hour before the save at an age of **13.5 days**, under the
-28-day gate, and no Zushetto egg exists in the save. Its `LastTrustIncreaseTime` is 9 s earlier, so the player
-had just fed it, and in the next save (10:36) its stamp was still 1 h 49 min old with no matching egg. Either
-feeding or harvesting a gift also stamps `LastEggTime`, or a path other than laying writes it. Consequence for
-the plugin: `lay_at` takes the **later** of the age gate and the cooldown, so such a record still reads "Too
-young" rather than promising an egg.
+`^SPIDER` "Zushetto" had a `LastEggTime` from an hour before the save with no matching egg anywhere in it. The
+player resolved it: **that egg was given to another player.** An egg handed over leaves the save while the
+parent's timestamp stays, so a `LastEggTime` without a matching egg is normal and means nothing is wrong. It is
+also the reading that disproved the 28-day gate above, since Zushetto was 13.4 days old at the time. (Eggs
+carry `SenderData` — `LID`/`UID`/`USN`/`PTK`/`TS`, empty on all of this save's own eggs — which is how a
+*received* egg records who sent it; the game has `UI_PET_EGG_DESC_GIFT` for that case.)
 
-A second open point, narrower: a companion stamped at exactly birth + 28 d (its adulthood, apparently) then
-reads "in 19 h" under the 24 h cooldown, because the stamp is treated as a last egg. If the 28-day stamp only
-marks adulthood, such a companion should be ready the moment it turns 28 days old instead. It affects only a
-companion in its first day of adulthood; the unnamed `^GRUNT` (28.17 d old, stamped four hours earlier) is the
-case to read in game.
+The open point is narrower now, and it is the same stamp: a companion stamped at birth + 28 d within the last
+24 h reads "in 19 h", because `lay_at` treats every stamp as a last egg. If that write is only a milestone, such
+a companion is ready the moment it turns 28 days old. It affects one companion for one day at a time — the
+unnamed `^GRUNT` (28.17 d old, stamped four hours before the save) is the case to read in game.

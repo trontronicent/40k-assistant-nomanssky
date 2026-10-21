@@ -38,7 +38,7 @@ def test_an_egg_question_is_told_when_each_egg_hatches_and_who_laid_it():
     assert "next egg: in 18 h" in cow, "it induced its egg six hours ago"
     ready = creature_lines.pet_lines("eggs?", snap, book(), NOW + 10 * 86_400)
     assert "- Cow egg from Unzy Bunzy Bowa: ready to hatch now" in ready
-    assert "24 h after it was laid" in lines[-1] and "28 days old" in lines[-1]
+    assert "24 h after it was laid" in lines[-1] and "24 h after" in lines[-1]
     assert "does not hold" in lines[-1], "the model must not claim a waiting egg blocks the next"
 
 

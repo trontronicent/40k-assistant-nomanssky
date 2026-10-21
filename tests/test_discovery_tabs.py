@@ -191,7 +191,7 @@ def test_a_companion_shows_when_it_can_lay_again_and_admits_what_the_save_cannot
     roster = next(s for s in out if s.get("id") == "companions-roster")
     cow = dict(zip(roster["columns"], roster["rows"][0], strict=True))
     assert cow["Next egg"]["text"] == "in 18 h"
-    assert "28 days old" in cow["Next egg"]["hint"] and "does not hold the next one back" in cow["Next egg"]["hint"]
+    assert "24 h later" in cow["Next egg"]["hint"] and "does not hold the next one back" in cow["Next egg"]["hint"]
     assert "Feeling hungry" in cow["Next egg"]["hint"]
 
 

@@ -295,15 +295,19 @@ def test_an_egg_names_the_companion_it_came_from():
     assert pets.parent_of(pets.compact(raw_pet(LastEggTime=0)), [mother, other]) is None
 
 
-def test_a_companion_lays_its_first_egg_at_28_days_old():
-    """Measured: every pet under 28 days has LastEggTime == BirthTime, every older one that never laid is stamped
-    at exactly BirthTime + 28 d. Until then the game refuses with 'Too young to lay eggs', so the row must say
-    that rather than count a cooldown that cannot apply yet."""
+def test_the_saves_28_day_pattern_is_not_read_as_an_age_gate():
+    """13 pets carry LastEggTime == BirthTime + 28 d to the second, all of them over 28 days old, which reads like
+    a minimum age - but a 13.4-day-old pet produced an egg (given to another player), so it is not one. A pet that
+    never laid carries its birth time in the field and is ready 24 h after birth; nothing may say "too young"."""
     born = 1_792_561_292
-    young = pets.compact(raw_pet(BirthTime=born, LastEggTime=born))
-    assert pets.lay_at(young) == born + 28 * DAY
-    assert pets.lay_text(young, born + DAY) == "Too young (in 27 d)"
-    assert pets.lay_text(young, born + 28 * DAY) == "Ready"
+    fresh = pets.compact(raw_pet(BirthTime=born, LastEggTime=born))
+    assert pets.lay_at(fresh) == born + DAY
+    assert pets.lay_text(fresh, born + 3 * 3600) == "in 21 h"
+    assert pets.lay_text(fresh, born + DAY) == "Ready"
+    stamped = pets.compact(raw_pet(BirthTime=born, LastEggTime=born + 28 * DAY))
+    assert pets.lay_text(stamped, born + 29 * DAY) == "Ready"
+    early = pets.compact(raw_pet(BirthTime=born, LastEggTime=born + 13 * DAY))
+    assert pets.lay_text(early, born + 14 * DAY) == "Ready", "it laid at 13 days, so it is on the normal cooldown"
 
 
 def test_the_next_egg_can_be_induced_24_h_after_the_last_one():
@@ -326,7 +330,7 @@ def test_an_unhatched_egg_does_not_hold_back_the_next_one():
 
 
 def test_a_pet_without_the_saves_times_gets_no_egg_countdown():
-    """A record with no BirthTime or no LastEggTime cannot be dated, and an invented countdown would be worse
-    than none."""
-    assert pets.lay_at(pets.compact(raw_pet(BirthTime=0))) is None
+    """A record with no LastEggTime cannot be dated - an empty slot or a damaged entry - and an invented countdown
+    would be worse than none."""
+    assert pets.lay_at(pets.compact(raw_pet(LastEggTime=0))) is None
     assert pets.lay_text(pets.compact(raw_pet(LastEggTime=0)), NOW) == "–"

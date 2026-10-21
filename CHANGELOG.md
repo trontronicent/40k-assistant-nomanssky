@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.15.0-beta.15 (beta; needs app 3.20.0)
+
+- **No companion is called "too young" any more - the 28-day pattern in the save is not an age gate.** 13 pets
+  carry `LastEggTime` at exactly `BirthTime` + 28 days, to the second, and every one of them is older than 28
+  days while both pets younger than that carry their birth time instead - which read like "a companion lays its
+  first egg at 28 days old". It is not: the player's spider produced an egg at **13.4 days old** and gave it to
+  another player, which is also why its timestamp had no matching egg in the save. *Next egg* is therefore just
+  24 h after the last egg, and a companion that never laid counts that day from its birth. Three companions
+  that wrongly read *Too young* now show a real countdown.
+- **A timestamp with no matching egg is normal.** An egg given to another player leaves the save while the
+  parent's `LastEggTime` stays behind, so the plugin no longer treats that as a damaged record.
+
 ## 0.15.0-beta.14 (beta; needs app 3.20.0)
 
 - **The egg interval is 24 h, not fourteen days, and a waiting egg no longer hides the next one.** Both were
