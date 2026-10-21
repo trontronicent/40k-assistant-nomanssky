@@ -279,8 +279,20 @@ h3 {
 .stc-icon { width: 28px; height: 28px; object-fit: contain; vertical-align: middle; margin-right: 8px; flex-shrink: 0; }
 /* A portal address as the game's symbols: one 20 px picture per hex digit, in the page's own colour
    (the artwork strokes in currentColor), with the address itself still beside them. */
-.stc-glyphs { display: inline-flex; align-items: center; gap: 2px; vertical-align: middle; margin-right: 8px; }
-.stc-glyph { width: 20px; height: 20px; flex-shrink: 0; }
+/* One auto column per glyph, each at most 20px but free to shrink, so an address always sits on ONE line
+   and never runs past its box. Fixed 20px images needed 262px and overflowed a narrow row card. Mirrors
+   PluginView's glyphRow in the app. */
+.stc-glyphs {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 20px);
+  align-items: center;
+  gap: 2px;
+  vertical-align: middle;
+  margin-right: 8px;
+  max-width: 262px;
+}
+.stc-glyph { width: 100%; height: auto; aspect-ratio: 1 / 1; min-width: 0; }
 
 /* A column header is a sort button, in the head's own lettering. */
 .stc-sort {
@@ -377,7 +389,9 @@ tr[data-selected] td { background: rgba(var(--gold-rgb), 0.08); box-shadow: inse
 }
 .stc-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  /* 340px, not 260: a card's value column must hold a twelve-glyph portal address, and fewer
+     cards per row is what the player asked for. Mirrors CARD_MIN_PX in the app. */
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
   align-items: start;
   gap: 6px;
   max-height: min(72vh, 760px);
