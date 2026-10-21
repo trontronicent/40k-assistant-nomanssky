@@ -1692,6 +1692,12 @@
       "the_weights_are_probably_measurable": "Batch 3's chosen-input readings gave C 19%, B 33%, A 37%, S 11% (n=27). If that is the roll table's weighting, it is estimable directly from chosen-input oracle batches without touching the binary - 9 labels per game load. This is a NEW and cheap route, and it also predicts the rarity of a wild S pet, which is the thing the player actually wants to know.",
       "where_the_table_lives": "NMS.exe, compiled in. Every shipped archive was checked: all ~95 NMSARC paks had their manifests read (audio.pak excepted, being 5.5 GB of audio) and not one contains a core-stat or stat-class data file. The only pet-battler data files in the whole game are UI textures and metadata/simulation/gametables/petbattler/petbattlermovestable.mbin plus petbattlermovesetstable.mbin, i.e. moves, not stats. gccreatureglobals.mbin holds pet climate, temperament and diet strings but no battler stats.",
       "next": "Two routes, and the first needs no reverse engineering at all. (5) Measure the roll table: run chosen-input oracle batches purely to estimate the C/B/A/S weights, which answers the practical question directly. (4b) Static analysis of NMS.exe for the compiled-in default of CoreStatClassRollTable - now a well-posed search for a small float table referenced near the pet battler globals, rather than a hunt for an unknown function."
+    },
+    "ROUTE2_WEIGHTED_NEGATIVE_2026_10_21": {
+      "verdict": "No standard seeded-RNG construction reproduces the tiers, even with the weighted table the original route 2 lacked. The game's construction is outside this family.",
+      "what_was_searched": "368,640 constructions: 10 combiners (s^g, s+g, s-g, g-s, fmix(s)^g, fmix(g)^s, s^rot32(g), s*odd(g), s, g) x 6 single-state RNGs (splitmix64, xorshift64*, xorshift64, 64-bit LCG, MWC with a=0xFFFFDA61 - a constant recalled from NMS reverse-engineering write-ups, unverified - and fmix counter mode), plus xorshift128+ and xoroshiro128+ seeded directly with (s,g) and (g,s); x 8 ways to turn a draw into a tier (hi32/lo32/top53 floats against 3:3:3:1 and 4:4:4:1, mod 10, mod 13) x skipping 0-4 earlier draws x 6 draw-to-stat assignments x 24 tier orders.",
+      "the_result": "Best 77/186 symbols (41.4%). The identical search on shuffled labels scored 74-79 over 12 runs, so the real best sits mid-null: no signal at all. A correct construction scores 186/186.",
+      "what_it_leaves": "The derivation of PetBattlerSeed from the pair, the RNG, or both are proprietary or involve extra inputs (a salt, a hashed string, a per-archetype constant). Guessing further families has poor odds; the binary is the only efficient route left."
     }
   },
   "creature_seed_search": {
@@ -2035,5 +2041,12 @@
       "uniform": "chi2 = 19.70 on 3 df - rejected decisively"
     },
     "practical_answer": "P(a given stat is A or better) is about 38%. P(all three S) is about 1 in 1,700 at S=8.3%, with the CI spanning roughly 1 in 350 to 1 in 9,600. A triple-S wild creature is a genuinely rare find, which is why the player's hunting showed up so clearly as a 4x over-representation of S among his tamed pets."
+  },
+  "patterns_2026_10_21": {
+    "dataset": "65 pets with known seeds and tiers: 21 natural, 8 batch-3 flips, 36 random-pair oracle pets (batches 4-7, incl. 2 noise). 62 distinct seed pairs. Distribution checks use only the 44 chosen-input pets; mapping checks may use all.",
+    "shared_pairs_agree": "All three groups of natural pets sharing a (SpeciesSeed, GenusSeed) pair have identical tiers: Tippo/Unzy Bunzy Bowa BBC, Little Cute Monster/Plati AAS, Mantissa/Zushetto BAA. Under the measured weights two random pets match with probability ~2.4%, so 3 of 3 is roughly a 1-in-75,000 coincidence. Independent confirmation, from natural pets, that the pair is the whole input. (These are the same pairs that once confounded CreatureSeed - they share every seed - so this confirms determinism, not which field.)",
+    "stats_are_independent_draws": "Triple shapes match independent draws from the weights: all-same 3 (exp 3.8), a pair 26 (exp 26.5), all-different 15 (exp 13.7). Pairwise rank correlations combat-agility -0.17, combat-health +0.02, agility-health -0.03; with n=44 the SE is ~0.15, so none is distinguishable from zero. Overall's distribution also matches independent rolling.",
+    "no_simple_arithmetic": "39 feature/stat tests (seed mod 10/13, top/low nibbles, xor/sum combos, popcount) against a shuffled-label null: best p = 0.20, fewer hits than the ~2 expected by chance. No simple arithmetic of the seeds tracks any stat.",
+    "model_this_implies": "A deterministic function of the pair seeds an RNG that draws three independent rolls against one weighted table. That is exactly what route2w tested."
   }
 }

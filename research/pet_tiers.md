@@ -75,6 +75,19 @@ The low-S candidates are falling away and a no-S table is excluded outright (S h
 times). **Separating 3:3:3:1 from 4:4:4:1 would need several hundred more symbols** — far beyond what
 the oracle supplies at 9 pets per load. Treat S as ~8% and stop measuring.
 
+**Patterns in the data (2026-10-21).** Three groups of natural pets share a seed pair, and all three
+have identical tiers — about a 1-in-75,000 coincidence otherwise, so the pair is the whole input. A
+pet's three stats behave as independent draws (triple shapes and Overall match independent rolling;
+no pairwise correlation beyond noise). No simple arithmetic of the seeds (mod 10/13, nibbles, xor/sum,
+popcount) tracks any stat. Together: a function of the pair seeds an RNG that draws three times
+against one weighted table.
+
+**That model was then searched directly and failed.** 368,640 seeded-RNG constructions — ten
+combiners, eight RNGs including xorshift128+/xoroshiro128+ seeded with the pair, weighted 3:3:3:1 and
+4:4:4:1 tables, skipped draws, every stat and tier order — scored at best 77 of 186 symbols, squarely
+inside the 74-79 that the same search finds on shuffled labels. The game's construction is outside
+every standard family.
+
 **The function itself.** Predicting a *specific* creature's tiers from its scanned seeds remains
 impossible. Probing is closed, and the roll table is compiled into `NMS.exe` — every shipped archive
 was checked (all ~95 NMSARC paks' manifests read, `audio.pak` excepted) and none contains a
