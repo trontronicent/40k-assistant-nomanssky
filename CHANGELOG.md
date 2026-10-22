@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.15.0-beta.16 (beta; needs app 3.20.0)
+
+- **Copy data now works on every inventory and every loadout, not only on ships and storage containers.**
+  Right-click any row of the exosuit, starship or freighter inventory, of the exosuit, multi-tool, exocraft
+  or freighter technology tables, or of a ship's technology table under *Ships & bases*, to copy **this
+  table** - or **every inventory and loadout** at once - as TOON or JSON, the formats the ship and container
+  exports already wrote. An inventory writes the same item keys as a container (name, id, amount, stack
+  limit, unit and stack value, with the total), a loadout writes its technology with category and charge
+  (a part that needs no charge writes null, not the save's -1), and procedural upgrades keep their table id
+  without the seed, as the ship export writes them. "Every inventory and loadout" leaves out what holds
+  nothing and names those places instead. A left click copies nothing on these tables - their rows are
+  items, not places - and the copied text is shown on the page as well, for a browser that refuses the
+  clipboard on a plain LAN address.
+
 ## 0.15.0-beta.15 (beta; needs app 3.20.0)
 
 - **No companion is called "too young" any more - the 28-day pattern in the save is not an age gate.** 13 pets

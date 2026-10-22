@@ -48,10 +48,11 @@ def charge_text(tech: dict) -> str | None:
 
 
 def technology_table(technology: list[dict], texts, title: str, table_id: str | None = None,
-                     extra=None) -> dict:
+                     extra=None, menu: dict | None = None) -> dict:
     """One table of installed technology: name (icon, tooltip with the game's description), category, charge and
     what it does. ``extra(tech id) -> str | None`` adds a note to the last column (ships: star colours a drive
-    opens). Damaged ship slots are left out."""
+    opens). Damaged ship slots are left out. ``menu`` is the copy menu of the loadout this table shows
+    (`place_export.menu_keys`), so a right-click copies it as TOON or JSON."""
     rows = []
     for tech in technology:
         if tech["id"].startswith(DAMAGED_PREFIX):
@@ -63,6 +64,8 @@ def technology_table(technology: list[dict], texts, title: str, table_id: str | 
     table = {"type": "table", "title": title, "columns": COLUMNS, "rows": rows, "empty": "No technology installed."}
     if table_id:
         table["id"] = table_id
+    if menu:
+        table.update(menu)
     return table
 
 
@@ -81,6 +84,7 @@ class Loadout:
     active: bool = False              # the multi-tool in your hand / the exocraft you summon
     name_key: str | None = None       # the game's localisation key of the name (exocraft)
     note: str = ""                    # appended to the name (" (summoned first)")
+    key: str = ""                     # its place key for the copy menu (`place_export.places`)
 
     @property
     def ids(self) -> list[str]:
@@ -95,10 +99,12 @@ class Loadout:
 @dataclass
 class Equipment:
     """Your equipment read from one save (``from_save``), shown as the Inventory -> Equipment tab (``sections``)."""
-    exosuit: Loadout = field(default_factory=lambda: Loadout("Exosuit technology", [], "exosuit-tech"))
+    exosuit: Loadout = field(default_factory=lambda: Loadout("Exosuit technology", [], "exosuit-tech",
+                                                             key="exosuit-tech"))
     multitools: list[Loadout] = field(default_factory=list)
     exocraft: list[Loadout] = field(default_factory=list)
-    freighter: Loadout = field(default_factory=lambda: Loadout("Freighter technology", [], "freighter-tech"))
+    freighter: Loadout = field(default_factory=lambda: Loadout("Freighter technology", [], "freighter-tech",
+                                                               key="freighter-tech"))
 
     @classmethod
     def from_save(cls, readable: dict) -> Equipment:
@@ -113,7 +119,7 @@ class Equipment:
             name = tool.get("Name") or "(unnamed multi-tool)"
             klass = ((store.get("Class") or {}).get("InventoryClass")) or "?"
             tools.append(Loadout(f"{name} (class {klass}{', in your hand' if i == active else ''})",
-                                 technology_in(store), active=i == active))
+                                 technology_in(store), active=i == active, key=f"multitool-{i}-tech"))
         tools.sort(key=lambda t: not t.active)
         craft = []
         primary = ps.get("PrimaryVehicle")
@@ -123,12 +129,14 @@ class Equipment:
             tech = technology_in(vehicle.get("Inventory_TechOnly"), vehicle.get("Inventory"))
             if tech:
                 craft.append(Loadout(VEHICLE_FALLBACK[i], tech, active=i == primary, name_key=VEHICLE_KEYS[i],
-                                     note=" (summoned first)" if i == primary else ""))
+                                     note=" (summoned first)" if i == primary else "",
+                                     key=f"exocraft-{i}-tech"))
         return cls(exosuit=Loadout("Exosuit technology", technology_in(ps.get("Inventory_TechOnly"), ps.get("Inventory")),
-                                   "exosuit-tech"),
+                                   "exosuit-tech", key="exosuit-tech"),
                    multitools=tools, exocraft=craft,
                    freighter=Loadout("Freighter technology", technology_in(ps.get("FreighterInventory_TechOnly"),
-                                                                           ps.get("FreighterInventory")), "freighter-tech"))
+                                                                           ps.get("FreighterInventory")),
+                                     "freighter-tech", key="freighter-tech"))
 
     def loadouts(self) -> list[Loadout]:
         return [self.exosuit, *self.multitools, *self.exocraft, self.freighter]
@@ -137,17 +145,25 @@ class Equipment:
         """Every technology id shown (to convert their icons)."""
         return list(dict.fromkeys(i for loadout in self.loadouts() for i in loadout.ids))
 
-    def sections(self, texts) -> list[dict]:
-        """The Equipment tab: sub-tabs Exosuit / Multi-tools (the one in your hand first) / Exocraft / Freighter."""
+    def sections(self, texts, menu=None) -> list[dict]:
+        """The Equipment tab: sub-tabs Exosuit / Multi-tools (the one in your hand first) / Exocraft / Freighter.
+
+        ``menu(loadout) -> dict`` adds the copy menu to each technology table (`place_export.menu_keys`)."""
         def tab(tab_id, label, sections, count=None):
             return {"id": tab_id, "label": label, "badge": count or None, "sections": sections}
 
         def own(loadout):
             return technology_table(loadout.technology, texts, f"{loadout.name(texts)} ({len(loadout.technology)})",
-                                    loadout.table_id)
+                                    loadout.table_id, menu=_menu(loadout))
 
-        tools = [technology_table(t.technology, texts, f"Multi-tool: {t.name(texts)}") for t in self.multitools]
-        craft = [technology_table(c.technology, texts, f"Exocraft: {c.name(texts)}") for c in self.exocraft]
+        def _menu(loadout):
+            """The copy menu of this loadout's table (None when the caller wants no copying)."""
+            return menu(loadout) if menu else None
+
+        tools = [technology_table(t.technology, texts, f"Multi-tool: {t.name(texts)}", menu=_menu(t))
+                 for t in self.multitools]
+        craft = [technology_table(c.technology, texts, f"Exocraft: {c.name(texts)}", menu=_menu(c))
+                 for c in self.exocraft]
         return [{"type": "tabs", "id": "equipment-tabs", "tabs": [
             tab("exosuit", "Exosuit", [own(self.exosuit)], len(self.exosuit.technology)),
             tab("multitools", "Multi-tools", tools or [{"type": "text", "text": "No multi-tool in this save."}],
@@ -158,8 +174,8 @@ class Equipment:
         ]}, {"type": "text", "text": RANGE_NOTE}]
 
 
-def equipment_sections(equipment: Equipment | None, texts) -> list[dict]:
+def equipment_sections(equipment: Equipment | None, texts, menu=None) -> list[dict]:
     """The Equipment tab, or a note until a save has been read."""
     if equipment is None:
         return [{"type": "text", "text": "Equipment appears once a save has been read."}]
-    return equipment.sections(texts)
+    return equipment.sections(texts, menu)

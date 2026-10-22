@@ -14,7 +14,7 @@ from __future__ import annotations
 import time
 
 from . import (companions_view, container_export, credits, discoveries_view, equipment, frigates, inventory_search,
-               planets_view, recipe_view, save_search, settlements, ships, timers, transfer)
+               place_export, planets_view, recipe_view, save_search, settlements, ships, timers, transfer)
 
 EXPORT_DATA = "export_data"              # action: write the plugin's data as one zip
 IMPORT_DATA = "import_data"              # action: look into a zip, or merge/replace from it
@@ -281,23 +281,28 @@ class ConnectorPage:
             return [{"type": "text", "text": "Inventories appear once a save has been read."}]
         columns = self.item_columns()
         hint = {"type": "text", "text": "Hover an item's name for its description; trade goods also tell where they "
-                                        "sell and whether you know such a system."}
-        tabs = [{"id": "exosuit", "label": "Exosuit", "sections": [hint,
-            {"type": "table", "title": "Exosuit inventory", "columns": columns,
-             "rows": self.item_rows(snap["exosuit"] + snap["exosuit_cargo"], ctx), "empty": "Empty"}]}]
+                                        "sell and whether you know such a system. " + place_export.ROW_HINT}
+        exported = place_export.export_section(self.connector.place_export)
+        tabs = [{"id": "exosuit", "label": "Exosuit", "sections": [hint, *exported,
+            self.place_table("Exosuit inventory", "exosuit", snap["exosuit"] + snap["exosuit_cargo"], ctx, columns)]}]
         primary = next((s for s in snap["ships"] if s["primary"]), None)
         if primary:
-            tabs.append({"id": "starship", "label": f"Starship: {primary['name']}", "sections": [
-                {"type": "table", "title": f"Starship inventory: {primary['name']}", "columns": columns,
-                 "rows": self.item_rows(primary["inventory"], ctx), "empty": "Empty"}]})
-        tabs.append({"id": "freighter", "label": "Freighter", "sections": [
-            {"type": "table", "title": "Freighter inventory", "columns": columns,
-             "rows": self.item_rows(snap["freighter"]["inventory"], ctx), "empty": "Empty"}]})
+            tabs.append({"id": "starship", "label": f"Starship: {primary['name']}", "sections": [*exported,
+                self.place_table(f"Starship inventory: {primary['name']}", place_export.ship_key(primary),
+                                 primary["inventory"], ctx, columns)]})
+        tabs.append({"id": "freighter", "label": "Freighter", "sections": [*exported,
+            self.place_table("Freighter inventory", "freighter", snap["freighter"]["inventory"], ctx, columns)]})
         tabs.append(self.storage_tab(snap, ctx, columns))
-        tabs.append({"id": "equipment", "label": "Equipment",
-                     "sections": equipment.equipment_sections(self.connector.equipment, ctx.texts)})
+        tabs.append({"id": "equipment", "label": "Equipment", "sections": [
+            *exported, *equipment.equipment_sections(self.connector.equipment, ctx.texts, place_export.loadout_menu)]})
         return self.inventory_search_sections(snap, ctx, columns) + [
             {"type": "tabs", "id": "inventory-tabs", "tabs": tabs}]
+
+    def place_table(self, title: str, key: str, rows: list[list], ctx, columns: list[str]) -> dict:
+        """One inventory as a table whose every row carries that inventory's copy menu, so a right-click
+        anywhere in it copies the whole inventory (or every inventory and loadout) as TOON or JSON."""
+        return {"type": "table", "title": title, "columns": columns, "rows": self.item_rows(rows, ctx),
+                "empty": "Empty", **place_export.menu_keys(key, len(rows))}
 
     def fleet(self, snap: dict | None, ctx) -> list[dict]:
         """The Ships & bases tab: ships with their technology, frigates and bases."""
@@ -306,8 +311,9 @@ class ConnectorPage:
             return [{"type": "text", "text": "Ships and bases appear once a save has been read."}]
 
         return [
-            *ships.ship_sections(c.ships, c.tables.ship_ranges, ctx.texts),
+            *ships.ship_sections(c.ships, c.tables.ship_ranges, ctx.texts, place_export.ship_tech_menu),
             *ships.export_section(c.ship_export),
+            *place_export.export_section(c.place_export),
             *frigates.frigate_sections(c.frigates, c.tables.trait_names, ctx.texts,
                                        lambda key: system_label(key, ctx)),
             self.bases_table(snap, ctx),

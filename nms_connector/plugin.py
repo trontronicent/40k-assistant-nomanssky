@@ -27,8 +27,8 @@ from functools import cached_property
 from pathlib import Path
 
 from . import (codex_sync, container_export, discoveries, equipment, frigates, galaxy, guilds, hgpak, inventory_search, logs, memory,
-               planet_search, planets_view, positions, recipe_view, route, save_search, saves, settlements, ships, starmap,
-               timers, toon, trade, transfer)
+               place_export, planet_search, planets_view, positions, recipe_view, route, save_search, saves, settlements,
+               ships, starmap, timers, toon, trade, transfer)
 from .companion import PluginCompanion
 from .describe import StateText
 from .game_install import GameInstall, find_game
@@ -158,6 +158,7 @@ class NmsConnector:
         self.recipe_query = ""                    # Recipes tab + overlay -> the recipe viewer (recipe_view)
         self.ship_export: dict | None = None      # the last ship export (ships.export_section; also copied)
         self.container_export: dict | None = None   # the last container export (container_export.export_section)
+        self.place_export: dict | None = None     # the last inventory/loadout export (place_export.export_section)
         self.transfer_state: dict | None = None   # what the last export/look/import did (page: transfer_sections)
         self.selected_system: int | None = None   # clicked in the visited-systems table
 
@@ -450,6 +451,38 @@ class NmsConnector:
         self.container_export = {"what": what, "format": fmt, "text": text, "chars": len(text)}
         return {"ok": True, "copy": text, "focus": container_export.EXPORT_ID,
                 "message": f"{what} as {fmt}: {len(text):,} characters copied ({stacks} stacks)."}
+
+    def places(self) -> list:
+        """Every inventory and loadout that can be copied (`place_export.places`): exosuit, each starship, the
+        freighter, each multi-tool and exocraft - inventories and installed technology."""
+        return place_export.places(self.snapshot, self.ships, self.equipment, planets_view.Texts(self.gamedata))
+
+    def _export_place(self, action_id: str, params: dict) -> dict:
+        """Copy one inventory or loadout, or every one of them, as TOON or JSON. Params are untrusted: `key` is
+        the place's key, as the tables' row menus hand it back (not needed for "all").
+
+        Like the ship and container exports, the text goes into the action's `copy` and into the page."""
+        texts, lookup = planets_view.Texts(self.gamedata), self.gamedata.lookup
+        all_places = self.places()
+        if action_id in place_export.ALL_ACTIONS:
+            data = place_export.all_data(all_places, texts, lookup)
+            if not data["places"]:
+                return {"ok": False, "message": "No inventory or loadout in the newest save holds anything."}
+            what = f"All inventories and loadouts ({len(data['places'])})"
+        else:
+            place = place_export.find(all_places, params.get("key"))
+            if place is None:
+                return {"ok": False, "message": "That inventory is not in the newest save (any more)."}
+            data = place_export.place_data(place, texts, lookup)
+            what = place.label
+        if action_id in place_export.JSON_ACTIONS:
+            text, fmt = json.dumps(data, ensure_ascii=False, indent=2), "JSON"
+        else:
+            text, fmt = toon.encode(data), "TOON"
+        self.place_export = {"what": what, "format": fmt, "text": text, "chars": len(text)}
+        return {"ok": True, "copy": text, "focus": place_export.EXPORT_ID,
+                "message": f"{what} as {fmt}: {len(text):,} characters copied"
+                           f" ({place_export.entries(data)} entries)."}
 
     def _set_guild(self, params: dict) -> dict:
         """Record which guild's envoy a station holds, for the whole voxel region of that system.
@@ -864,6 +897,7 @@ class NmsConnector:
             page.EXPORT_DATA: self._act_export_data,
             **{action: self._ship_export_handler(action) for action in ships.EXPORT_ACTIONS},
             **{action: self._container_export_handler(action) for action in container_export.EXPORT_ACTIONS},
+            **{action: self._place_export_handler(action) for action in place_export.EXPORT_ACTIONS},
             page.IMPORT_DATA: self._act_import_data,
             inventory_search.SEARCH_INVENTORY: self._act_search_inventory,
             save_search.SEARCH_SAVE: self._act_search_save,
@@ -907,6 +941,12 @@ class NmsConnector:
         """The handler of one container-export action (one container or all, TOON or JSON)."""
         async def run(params: dict) -> dict:
             return await self.ctx.run_blocking(self._export_container, action_id, params)
+        return run
+
+    def _place_export_handler(self, action_id: str):
+        """The handler of one inventory/loadout export action (one place or all, TOON or JSON)."""
+        async def run(params: dict) -> dict:
+            return await self.ctx.run_blocking(self._export_place, action_id, params)
         return run
 
     async def _act_import_data(self, params: dict) -> dict:

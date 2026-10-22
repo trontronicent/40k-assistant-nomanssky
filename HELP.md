@@ -511,6 +511,32 @@ for a menu:
 A left click on a row of the overview copies that container as TOON. As with ships, the text goes on
 your clipboard and is also shown on the page (under the overview) with its own **Copy** button.
 
+### Copying any other inventory or loadout
+
+The same copy works on **every** inventory and every loadout, not only on ships and containers.
+**Right-click any row** of
+
+- *Inventory → Exosuit* (the suit and its cargo in one table),
+- *Inventory → Starship* (what your primary ship carries),
+- *Inventory → Freighter*,
+- *Inventory → Equipment* - the technology of your **exosuit**, of each **multi-tool**, of each
+  **exocraft** and of the **freighter**,
+- and each ship's technology table in *Ships & bases*,
+
+for a menu:
+
+- **Copy this table (TOON)** - that inventory's stacks (name, id, amount, stack limit, unit value and
+  stack value, with the total) or that loadout's installed technology (name, category and charge), as TOON.
+- **Copy this table (JSON)** - the same data as JSON, for a script rather than a prompt.
+- **Copy every inventory and loadout (TOON)** / **(JSON)** - the exosuit, every starship, the freighter,
+  every multi-tool and exocraft, inventories *and* technology, one after another; the places that hold
+  nothing are named instead of being written out.
+
+A left click does **not** copy here (the rows are items, not places), so nothing is copied by accident
+while you read a table. As everywhere, the text is put on your clipboard and also shown on the page
+with its own **Copy** button, so it is reachable on a plain LAN address too. Storage containers keep
+their own menu (above), since they can be copied one or all at a time.
+
 ## The galaxy map
 
 *Systems → Galaxy* shows every system you know in the galaxy you are in -

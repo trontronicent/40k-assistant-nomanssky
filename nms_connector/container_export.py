@@ -50,15 +50,22 @@ def find(storage: list[dict], key) -> dict | None:
     return next((c for c in storage if c["key"] == str(key or "").strip()), None)
 
 
-def container_data(chest: dict, texts, lookup) -> dict:
-    """One container as plain data: its name, number and every stack with its base value (None where the game
-    gives the item none, never a wrong 0)."""
+def item_rows(rows, texts, lookup) -> list[dict]:
+    """[(item id, amount, max)] as plain data: name, amount, stack limit and base value (None where the game
+    gives the item none, never a wrong 0). Shared with `place_export`, so every copied inventory - a container,
+    the exosuit, a ship or the freighter - writes the same keys."""
     items = []
-    for item_id, amount, maximum in chest["rows"]:
+    for item_id, amount, maximum in rows:
         unit = (lookup(item_id) or {}).get("value")
         items.append({"id": str(item_id), "name": texts.name(item_id) or str(item_id), "amount": int(amount or 0),
                       "max": maximum or None, "value_each": unit or None,
                       "value_stack": unit * amount if unit and isinstance(amount, int) else None})
+    return items
+
+
+def container_data(chest: dict, texts, lookup) -> dict:
+    """One container as plain data: its name, number and every stack with its base value."""
+    items = item_rows(chest["rows"], texts, lookup)
     worth = [i["value_stack"] for i in items if i["value_stack"]]
     return {"container": label(chest), "number": chest["number"], "key": chest["key"], "stacks": len(items),
             "value_total": sum(worth) if worth else None, "items": items}

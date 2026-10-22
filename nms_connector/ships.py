@@ -271,9 +271,12 @@ def _drive_adds(raw_id: str, tables: dict, texts) -> str | None:
     return None
 
 
-def ship_sections(items: list[dict], tables: dict, texts) -> list[dict]:
+def ship_sections(items: list[dict], tables: dict, texts, menu=None) -> list[dict]:
     """The ships table (type, class, warp range, star colours, base stats, slots) and every ship's technology
-    with what it does (one sub-tab per ship, the primary one first)."""
+    with what it does (one sub-tab per ship, the primary one first).
+
+    ``menu(ship) -> dict`` adds the copy menu to each ship's technology table (`place_export.menu_keys`); the
+    ships table itself keeps its own menu, which copies the whole ship."""
     if not items:
         return [{"type": "text", "text": "No ships in this save."}]
     rows = [_ship_row(s, tables, texts) for s in items]
@@ -300,7 +303,8 @@ def ship_sections(items: list[dict], tables: dict, texts) -> list[dict]:
     out.append({"type": "tabs", "id": "ship-tech", "tabs": [
         {"id": f"ship-{s['index']}", "label": ship_label(s) + (" (primary)" if s["primary"] else ""),
          "sections": [equipment.technology_table(s["technology"], texts, f"Technology of {ship_label(s)}",
-                                                 "primary-ship-tech" if s["primary"] else None, adds)]}
+                                                 "primary-ship-tech" if s["primary"] else None, adds,
+                                                 menu(s) if menu else None)]}
         for s in items]})
     note = ("Warp range is an estimate from the installed hyperdrive technology (values from the game's "
             "technology tables): the game draws each procedural upgrade's exact value from its seed, and adjacent "
