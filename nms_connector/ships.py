@@ -306,7 +306,8 @@ def ship_sections(items: list[dict], tables: dict, texts, menu=None) -> list[dic
                                                  "primary-ship-tech" if s["primary"] else None, adds,
                                                  menu(s) if menu else None)]}
         for s in items]})
-    note = ("Warp range is an estimate from the installed hyperdrive technology (values from the game's "
+    note = ("Right-click a row of a ship's technology to copy that loadout as TOON or JSON. "
+            "Warp range is an estimate from the installed hyperdrive technology (values from the game's "
             "technology tables): the game draws each procedural upgrade's exact value from its seed, and adjacent "
             "or supercharged slots add more. The route planner starts with the lower value.")
     if tables.get("error"):

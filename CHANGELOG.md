@@ -12,7 +12,11 @@
   without the seed, as the ship export writes them. "Every inventory and loadout" leaves out what holds
   nothing and names those places instead. A left click copies nothing on these tables - their rows are
   items, not places - and the copied text is shown on the page as well, for a browser that refuses the
-  clipboard on a plain LAN address.
+  clipboard on a plain LAN address. Found in a headless browser run: the copied text sits **above** the
+  inventory tabs rather than inside each of them (the app opens the tabs holding the section it focuses, so a
+  copy made under *Equipment* used to jump to *Exosuit*), and the *Equipment* and *Ships & bases* notes say
+  that a right-click copies - the app draws a table's own hint only where its rows are clickable, and a
+  technology row is not.
 
 ## 0.15.0-beta.15 (beta; needs app 3.20.0)
 

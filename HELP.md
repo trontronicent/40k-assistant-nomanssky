@@ -533,7 +533,8 @@ for a menu:
   nothing are named instead of being written out.
 
 A left click does **not** copy here (the rows are items, not places), so nothing is copied by accident
-while you read a table. As everywhere, the text is put on your clipboard and also shown on the page
+while you read a table. An **empty** table has no rows and therefore no menu - copy another one and pick
+*every inventory and loadout*, which includes the empty places by name. As everywhere, the text is put on your clipboard and also shown on the page
 with its own **Copy** button, so it is reachable on a plain LAN address too. Storage containers keep
 their own menu (above), since they can be copied one or all at a time.
 

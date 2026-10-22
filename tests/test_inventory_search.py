@@ -82,7 +82,8 @@ def test_the_inventory_tab_has_the_search_form_and_results_with_their_inventory(
     (a phone titles each card by it), then an Inventory column, then the usual item columns."""
     plugin = page_plugin(tmp_path, monkeypatch, "Kupfer Frachter")
     ctx = SimpleNamespace(texts=planets_view.Texts(plugin.gamedata))
-    form, totals, table, tabs = plugin.page.inventories(plugin.snapshot, ctx)
+    form, totals, table, hint, tabs = plugin.page.inventories(plugin.snapshot, ctx)
+    assert "right-click" in hint["text"].lower()        # the copy hint, read in every sub-tab
     assert form["action"] == inventory_search.SEARCH_INVENTORY and form["fields"][0]["value"] == "Kupfer Frachter"
     assert totals["text"].startswith("1 stack(s) of 1 item(s)") and tabs["id"] == "inventory-tabs"
     assert table["id"] == inventory_search.RESULTS_ID and table["title"] == "Items matching \"Kupfer Frachter\" (1)"
@@ -93,10 +94,10 @@ def test_the_inventory_tab_has_the_search_form_and_results_with_their_inventory(
 
 
 def test_without_a_query_only_the_form_is_shown(tmp_path, monkeypatch):
-    """No query: just the form above the inventory tabs (no empty results table)."""
+    """No query: just the form and the item/copy hint above the inventory tabs (no empty results table)."""
     plugin = page_plugin(tmp_path, monkeypatch, "")
     sections = plugin.page.inventories(plugin.snapshot, SimpleNamespace(texts=planets_view.Texts(plugin.gamedata)))
-    assert [s["type"] for s in sections] == ["form", "tabs"]
+    assert [s["type"] for s in sections] == ["form", "text", "tabs"]
 
 
 def test_the_search_action_takes_untrusted_text_and_clears_with_an_empty_one(tmp_path, monkeypatch):

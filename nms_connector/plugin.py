@@ -480,7 +480,7 @@ class NmsConnector:
         else:
             text, fmt = toon.encode(data), "TOON"
         self.place_export = {"what": what, "format": fmt, "text": text, "chars": len(text)}
-        return {"ok": True, "copy": text, "focus": place_export.EXPORT_ID,
+        return {"ok": True, "copy": text, "focus": place_export.section_id(str(params.get("key") or "")),
                 "message": f"{what} as {fmt}: {len(text):,} characters copied"
                            f" ({place_export.entries(data)} entries)."}
 

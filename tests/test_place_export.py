@@ -119,12 +119,14 @@ def test_the_menu_sits_on_every_row_of_a_place_but_not_on_a_left_click():
 
 def test_the_technology_tables_of_the_equipment_tab_carry_the_menu():
     """Exosuit, multi-tool, exocraft and freighter technology are copyable from their own tables - without
-    the menu the user would have to read the technology off the page."""
+    the menu the user would have to read the technology off the page. The tab's note says so, because the app
+    draws a table's own `row_hint` only where its rows are clickable, and a technology row is not."""
     sections = equipment.equipment_sections(_equipment(), FakeTexts(), place_export.loadout_menu)
     tabs = {t["id"]: t for t in sections[0]["tabs"]}
     assert tabs["exosuit"]["sections"][0]["row_keys"] == ["exosuit-tech"]
     assert tabs["multitools"]["sections"][0]["row_keys"] == ["multitool-0-tech"]
     assert [i["id"] for i in tabs["freighter"]["sections"][0]["row_menu"]] == list(place_export.EXPORT_ACTIONS)
+    assert "right-click" in sections[-1]["text"].lower()
     # Without a menu callable (an older caller) the tables stay exactly as they were.
     assert "row_menu" not in equipment.equipment_sections(_equipment(), FakeTexts())[0]["tabs"][0]["sections"][0]
 
@@ -133,6 +135,17 @@ def test_a_ships_technology_table_carries_the_menu():
     """The Ships & bases tab copies a ship's *technology* table too, not only the whole ship from the Ships
     table - the user asked for the inventory and the technology of each ship."""
     assert place_export.ship_tech_menu(SHIPS[0])["row_keys"] == ["ship-0-tech"] * 2
+
+
+def test_a_copy_focuses_the_export_section_of_the_tab_it_was_made_in():
+    """A ship's technology is copied under *Ships & bases* and every other place under *Inventory*, so each
+    names its own export section: the app opens the tabs holding the section it focuses, and one shared id
+    would drag the user out of the tab they were working in (seen in a headless run)."""
+    assert place_export.section_id("ship-0-tech") == place_export.FLEET_EXPORT_ID
+    for key in ("ship-0", "exosuit", "exosuit-tech", "multitool-0-tech", "freighter", ""):
+        assert place_export.section_id(key) == place_export.EXPORT_ID
+    assert place_export.export_section({"what": "x", "format": "TOON", "text": "t", "chars": 1},
+                                       place_export.FLEET_EXPORT_ID)[0]["id"] == place_export.FLEET_EXPORT_ID
 
 
 def _plugin(tmp_path, monkeypatch):
@@ -160,6 +173,9 @@ def test_the_action_checks_its_key_and_answers_with_the_text(tmp_path, monkeypat
     assert plugin.place_export["format"] == "JSON" and plugin.place_export["text"] == answer["copy"]
     section = place_export.export_section(plugin.place_export)[0]
     assert section["id"] == place_export.EXPORT_ID and section["text"] == answer["copy"]
+    # A ship's technology is shown under *Ships & bases*, so that copy focuses the fleet's own section - and a
+    # padded key (the row menu hands back untrusted text) must still resolve to it.
+    assert plugin._export_place(place_export.EXPORT_TOON, {"key": " ship-0-tech "})["focus"] == place_export.FLEET_EXPORT_ID
 
 
 def test_copy_all_needs_no_key_and_refuses_an_empty_save(tmp_path, monkeypatch):
@@ -181,15 +197,19 @@ def test_every_place_export_action_is_registered(action, tmp_path, monkeypatch):
 
 
 def test_the_inventory_tab_offers_the_menu_on_each_inventory_table(tmp_path, monkeypatch):
-    """Exosuit, primary starship and freighter tables all carry their place's copy menu, and the copied text
-    is shown on the page in every sub-tab - a browser outside a secure context cannot use the clipboard."""
+    """Exosuit, primary starship and freighter tables all carry their place's copy menu, and the copied text is
+    shown once *above* the tabs - a browser outside a secure context cannot use the clipboard, and a copy made
+    in one sub-tab must not drag the user into another (the app opens the tabs holding the focused section)."""
     plugin = _plugin(tmp_path, monkeypatch)
     plugin.place_export = {"what": "Exosuit inventory", "format": "TOON", "text": "x", "chars": 1}
     from test_connector import FakeCtx
     ctx = FakeCtx(tmp_path / "data")
     ctx.texts = FakeTexts()
-    tabs = {t["id"]: t for t in page.ConnectorPage(plugin).inventories(plugin.snapshot, ctx)[-1]["tabs"]}
+    sections = page.ConnectorPage(plugin).inventories(plugin.snapshot, ctx)
+    tabs = {t["id"]: t for t in sections[-1]["tabs"]}
     assert tabs["exosuit"]["sections"][-1]["row_keys"] == ["exosuit"] * 2
     assert tabs["starship"]["sections"][-1]["row_keys"] == ["ship-0"]
     assert tabs["freighter"]["sections"][-1]["row_keys"] == ["freighter"]
-    assert any(s.get("id") == place_export.EXPORT_ID for s in tabs["exosuit"]["sections"])
+    # Exactly once, outside the tabs: inside every sub-tab the app's focus would jump to the first of them.
+    assert [s.get("id") for s in sections].count(place_export.EXPORT_ID) == 1
+    assert all(place_export.EXPORT_ID not in [s.get("id") for s in t["sections"]] for t in tabs.values())

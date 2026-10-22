@@ -69,7 +69,10 @@ def technology_table(technology: list[dict], texts, title: str, table_id: str | 
     return table
 
 
-RANGE_NOTE = ("Hover a technology for the game's description. Charge is what it holds now; upgrades and passive "
+# The app draws a table's own `row_hint` only where a row is clickable, and a technology row is not - so the
+# copy menu is advertised here, in the tab's note, instead.
+RANGE_NOTE = ("Right-click a technology to copy this loadout, or every inventory and loadout, as TOON or JSON. "
+              "Hover a technology for the game's description. Charge is what it holds now; upgrades and passive "
               "parts need none. For procedural upgrades (B/A/S-class modules) the last column lists every stat the "
               "module can have, with its range: the game draws the module's stats and exact values from its seed and "
               "keeps the result to itself.")

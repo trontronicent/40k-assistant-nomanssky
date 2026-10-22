@@ -280,23 +280,26 @@ class ConnectorPage:
         if not snap:
             return [{"type": "text", "text": "Inventories appear once a save has been read."}]
         columns = self.item_columns()
+        # Above the tabs, so it is read in every sub-tab (a note inside one of them is invisible in the others).
         hint = {"type": "text", "text": "Hover an item's name for its description; trade goods also tell where they "
                                         "sell and whether you know such a system. " + place_export.ROW_HINT}
-        exported = place_export.export_section(self.connector.place_export)
-        tabs = [{"id": "exosuit", "label": "Exosuit", "sections": [hint, *exported,
+        tabs = [{"id": "exosuit", "label": "Exosuit", "sections": [
             self.place_table("Exosuit inventory", "exosuit", snap["exosuit"] + snap["exosuit_cargo"], ctx, columns)]}]
         primary = next((s for s in snap["ships"] if s["primary"]), None)
         if primary:
-            tabs.append({"id": "starship", "label": f"Starship: {primary['name']}", "sections": [*exported,
+            tabs.append({"id": "starship", "label": f"Starship: {primary['name']}", "sections": [
                 self.place_table(f"Starship inventory: {primary['name']}", place_export.ship_key(primary),
                                  primary["inventory"], ctx, columns)]})
-        tabs.append({"id": "freighter", "label": "Freighter", "sections": [*exported,
+        tabs.append({"id": "freighter", "label": "Freighter", "sections": [
             self.place_table("Freighter inventory", "freighter", snap["freighter"]["inventory"], ctx, columns)]})
         tabs.append(self.storage_tab(snap, ctx, columns))
-        tabs.append({"id": "equipment", "label": "Equipment", "sections": [
-            *exported, *equipment.equipment_sections(self.connector.equipment, ctx.texts, place_export.loadout_menu)]})
-        return self.inventory_search_sections(snap, ctx, columns) + [
-            {"type": "tabs", "id": "inventory-tabs", "tabs": tabs}]
+        tabs.append({"id": "equipment", "label": "Equipment", "sections":
+                     equipment.equipment_sections(self.connector.equipment, ctx.texts, place_export.loadout_menu)})
+        # The copied text sits *above* the tabs, not inside each of them: the app opens the tabs that hold the
+        # section it is told to focus, so a copy made in the Equipment tab would otherwise jump to the Exosuit one.
+        return (self.inventory_search_sections(snap, ctx, columns) + [hint]
+                + place_export.export_section(self.connector.place_export)
+                + [{"type": "tabs", "id": "inventory-tabs", "tabs": tabs}])
 
     def place_table(self, title: str, key: str, rows: list[list], ctx, columns: list[str]) -> dict:
         """One inventory as a table whose every row carries that inventory's copy menu, so a right-click
@@ -313,7 +316,7 @@ class ConnectorPage:
         return [
             *ships.ship_sections(c.ships, c.tables.ship_ranges, ctx.texts, place_export.ship_tech_menu),
             *ships.export_section(c.ship_export),
-            *place_export.export_section(c.place_export),
+            *place_export.export_section(c.place_export, place_export.FLEET_EXPORT_ID),
             *frigates.frigate_sections(c.frigates, c.tables.trait_names, ctx.texts,
                                        lambda key: system_label(key, ctx)),
             self.bases_table(snap, ctx),

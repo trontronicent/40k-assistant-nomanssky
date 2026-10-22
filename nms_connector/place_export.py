@@ -30,7 +30,8 @@ EXPORT_ALL_JSON = "export_places_json"
 EXPORT_ACTIONS = (EXPORT_TOON, EXPORT_JSON, EXPORT_ALL_TOON, EXPORT_ALL_JSON)
 ALL_ACTIONS = (EXPORT_ALL_TOON, EXPORT_ALL_JSON)
 JSON_ACTIONS = (EXPORT_JSON, EXPORT_ALL_JSON)
-EXPORT_ID = "place-export"              # the section the copied text is also shown in
+EXPORT_ID = "place-export"              # the section the copied text is also shown in (Inventory tab)
+FLEET_EXPORT_ID = "ship-place-export"   # the same text under Ships & bases (a ship's technology)
 
 INVENTORY = "inventory"
 TECHNOLOGY = "technology"
@@ -57,6 +58,14 @@ class Place:
     kind: str                                   # INVENTORY | TECHNOLOGY
     rows: list = field(default_factory=list)        # inventory: [(item id, amount, max)]
     technology: list = field(default_factory=list)  # loadout: [{id, charge, max}] as equipment.technology_in gives
+
+
+def section_id(key: str) -> str:
+    """Which export section a copy of this place should scroll to. A ship's technology table lives under
+    *Ships & bases*, every other place under *Inventory* - and the app opens the tabs holding the section it
+    is told to focus, so naming the wrong one drags the user into another tab."""
+    clean = str(key or "").strip()
+    return FLEET_EXPORT_ID if clean.startswith("ship-") and clean.endswith("-tech") else EXPORT_ID
 
 
 def menu_keys(key: str, count: int) -> dict:
@@ -172,13 +181,13 @@ def entries(data: dict) -> int:
     return data.get("stacks", data.get("installed", 0))
 
 
-def export_section(state: dict | None) -> list[dict]:
+def export_section(state: dict | None, as_id: str = EXPORT_ID) -> list[dict]:
     """The last copied inventory/loadout export, shown on the page as well as put on the clipboard.
 
     A browser only reaches the clipboard in a secure context (localhost or the tunnel), and the standalone host
     can be opened over a plain LAN address - so the text is always on the page too, to select by hand."""
     if not state:
         return []
-    return [{"type": "text", "id": EXPORT_ID,
+    return [{"type": "text", "id": as_id,
              "title": f"{state['what']} as {state['format']} - {state['chars']:,} characters",
              "text": state["text"]}]
